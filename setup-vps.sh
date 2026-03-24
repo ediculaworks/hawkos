@@ -12,7 +12,7 @@
 set -euo pipefail
 
 CHECKPOINT_FILE="/tmp/hawkos-setup-checkpoint"
-INSTALL_DIR="$HOME/hawkos"
+INSTALL_DIR="/docker/hawkos"
 VPS_IP="168.231.89.31"
 REPO_URL=""  # Set dynamically in step 4
 
