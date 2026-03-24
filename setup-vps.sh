@@ -14,7 +14,7 @@ set -euo pipefail
 CHECKPOINT_FILE="/tmp/hawkos-setup-checkpoint"
 INSTALL_DIR="$HOME/hawkos"
 VPS_IP="168.231.89.31"
-REPO_URL="https://github.com/lucaslimamoraes/hawkos.git"
+REPO_URL=""  # Set dynamically in step 4
 
 # Colors
 RED='\033[0;31m'
@@ -128,8 +128,25 @@ if [ "$start_from" -le 4 ]; then
       warn "Diretório $INSTALL_DIR existe mas não é git repo. Fazendo backup..."
       mv "$INSTALL_DIR" "${INSTALL_DIR}.bak.$(date +%s)"
     fi
+
+    echo ""
+    echo -e "${CYAN}── GitHub Authentication ──${NC}"
+    echo "O repositório é privado. Precisamos de autenticação."
+    echo ""
+    read -p "  GitHub username: " GH_USER
+    read -sp "  GitHub Personal Access Token (ghp_...): " GH_TOKEN
+    echo ""
+
+    REPO_URL="https://${GH_USER}:${GH_TOKEN}@github.com/ediculaworks/hawkos.git"
     git clone "$REPO_URL" "$INSTALL_DIR"
     cd "$INSTALL_DIR"
+
+    # Store credentials for future git pull (without token in remote URL)
+    git remote set-url origin "https://github.com/ediculaworks/hawkos.git"
+    git config credential.helper store
+    echo "https://${GH_USER}:${GH_TOKEN}@github.com" > ~/.git-credentials
+    chmod 600 ~/.git-credentials
+    log "Credenciais Git salvas (git pull futuro não vai pedir senha)"
   fi
   log "Repositório pronto em $INSTALL_DIR"
   save_checkpoint 4
