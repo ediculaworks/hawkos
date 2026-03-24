@@ -1,4 +1,4 @@
-import { getTenantPrivateBySlug } from '@/lib/tenants/cache';
+import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
 import { createTenantClient, tenantStore } from '@hawk/db';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';

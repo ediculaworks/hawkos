@@ -1,4 +1,4 @@
-import { createDecipheriv, createHash } from 'node:crypto';
+// Edge-safe: no node:crypto imports. Used by middleware.
 import { createClient } from '@supabase/supabase-js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -22,36 +22,9 @@ export interface CachedTenantPrivate extends CachedTenant {
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-const publicCache = new Map<string, { tenant: CachedTenant; expiresAt: number }>();
-const privateCache = new Map<string, { tenant: CachedTenantPrivate; expiresAt: number }>();
-let allTenantsCache: { tenants: CachedTenant[]; expiresAt: number } | null = null;
-
-// ── Decryption (same algo as credential-manager.ts) ───────────────────────────
-
-const ALGORITHM = 'aes-256-gcm';
-const TAG_LENGTH = 16;
-const SALT = 'hawk-os-admin-salt-v1';
-
-function deriveKey(masterKey: string): Buffer {
-  return createHash('sha256')
-    .update(masterKey + SALT)
-    .digest();
-}
-
-function decryptServiceKey(encryptedData: string, iv: string, masterKey: string): string {
-  const key = deriveKey(masterKey);
-  const ivBuffer = Buffer.from(iv, 'base64');
-  const combined = Buffer.from(encryptedData, 'base64');
-  const encrypted = combined.slice(0, -TAG_LENGTH);
-  const tag = combined.slice(-TAG_LENGTH);
-
-  const decipher = createDecipheriv(ALGORITHM, key, ivBuffer);
-  decipher.setAuthTag(tag);
-
-  let decrypted = decipher.update(encrypted, undefined, 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-}
+export const publicCache = new Map<string, { tenant: CachedTenant; expiresAt: number }>();
+export const privateCache = new Map<string, { tenant: CachedTenantPrivate; expiresAt: number }>();
+export let allTenantsCache: { tenants: CachedTenant[]; expiresAt: number } | null = null;
 
 // ── Admin Client ──────────────────────────────────────────────────────────────
 
@@ -115,50 +88,6 @@ export async function getAllTenants(): Promise<CachedTenant[]> {
 
   allTenantsCache = { tenants, expiresAt: now + CACHE_TTL_MS };
   return tenants;
-}
-
-// ── Private Queries (server-only — includes service key + agent secrets) ──────
-
-/** Fetch tenant with decrypted secrets — for server components / actions only. */
-export async function getTenantPrivateBySlug(slug: string): Promise<CachedTenantPrivate | null> {
-  const now = Date.now();
-  const cached = privateCache.get(slug);
-  if (cached && cached.expiresAt > now) return cached.tenant;
-
-  const admin = getAdminClient();
-  if (!admin) return null;
-
-  const masterKey = process.env.ADMIN_SUPABASE_SERVICE_KEY || '';
-
-  const { data } = await admin
-    .from('tenants')
-    .select(
-      'slug, label, supabase_url, supabase_anon_key, supabase_service_key_encrypted, supabase_service_key_iv, agent_port, agent_secret',
-    )
-    .eq('slug', slug)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (!data) return null;
-
-  const serviceKey = decryptServiceKey(
-    data.supabase_service_key_encrypted,
-    data.supabase_service_key_iv,
-    masterKey,
-  );
-
-  const tenant: CachedTenantPrivate = {
-    slug: data.slug,
-    label: data.label,
-    supabaseUrl: data.supabase_url,
-    supabaseAnonKey: data.supabase_anon_key,
-    supabaseServiceRoleKey: serviceKey,
-    agentApiPort: data.agent_port,
-    agentApiSecret: data.agent_secret,
-  };
-
-  privateCache.set(slug, { tenant, expiresAt: now + CACHE_TTL_MS });
-  return tenant;
 }
 
 // ── Cache Invalidation ────────────────────────────────────────────────────────

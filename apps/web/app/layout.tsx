@@ -1,5 +1,5 @@
 import { ErrorBoundary } from '@/components/ui/error-boundary';
-import { getTenantPrivateBySlug } from '@/lib/tenants/cache';
+import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { cookies } from 'next/headers';
