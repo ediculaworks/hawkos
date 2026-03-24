@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
+import { requireAdminAuth } from '@/lib/admin-auth';
 import { NextResponse } from 'next/server';
 
 interface MigrateRequest {
@@ -72,6 +73,9 @@ async function tableExists(
 }
 
 export async function POST(request: Request) {
+  const authError = requireAdminAuth(request);
+  if (authError) return authError;
+
   try {
     const body: MigrateRequest = await request.json();
     const { projectRef, target } = body;

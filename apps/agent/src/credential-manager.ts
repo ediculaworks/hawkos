@@ -28,7 +28,7 @@ function deriveKey(masterKey: string): Buffer {
     .digest();
 }
 
-function decryptServiceKey(encryptedData: string, iv: string, masterKey: string): string {
+function decrypt(encryptedData: string, iv: string, masterKey: string): string {
   const key = deriveKey(masterKey);
   const ivBuffer = Buffer.from(iv, 'base64');
   const combined = Buffer.from(encryptedData, 'base64');
@@ -43,6 +43,11 @@ function decryptServiceKey(encryptedData: string, iv: string, masterKey: string)
   decrypted += decipher.final('utf8');
 
   return decrypted;
+}
+
+function decryptJson<T>(encryptedData: string, iv: string, masterKey: string): T {
+  const json = decrypt(encryptedData, iv, masterKey);
+  return JSON.parse(json) as T;
 }
 
 export async function loadTenantCredentials(slot: string): Promise<TenantCredentials> {
@@ -77,18 +82,44 @@ export async function loadTenantCredentials(slot: string): Promise<TenantCredent
     );
   }
 
-  const serviceKey = decryptServiceKey(
+  const serviceKey = decrypt(
     tenant.supabase_service_key_encrypted,
     tenant.supabase_service_key_iv,
     masterKey,
   );
 
+  // Decrypt Discord config (new encrypted format or legacy plain JSONB)
+  let discordConfig: TenantCredentials['discordConfig'];
+  if (tenant.discord_config_encrypted && tenant.discord_config_iv) {
+    discordConfig = decryptJson(
+      tenant.discord_config_encrypted,
+      tenant.discord_config_iv,
+      masterKey,
+    );
+  } else if (tenant.discord_config && !tenant.discord_config._encrypted) {
+    // Legacy: plain JSONB (pre-encryption migration)
+    discordConfig = tenant.discord_config;
+  }
+
+  // Decrypt OpenRouter config (new encrypted format or legacy plain JSONB)
+  let openrouterConfig: TenantCredentials['openrouterConfig'];
+  if (tenant.openrouter_config_encrypted && tenant.openrouter_config_iv) {
+    openrouterConfig = decryptJson(
+      tenant.openrouter_config_encrypted,
+      tenant.openrouter_config_iv,
+      masterKey,
+    );
+  } else if (tenant.openrouter_config && !tenant.openrouter_config._encrypted) {
+    // Legacy: plain JSONB (pre-encryption migration)
+    openrouterConfig = tenant.openrouter_config;
+  }
+
   return {
     supabaseUrl: tenant.supabase_url,
     supabaseAnonKey: tenant.supabase_anon_key,
     supabaseServiceKey: serviceKey,
-    discordConfig: tenant.discord_config,
-    openrouterConfig: tenant.openrouter_config,
+    discordConfig,
+    openrouterConfig,
   };
 }
 

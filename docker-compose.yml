@@ -9,6 +9,24 @@
 #   docker compose up -d agent-ten1   # start single agent
 #   docker compose logs -f agent-ten1 # follow agent logs
 
+x-agent-defaults: &agent-defaults
+  build:
+    context: .
+    dockerfile: Dockerfile.agent
+  env_file: .env
+  restart: unless-stopped
+  deploy:
+    resources:
+      limits:
+        memory: 512M
+  volumes:
+    - backups:/data/backups
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   # ── Next.js Dashboard (shared by all tenants) ──────────────────────────
   web:
@@ -17,84 +35,94 @@ services:
       dockerfile: Dockerfile.web
     env_file: .env
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.hawkos.rule=Host(`hawk.lucaslimamoraes.com`)"
-      - "traefik.http.routers.hawkos.tls.certresolver=letsencrypt"
-      - "traefik.http.services.hawkos.loadbalancer.server.port=3000"
-    networks:
-      - traefik
+    ports:
+      - "80:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ── Agent Instances (one per tenant) ───────────────────────────────────
   # Each agent reads AGENT_SLOT → queries Admin Supabase → decrypts tenant
   # credentials → connects to tenant's Supabase, Discord, OpenRouter.
 
   agent-ten1:
-    build:
-      context: .
-      dockerfile: Dockerfile.agent
-    env_file: .env
+    <<: *agent-defaults
     environment:
       - AGENT_SLOT=ten1
-    restart: unless-stopped
-    networks:
-      - traefik
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   agent-ten2:
-    build:
-      context: .
-      dockerfile: Dockerfile.agent
-    env_file: .env
+    <<: *agent-defaults
     environment:
       - AGENT_SLOT=ten2
-    restart: unless-stopped
-    networks:
-      - traefik
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   agent-ten3:
-    build:
-      context: .
-      dockerfile: Dockerfile.agent
-    env_file: .env
+    <<: *agent-defaults
     environment:
       - AGENT_SLOT=ten3
-    restart: unless-stopped
-    networks:
-      - traefik
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   agent-ten4:
-    build:
-      context: .
-      dockerfile: Dockerfile.agent
-    env_file: .env
+    <<: *agent-defaults
     environment:
       - AGENT_SLOT=ten4
-    restart: unless-stopped
-    networks:
-      - traefik
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   agent-ten5:
-    build:
-      context: .
-      dockerfile: Dockerfile.agent
-    env_file: .env
+    <<: *agent-defaults
     environment:
       - AGENT_SLOT=ten5
-    restart: unless-stopped
-    networks:
-      - traefik
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   agent-ten6:
-    build:
-      context: .
-      dockerfile: Dockerfile.agent
-    env_file: .env
+    <<: *agent-defaults
     environment:
       - AGENT_SLOT=ten6
-    restart: unless-stopped
-    networks:
-      - traefik
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
-networks:
-  traefik:
-    external: true
+volumes:
+  backups:
+    driver: local

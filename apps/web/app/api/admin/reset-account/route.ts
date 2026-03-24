@@ -1,3 +1,4 @@
+import { requireAdminAuth } from '@/lib/admin-auth';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
@@ -10,6 +11,9 @@ interface ResetAccountRequest {
 }
 
 export async function POST(request: Request) {
+  const authError = requireAdminAuth(request);
+  if (authError) return authError;
+
   try {
     const body: ResetAccountRequest = await request.json();
     const { email, password, supabaseUrl, supabaseAnonKey, supabaseServiceKey } = body;

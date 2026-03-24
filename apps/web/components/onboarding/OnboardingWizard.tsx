@@ -82,7 +82,10 @@ export function OnboardingWizard({ slots: _slots }: Props) {
     if (!mounted) return;
     try {
       const { password: _pw, ...safeData } = formData;
-      localStorage.setItem('hawk-onboarding-draft', JSON.stringify({ ...safeData, _step: currentStepIndex }));
+      localStorage.setItem(
+        'hawk-onboarding-draft',
+        JSON.stringify({ ...safeData, _step: currentStepIndex }),
+      );
     } catch {}
   }, [formData, currentStepIndex, mounted]);
 

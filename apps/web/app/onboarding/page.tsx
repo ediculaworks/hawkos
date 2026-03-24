@@ -2,9 +2,43 @@
 
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 import { EASE } from '@/lib/animations/constants';
+import type { TenantSlot } from '@/lib/onboarding/types';
+import { Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useEffect, useState } from 'react';
+
+interface SlotData {
+  slot_number: number;
+  slot_name: string;
+  status: 'available' | 'occupied' | 'pending';
+  tenant_label?: string;
+}
 
 export default function OnboardingPage() {
+  const [slots, setSlots] = useState<TenantSlot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [availableCount, setAvailableCount] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/admin/slots')
+      .then((res) => res.json())
+      .then((data) => {
+        const mapped: TenantSlot[] = (data.slots || []).map((s: SlotData) => ({
+          name: s.slot_name,
+          configured: s.status !== 'available',
+          occupied: s.status === 'occupied',
+          occupiedBy: s.tenant_label,
+        }));
+        setSlots(mapped);
+        setAvailableCount(data.available ?? 0);
+      })
+      .catch(() => {
+        // If admin slots endpoint fails, allow onboarding anyway (auto-assigns)
+        setAvailableCount(6);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[var(--color-surface-0)] p-4">
       <div className="pointer-events-none absolute inset-0">
@@ -48,11 +82,26 @@ export default function OnboardingPage() {
             <p className="mt-1 text-sm text-[var(--color-text-muted)]">Configure seu workspace</p>
           </div>
 
-          <OnboardingWizard slots={[]} />
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-[var(--color-text-muted)]" />
+            </div>
+          ) : availableCount === 0 ? (
+            <div className="py-16 text-center space-y-2">
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                Todos os slots estão ocupados
+              </p>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                O sistema suporta no máximo 6 workspaces. Entre em contato com o administrador.
+              </p>
+            </div>
+          ) : (
+            <OnboardingWizard slots={slots} />
+          )}
         </div>
 
         <p className="mt-4 text-center text-[10px] text-[var(--color-text-muted)]">
-          hawk-os • {new Date().getFullYear()}
+          hawk-os &bull; {new Date().getFullYear()}
         </p>
       </motion.div>
     </div>

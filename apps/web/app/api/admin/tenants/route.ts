@@ -1,4 +1,5 @@
 import { createCipheriv, createHash, randomBytes } from 'node:crypto';
+import { requireAdminAuth } from '@/lib/admin-auth';
 import { invalidateTenantCache } from '@/lib/tenants/cache';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
@@ -57,6 +58,14 @@ function encrypt(text: string, masterKey: string): { encrypted: string; iv: stri
   };
 }
 
+function encryptJson(
+  data: Record<string, unknown>,
+  masterKey: string,
+): { encrypted: string; iv: string } {
+  const json = JSON.stringify(data);
+  return encrypt(json, masterKey);
+}
+
 function generateAgentSecret(): string {
   return randomBytes(32).toString('hex');
 }
@@ -103,8 +112,8 @@ DISCORD_AUTHORIZED_USER_ID=${t.discord_config?.user_id || ''}
 
 # App
 NODE_ENV=production
-APP_URL=http://localhost:3000
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+APP_URL=${process.env.APP_URL || 'http://localhost:3000'}
+NEXT_PUBLIC_APP_URL=${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}
 
 # Heartbeat
 HEARTBEAT_PROFILE=companion
@@ -129,6 +138,9 @@ HEARTBEAT_ACTIVE_HOURS=08:00-22:00
 }
 
 export async function POST(request: Request) {
+  const authError = requireAdminAuth(request);
+  if (authError) return authError;
+
   try {
     const body: TenantInput = await request.json();
     const supabase = getAdminClient();
@@ -162,6 +174,14 @@ export async function POST(request: Request) {
     const masterKey = process.env.ADMIN_SUPABASE_SERVICE_KEY!;
     const { encrypted, iv } = encrypt(body.supabaseServiceKey, masterKey);
 
+    // Encrypt Discord and OpenRouter configs (contain sensitive tokens/keys)
+    const discordData = body.discordConfig || {};
+    const openrouterData = body.openrouterConfig || {};
+    const discordEncrypted =
+      Object.keys(discordData).length > 0 ? encryptJson(discordData, masterKey) : null;
+    const openrouterEncrypted =
+      Object.keys(openrouterData).length > 0 ? encryptJson(openrouterData, masterKey) : null;
+
     // Upsert tenant (handles re-runs of onboarding for the same Supabase URL)
     const { data: tenant, error } = await supabase
       .from('tenants')
@@ -173,8 +193,12 @@ export async function POST(request: Request) {
           supabase_anon_key: body.supabaseAnonKey,
           supabase_service_key_encrypted: encrypted,
           supabase_service_key_iv: iv,
-          discord_config: body.discordConfig || {},
-          openrouter_config: body.openrouterConfig || {},
+          discord_config: discordEncrypted ? { _encrypted: true } : {},
+          discord_config_encrypted: discordEncrypted?.encrypted ?? null,
+          discord_config_iv: discordEncrypted?.iv ?? null,
+          openrouter_config: openrouterEncrypted ? { _encrypted: true } : {},
+          openrouter_config_encrypted: openrouterEncrypted?.encrypted ?? null,
+          openrouter_config_iv: openrouterEncrypted?.iv ?? null,
           agent_port: agentPort,
           agent_secret: agentSecret,
           status: 'active',
@@ -233,8 +257,8 @@ NEXT_PUBLIC_AGENT_API_TOKEN=${agentSecret}
 # App
 # =============================================================================
 NODE_ENV=production
-APP_URL=http://localhost:3000
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+APP_URL=${process.env.APP_URL || 'http://localhost:3000'}
+NEXT_PUBLIC_APP_URL=${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}
 
 # Heartbeat
 HEARTBEAT_PROFILE=companion

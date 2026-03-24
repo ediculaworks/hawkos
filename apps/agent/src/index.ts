@@ -6,6 +6,7 @@ import cron, { type ScheduledTask } from 'node-cron';
 import { stopApiServer } from './api/server.js';
 import { startAlertsCron } from './automations/alerts.js';
 import { setAnalyticsNotifier, startAnalyticsCrons } from './automations/analytics.js';
+import { startBackupCron } from './automations/backup.js';
 import { startContentPipelineCron } from './automations/content-pipeline.js';
 import { startCheckinCrons } from './automations/daily-checkin.js';
 import { setDemandBroadcast, startDemandExecutorCron } from './automations/demand-executor.js';
@@ -14,6 +15,7 @@ import { startGapScannerCron } from './automations/gap-scanner.js';
 import { startHealthInsightsCron } from './automations/health-insights.js';
 import { startHeartbeatCron } from './automations/heartbeat.js';
 import { startJobMonitorCron } from './automations/job-monitor.js';
+import { startMonitorCron } from './automations/monitor.js';
 import { startNetWorthSnapshotCron } from './automations/net-worth-snapshot.js';
 import { runSessionCompactor } from './automations/session-compactor.js';
 import { startStreakGuardianCron } from './automations/streak-guardian.js';
@@ -97,6 +99,8 @@ async function main() {
   startHeartbeatCron();
   startJobMonitorCron();
   startExtensionSyncCron();
+  startBackupCron();
+  startMonitorCron();
   // Wire demand executor with WebSocket broadcast
   const { broadcast: wsBroadcast } = await import('./api/server.js');
   setDemandBroadcast((type, data) => wsBroadcast(type, data));
