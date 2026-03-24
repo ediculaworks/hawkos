@@ -1,0 +1,21 @@
+{
+  "name": "@hawk/module-health",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./queries": "./queries.ts",
+    "./types": "./types.ts",
+    "./context": "./context.ts",
+    "./commands": "./commands.ts",
+    "./analytics": "./analytics.ts",
+    "./predictor": "./predictor.ts"
+  },
+  "dependencies": {
+    "@hawk/db": "workspace:*",
+    "@hawk/shared": "workspace:*",
+    "discord.js": "^14.25.1"
+  }
+}

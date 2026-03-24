@@ -1,0 +1,25 @@
+{
+  "name": "@hawk/module-memory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./queries": "./queries.ts",
+    "./types": "./types.ts",
+    "./context": "./context.ts",
+    "./embeddings": "./embeddings.ts",
+    "./retrieval": "./retrieval.ts",
+    "./deduplicator": "./deduplicator.ts",
+    "./session-commit": "./session-commit.ts",
+    "./importance-scorer": "./importance-scorer.ts",
+    "./rule-extractor": "./rule-extractor.ts",
+    "./adaptive": "./adaptive.ts"
+  },
+  "dependencies": {
+    "@hawk/db": "workspace:*",
+    "@hawk/shared": "workspace:*",
+    "openai": "^4.82.0"
+  }
+}

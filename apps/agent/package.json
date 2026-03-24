@@ -1,0 +1,46 @@
+{
+  "name": "hawk-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cd ../.. && bun --watch --env-file=.env apps/agent/src/index.ts",
+    "dev:simple": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "start": "bun run dist/index.js",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@hawk/context-engine": "workspace:*",
+    "@hawk/db": "workspace:*",
+    "@hawk/extensions": "workspace:*",
+    "@hawk/module-calendar": "workspace:*",
+    "@hawk/module-demands": "workspace:*",
+    "@hawk/module-finances": "workspace:*",
+    "@hawk/module-journal": "workspace:*",
+    "@hawk/module-objectives": "workspace:*",
+    "@hawk/module-routine": "workspace:*",
+    "@hawk/module-people": "workspace:*",
+    "@hawk/module-career": "workspace:*",
+    "@hawk/module-legal": "workspace:*",
+    "@hawk/module-knowledge": "workspace:*",
+    "@hawk/module-assets": "workspace:*",
+    "@hawk/module-housing": "workspace:*",
+    "@hawk/module-security": "workspace:*",
+    "@hawk/module-entertainment": "workspace:*",
+    "@hawk/module-social": "workspace:*",
+    "@hawk/module-spirituality": "workspace:*",
+    "@hawk/module-health": "workspace:*",
+    "@hawk/module-memory": "workspace:*",
+    "@hawk/shared": "workspace:*",
+    "@supabase/supabase-js": "^2.49.0",
+    "discord.js": "^14.18.0",
+    "node-cron": "^4.2.1",
+    "openai": "^4.87.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node-cron": "^3.0.11",
+    "typescript": "^5.7.0"
+  }
+}

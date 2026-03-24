@@ -1,0 +1,7 @@
+{
+  "autoUpdate": true,
+  "updateSchedule": "0 3 * * *",
+  "updateUrl": "https://REPLACE_VPS_URL/hawk-os.tar.gz",
+  "dashboardPort": 3000,
+  "agentApiPort": 3001
+}

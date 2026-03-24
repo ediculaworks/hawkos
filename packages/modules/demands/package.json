@@ -1,0 +1,21 @@
+{
+  "name": "@hawk/module-demands",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./queries": "./queries.ts",
+    "./types": "./types.ts",
+    "./context": "./context.ts",
+    "./triage": "./triage.ts",
+    "./engine": "./engine.ts"
+  },
+  "dependencies": {
+    "@hawk/db": "workspace:*",
+    "@hawk/shared": "workspace:*",
+    "discord.js": "^14.25.1",
+    "openai": "^4.87.0"
+  }
+}

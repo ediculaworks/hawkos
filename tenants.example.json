@@ -1,0 +1,22 @@
+{
+  "tenants": [
+    {
+      "slug": "user1",
+      "label": "User 1",
+      "supabaseUrl": "https://your-project-1.supabase.co",
+      "supabaseAnonKey": "eyJ...",
+      "supabaseServiceRoleKey": "eyJ...",
+      "agentApiPort": 3001,
+      "agentApiSecret": "generate-a-random-secret"
+    },
+    {
+      "slug": "user2",
+      "label": "User 2",
+      "supabaseUrl": "https://your-project-2.supabase.co",
+      "supabaseAnonKey": "eyJ...",
+      "supabaseServiceRoleKey": "eyJ...",
+      "agentApiPort": 3002,
+      "agentApiSecret": "generate-another-secret"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+.next
+.turbo
+out
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Secrets / Personal data
+resources/user/
+tenants.json
+.env.*
+!.env.example
+!.env.example.*
+*.ten1
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Bun
+bun.lock
+
+# Docker
+*.env.docker
+
+# Binaries / Installers
+*.exe
+*.tar.gz
+*.msi
+*.dmg
+
+# Reference repos (local only)
+resources/repositories/
+
+# Supabase CLI local
+supabase/.temp/
+
+# Claude Code local state
+.claude/agent-memory/
+.claude/settings.local.json
+
+# Temp files
+temp_*

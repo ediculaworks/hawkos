@@ -1,0 +1,26 @@
+{
+  "name": "@hawk/extensions",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./core/index.ts",
+  "exports": {
+    ".": "./core/index.ts",
+    "./core": "./core/index.ts",
+    "./core/types": "./core/types.ts",
+    "./core/registry": "./core/registry.ts",
+    "./core/credentials": "./core/credentials.ts",
+    "./core/oauth": "./core/oauth.ts",
+    "./github": "./github/index.ts",
+    "./clickup": "./clickup/index.ts",
+    "./setup": "./setup.ts",
+    "./github/queries": "./github/queries.ts",
+    "./github/sync": "./github/sync.ts",
+    "./clickup/queries": "./clickup/queries.ts",
+    "./clickup/sync": "./clickup/sync.ts"
+  },
+  "dependencies": {
+    "@hawk/db": "workspace:*",
+    "@hawk/shared": "workspace:*"
+  }
+}

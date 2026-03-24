@@ -1,0 +1,480 @@
+'use client';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { OPENROUTER_MODELS } from '@/lib/onboarding/types';
+import { CheckCircle, ChevronDown, ChevronUp, ExternalLink, Loader2, XCircle } from 'lucide-react';
+import { useState } from 'react';
+
+type TestStatus = 'idle' | 'loading' | 'ok' | 'error';
+
+interface Step3IntegrationsProps {
+  onNext: (data: {
+    supabaseUrl: string;
+    anonKey: string;
+    serviceRoleKey: string;
+    openrouter: { apiKey: string; model?: string };
+    discord?: {
+      botToken: string;
+      clientId: string;
+      guildId: string;
+      channelId: string;
+      userId: string;
+    };
+  }) => void;
+  onBack: () => void;
+  initialValues?: {
+    supabaseUrl?: string;
+    anonKey?: string;
+    serviceRoleKey?: string;
+    openrouter?: { apiKey?: string; model?: string };
+    discord?: {
+      botToken?: string;
+      clientId?: string;
+      guildId?: string;
+      channelId?: string;
+      userId?: string;
+    };
+  };
+}
+
+function ConnectionBadge({ status, error }: { status: TestStatus; error?: string }) {
+  if (status === 'loading')
+    return <Loader2 className="h-4 w-4 animate-spin text-[var(--color-accent)]" />;
+  if (status === 'ok') return <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />;
+  if (status === 'error')
+    return (
+      <div className="flex items-center gap-1.5">
+        <XCircle className="h-4 w-4 shrink-0 text-[var(--color-danger)]" />
+        {error && <span className="text-xs text-[var(--color-danger)] leading-tight">{error}</span>}
+      </div>
+    );
+  return null;
+}
+
+export function Step3Integrations({ onNext, onBack, initialValues }: Step3IntegrationsProps) {
+  const [supabase, setSupabase] = useState({
+    url: initialValues?.supabaseUrl ?? '',
+    anonKey: initialValues?.anonKey ?? '',
+    serviceKey: initialValues?.serviceRoleKey ?? '',
+  });
+  const [supabaseStatus, setSupabaseStatus] = useState<TestStatus>('idle');
+  const [supabaseError, setSupabaseError] = useState('');
+
+  const [openrouter, setOpenrouter] = useState({
+    apiKey: initialValues?.openrouter?.apiKey ?? '',
+    model: initialValues?.openrouter?.model ?? 'nvidia/nemotron-3-super-120b-a12b:free',
+  });
+  const [manualModel, setManualModel] = useState('');
+  const [openrouterStatus, setOpenrouterStatus] = useState<TestStatus>('idle');
+  const [openrouterError, setOpenrouterError] = useState('');
+
+  const [discordExpanded, setDiscordExpanded] = useState(!!initialValues?.discord?.botToken);
+  const [discord, setDiscord] = useState({
+    botToken: initialValues?.discord?.botToken ?? '',
+    clientId: initialValues?.discord?.clientId ?? '',
+    guildId: initialValues?.discord?.guildId ?? '',
+    channelId: initialValues?.discord?.channelId ?? '',
+    userId: initialValues?.discord?.userId ?? '',
+  });
+  const [discordStatus, setDiscordStatus] = useState<TestStatus>('idle');
+  const [discordError, setDiscordError] = useState('');
+
+  const testSupabase = async () => {
+    const url = supabase.url.trim();
+    if (!url || !supabase.anonKey || !supabase.serviceKey) {
+      setSupabaseError('Preencha todos os campos');
+      setSupabaseStatus('error');
+      return;
+    }
+    setSupabaseStatus('loading');
+    setSupabaseError('');
+    try {
+      const res = await fetch('/api/admin/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supabaseUrl: url,
+          supabaseAnonKey: supabase.anonKey,
+          supabaseServiceKey: supabase.serviceKey,
+        }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setSupabaseStatus('ok');
+      } else {
+        setSupabaseStatus('error');
+        setSupabaseError(data.error || 'Falha na conexão');
+      }
+    } catch {
+      setSupabaseStatus('error');
+      setSupabaseError('Erro ao testar conexão');
+    }
+  };
+
+  const testOpenRouter = async () => {
+    if (!openrouter.apiKey.trim()) {
+      setOpenrouterError('Preencha a API key');
+      setOpenrouterStatus('error');
+      return;
+    }
+    setOpenrouterStatus('loading');
+    setOpenrouterError('');
+    try {
+      const res = await fetch('/api/admin/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ openrouterApiKey: openrouter.apiKey.trim() }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setOpenrouterStatus('ok');
+      } else {
+        setOpenrouterStatus('error');
+        setOpenrouterError(data.error || 'API key inválida');
+      }
+    } catch {
+      setOpenrouterStatus('error');
+      setOpenrouterError('Erro ao testar API key');
+    }
+  };
+
+  const testDiscord = async () => {
+    if (!discord.botToken.trim()) {
+      setDiscordError('Preencha o Bot Token');
+      setDiscordStatus('error');
+      return;
+    }
+    setDiscordStatus('loading');
+    setDiscordError('');
+    try {
+      const res = await fetch('/api/admin/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ discordBotToken: discord.botToken.trim() }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setDiscordStatus('ok');
+      } else {
+        setDiscordStatus('error');
+        setDiscordError(data.error || 'Token inválido');
+      }
+    } catch {
+      setDiscordStatus('error');
+      setDiscordError('Erro ao testar Discord');
+    }
+  };
+
+  const canContinue = supabaseStatus === 'ok' && openrouterStatus === 'ok';
+
+  const handleSubmit = () => {
+    if (!canContinue) return;
+    const resolvedModel = openrouter.model === '__manual__' ? manualModel.trim() : openrouter.model;
+    onNext({
+      supabaseUrl: supabase.url.trim(),
+      anonKey: supabase.anonKey.trim(),
+      serviceRoleKey: supabase.serviceKey.trim(),
+      openrouter: { apiKey: openrouter.apiKey.trim(), model: resolvedModel },
+      discord: discord.botToken.trim() ? discord : undefined,
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Supabase */}
+      <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-accent)]/30 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-medium text-[var(--color-text-primary)] flex items-center gap-2">
+              Supabase
+              <span className="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)]">
+                Obrigatório
+              </span>
+            </h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+              <a
+                href="https://supabase.com/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--color-accent)] hover:underline inline-flex items-center gap-1"
+              >
+                supabase.com → Settings → API <ExternalLink className="h-3 w-3" />
+              </a>
+            </p>
+          </div>
+          <div className="mt-0.5 shrink-0">
+            <ConnectionBadge status={supabaseStatus} />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+            Project URL
+          </label>
+          <Input
+            placeholder="https://xxxx.supabase.co"
+            value={supabase.url}
+            onChange={(e) => {
+              let url = e.target.value.trim();
+              if (url && !url.startsWith('http://') && !url.startsWith('https://'))
+                url = `https://${url}`;
+              setSupabase({ ...supabase, url });
+              setSupabaseStatus('idle');
+            }}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+            Anon / Public Key
+          </label>
+          <Input
+            placeholder="eyJ..."
+            value={supabase.anonKey}
+            onChange={(e) => {
+              setSupabase({ ...supabase, anonKey: e.target.value.trim() });
+              setSupabaseStatus('idle');
+            }}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+            Service Role Key
+          </label>
+          <Input
+            type="password"
+            placeholder="eyJ..."
+            value={supabase.serviceKey}
+            onChange={(e) => {
+              setSupabase({ ...supabase, serviceKey: e.target.value.trim() });
+              setSupabaseStatus('idle');
+            }}
+          />
+        </div>
+        {supabaseStatus === 'error' && supabaseError && (
+          <p className="text-xs text-[var(--color-danger)]">{supabaseError}</p>
+        )}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={testSupabase}
+          disabled={
+            supabaseStatus === 'loading' ||
+            !supabase.url ||
+            !supabase.anonKey ||
+            !supabase.serviceKey
+          }
+          className="w-full"
+        >
+          {supabaseStatus === 'loading' && <Loader2 className="h-3 w-3 animate-spin mr-2" />}
+          {supabaseStatus === 'ok' ? '✓ Conectado' : 'Testar conexão'}
+        </Button>
+      </div>
+
+      {/* OpenRouter */}
+      <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-accent)]/30 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-medium text-[var(--color-text-primary)] flex items-center gap-2">
+              OpenRouter
+              <span className="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)]">
+                Obrigatório
+              </span>
+            </h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+              <a
+                href="https://openrouter.ai/keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--color-accent)] hover:underline inline-flex items-center gap-1"
+              >
+                openrouter.ai → API Keys <ExternalLink className="h-3 w-3" />
+              </a>
+            </p>
+          </div>
+          <div className="mt-0.5 shrink-0">
+            <ConnectionBadge status={openrouterStatus} />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+            API Key
+          </label>
+          <Input
+            type="password"
+            placeholder="sk-or-v1-..."
+            value={openrouter.apiKey}
+            onChange={(e) => {
+              setOpenrouter({ ...openrouter, apiKey: e.target.value });
+              setOpenrouterStatus('idle');
+            }}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+            Modelo (gratuitos)
+          </label>
+          <select
+            value={openrouter.model}
+            onChange={(e) => setOpenrouter({ ...openrouter, model: e.target.value })}
+            className="flex h-10 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+          >
+            {OPENROUTER_MODELS.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.label}
+              </option>
+            ))}
+          </select>
+          {openrouter.model === '__manual__' && (
+            <Input
+              className="mt-2"
+              placeholder="ex: anthropic/claude-sonnet-4-5"
+              value={manualModel}
+              onChange={(e) => setManualModel(e.target.value.trim())}
+            />
+          )}
+        </div>
+        {openrouterStatus === 'error' && openrouterError && (
+          <p className="text-xs text-[var(--color-danger)]">{openrouterError}</p>
+        )}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={testOpenRouter}
+          disabled={openrouterStatus === 'loading' || !openrouter.apiKey}
+          className="w-full"
+        >
+          {openrouterStatus === 'loading' && <Loader2 className="h-3 w-3 animate-spin mr-2" />}
+          {openrouterStatus === 'ok' ? '✓ Conectado' : 'Testar API key'}
+        </Button>
+      </div>
+
+      {/* Discord (optional) */}
+      <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border)] space-y-3">
+        <button
+          type="button"
+          onClick={() => setDiscordExpanded(!discordExpanded)}
+          className="w-full flex items-center justify-between"
+        >
+          <div>
+            <h3 className="text-sm font-medium text-[var(--color-text-primary)] flex items-center gap-2">
+              Discord
+              <span className="text-xs px-2 py-0.5 rounded bg-[var(--color-surface-2)] text-[var(--color-text-muted)]">
+                Opcional
+              </span>
+              {discordStatus === 'ok' && (
+                <CheckCircle className="h-3.5 w-3.5 text-[var(--color-success)]" />
+              )}
+            </h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5 text-left">
+              Interface de chat do agente
+            </p>
+          </div>
+          {discordExpanded ? (
+            <ChevronUp className="h-4 w-4 text-[var(--color-text-muted)] shrink-0" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-[var(--color-text-muted)] shrink-0" />
+          )}
+        </button>
+
+        {discordExpanded && (
+          <div className="space-y-3 pt-1">
+            <p className="text-xs text-[var(--color-text-muted)]">
+              <a
+                href="https://discord.com/developers/applications"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--color-accent)] hover:underline inline-flex items-center gap-1"
+              >
+                discord.com/developers → Applications <ExternalLink className="h-3 w-3" />
+              </a>
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+                Bot Token
+              </label>
+              <Input
+                type="password"
+                placeholder="MTIz... (Bot → Token)"
+                value={discord.botToken}
+                onChange={(e) => {
+                  setDiscord({ ...discord, botToken: e.target.value });
+                  setDiscordStatus('idle');
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+                Client ID
+              </label>
+              <Input
+                placeholder="123456789 (General → App ID)"
+                value={discord.clientId}
+                onChange={(e) => setDiscord({ ...discord, clientId: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+                Guild / Server ID
+              </label>
+              <Input
+                placeholder="123456789 (Server Settings → Widget)"
+                value={discord.guildId}
+                onChange={(e) => setDiscord({ ...discord, guildId: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+                Channel ID
+              </label>
+              <Input
+                placeholder="123456789 (Right-click channel → Copy ID)"
+                value={discord.channelId}
+                onChange={(e) => setDiscord({ ...discord, channelId: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+                Seu User ID
+              </label>
+              <Input
+                placeholder="123456789 (Right-click seu nome → Copy ID)"
+                value={discord.userId}
+                onChange={(e) => setDiscord({ ...discord, userId: e.target.value })}
+              />
+            </div>
+            {discordStatus === 'error' && discordError && (
+              <p className="text-xs text-[var(--color-danger)]">{discordError}</p>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={testDiscord}
+              disabled={discordStatus === 'loading' || !discord.botToken}
+              className="w-full"
+            >
+              {discordStatus === 'loading' && <Loader2 className="h-3 w-3 animate-spin mr-2" />}
+              {discordStatus === 'ok' ? '✓ Bot online' : 'Testar Discord'}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {!canContinue && (supabaseStatus !== 'idle' || openrouterStatus !== 'idle') && (
+        <p className="text-xs text-[var(--color-text-muted)] text-center">
+          Teste as conexões de Supabase e OpenRouter para continuar.
+        </p>
+      )}
+
+      <div className="flex justify-between pt-2">
+        <Button variant="ghost" onClick={onBack}>
+          ← Voltar
+        </Button>
+        <Button onClick={handleSubmit} disabled={!canContinue}>
+          Próximo →
+        </Button>
+      </div>
+    </div>
+  );
+}

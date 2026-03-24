@@ -1,0 +1,48 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(*)",
+      "Write(*)",
+      "Read(*)",
+      "Bash(bun *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(ls *)",
+      "Bash(curl http://*)",
+      "Bash(node *)",
+      "Bash(bun biome:*)",
+      "Bash(find c:/Users/lucas/Desktop/LifeOS/apps/web/components/ui -type f -name *.tsx)",
+      "Bash(biome check:*)",
+      "Bash(npx biome:*)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(find c:UserslucasDesktopLifeOSresources -type f -name *.md)",
+      "Bash(xargs wc:*)",
+      "Bash(find c:UserslucasDesktopLifeOSresourcesplanning -type f -name *.md)",
+      "WebFetch(domain:github.com)",
+      "Bash(grep -E \"\\\\.\\(ts|js|py\\)$\")",
+      "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
+      "Bash(find c:/Users/lucas/Desktop/LifeOS/resources/repositories/openclaw/src/agents/tools -type f -name *.ts)",
+      "Bash(find /c/Users/lucas/Desktop/LifeOS -maxdepth 1 -type f \\\\\\(-name Dockerfile -o -name docker-compose.yml -o -name *.sh -o -name *.json \\\\\\))",
+      "Bash(find /c/Users/lucas/Desktop/LifeOS -maxdepth 2 -type f \\\\\\(-name *install* -o -name *setup* -o -name *.sh \\\\\\))"
+    ],
+    "deny": ["Read(./secrets/**)", "Bash(npm publish *)"],
+    "ask": ["Bash(git push *)", "Bash(git commit *)", "Bash(rm *)", "Bash(bun db:migrate)"],
+    "additionalDirectories": ["c:\\Users\\lucas\\Desktop\\LifeOS\\apps\\agent"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "biome check --write --files-ignore-unknown=true $CLAUDE_FILE_PATHS",
+            "timeout": 10000
+          }
+        ]
+      }
+    ]
+  }
+}

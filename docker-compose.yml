@@ -1,0 +1,100 @@
+# Hawk OS — Multi-Tenant Docker Compose
+# 1 Web Dashboard + N Agent instances
+# All services share the same .env with Admin Supabase credentials.
+# Each agent differentiates by AGENT_SLOT (ten1-ten6).
+#
+# Usage:
+#   docker compose up -d              # start all
+#   docker compose up -d web          # start web only
+#   docker compose up -d agent-ten1   # start single agent
+#   docker compose logs -f agent-ten1 # follow agent logs
+
+services:
+  # ── Next.js Dashboard (shared by all tenants) ──────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    env_file: .env
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hawkos.rule=Host(`hawk.lucaslimamoraes.com`)"
+      - "traefik.http.routers.hawkos.tls.certresolver=letsencrypt"
+      - "traefik.http.services.hawkos.loadbalancer.server.port=3000"
+    networks:
+      - traefik
+
+  # ── Agent Instances (one per tenant) ───────────────────────────────────
+  # Each agent reads AGENT_SLOT → queries Admin Supabase → decrypts tenant
+  # credentials → connects to tenant's Supabase, Discord, OpenRouter.
+
+  agent-ten1:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    env_file: .env
+    environment:
+      - AGENT_SLOT=ten1
+    restart: unless-stopped
+    networks:
+      - traefik
+
+  agent-ten2:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    env_file: .env
+    environment:
+      - AGENT_SLOT=ten2
+    restart: unless-stopped
+    networks:
+      - traefik
+
+  agent-ten3:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    env_file: .env
+    environment:
+      - AGENT_SLOT=ten3
+    restart: unless-stopped
+    networks:
+      - traefik
+
+  agent-ten4:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    env_file: .env
+    environment:
+      - AGENT_SLOT=ten4
+    restart: unless-stopped
+    networks:
+      - traefik
+
+  agent-ten5:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    env_file: .env
+    environment:
+      - AGENT_SLOT=ten5
+    restart: unless-stopped
+    networks:
+      - traefik
+
+  agent-ten6:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    env_file: .env
+    environment:
+      - AGENT_SLOT=ten6
+    restart: unless-stopped
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true
