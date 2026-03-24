@@ -7,6 +7,7 @@ config({ path: resolve(process.cwd(), '../../.env') });
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  outputFileTracingRoot: resolve(process.cwd(), '../../'),
   transpilePackages: [
     '@hawk/db',
     '@hawk/shared',
