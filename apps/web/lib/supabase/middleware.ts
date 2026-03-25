@@ -86,6 +86,7 @@ export async function updateSession(request: NextRequest) {
     const { data: profile } = (await supabase
       .from('profile')
       .select('onboarding_complete')
+      .eq('id', user.id)
       .maybeSingle()) as { data: { onboarding_complete?: boolean } | null };
 
     const onboardingComplete = profile?.onboarding_complete ?? false;
