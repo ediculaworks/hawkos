@@ -52,6 +52,38 @@ const INITIAL_STEPS: ConfigStep[] = [
   { label: 'Verificando instalação', status: 'pending' },
 ];
 
+async function readNdjsonStream(
+  res: Response,
+  onEvent: (event: Record<string, unknown>) => void,
+): Promise<void> {
+  if (!res.body) throw new Error(`HTTP ${res.status}: sem corpo na resposta`);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(line) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+      onEvent(event);
+    }
+  }
+  if (buffer.trim()) {
+    try {
+      onEvent(JSON.parse(buffer) as Record<string, unknown>);
+    } catch {}
+  }
+}
+
 export function Step5Configure({ formData, onComplete, onError }: Step5ConfigureProps) {
   const [phase, setPhase] = useState<Phase>('confirm');
   const [steps, setSteps] = useState<ConfigStep[]>(INITIAL_STEPS);
@@ -123,10 +155,13 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
         });
         if (adminMigRes.status === 501) {
           setStepStatus(1, 'done', 'pulado (sem SUPABASE_ACCESS_TOKEN)');
-        } else if (!adminMigRes.ok) {
-          const err = await adminMigRes.json();
-          throw new Error(err.error || 'Erro ao preparar Admin Supabase');
         } else {
+          let adminDone = false;
+          await readNdjsonStream(adminMigRes, (event) => {
+            if (event.type === 'done') adminDone = true;
+            if (event.type === 'error') throw new Error(String(event.error || 'Erro Admin Supabase'));
+          });
+          if (!adminDone) throw new Error('Erro ao preparar Admin Supabase');
           setStepStatus(1, 'done');
         }
         setProgress((2 / total) * 100);
@@ -176,10 +211,23 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
           });
           if (tenantMigRes.status === 501) {
             setStepStatus(3, 'done', 'pulado (sem SUPABASE_ACCESS_TOKEN)');
-          } else if (!tenantMigRes.ok) {
-            const err = await tenantMigRes.json();
-            throw new Error(err.error || 'Erro ao aplicar migrações no banco');
           } else {
+            let migDone = false;
+            await readNdjsonStream(tenantMigRes, (event) => {
+              if (event.type === 'status') {
+                setStepStatus(3, 'loading', String(event.msg || ''));
+              } else if (event.type === 'file') {
+                setStepStatus(3, 'loading', String(event.msg || ''));
+                if (typeof event.progress === 'number') {
+                  setProgress(((3 + event.progress / 100) / total) * 100);
+                }
+              } else if (event.type === 'done') {
+                migDone = true;
+              } else if (event.type === 'error') {
+                throw new Error(String(event.error || 'Erro ao aplicar migrações'));
+              }
+            });
+            if (!migDone) throw new Error('Migrações não foram concluídas');
             setStepStatus(3, 'done');
           }
         } else {
@@ -486,8 +534,10 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
                 >
                   {step.label}
                 </span>
-                {step.note && step.status === 'done' && (
-                  <span className="text-xs text-[var(--color-text-muted)] ml-2">({step.note})</span>
+                {step.note && (
+                  <span className="text-xs text-[var(--color-text-muted)] ml-2">
+                    {step.status === 'done' ? `(${step.note})` : step.note}
+                  </span>
                 )}
               </div>
             </div>
