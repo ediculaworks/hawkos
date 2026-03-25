@@ -109,6 +109,8 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
     setSteps(INITIAL_STEPS.map((s) => ({ ...s, status: 'pending' as const })));
     setProgress(0);
     setError(null);
+    setResetLoading(false);
+    setResetError('');
     setShouldRun(true);
   };
 

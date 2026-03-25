@@ -66,12 +66,26 @@ export async function POST(request: Request) {
       const msg = createError.message.toLowerCase();
       const isAlreadyExists = msg.includes('already') && msg.includes('registered');
       if (isAlreadyExists) {
-        // Return explicit 409 so the UI can offer account reset
-        return NextResponse.json({ error: 'USER_ALREADY_EXISTS', email }, { status: 409 });
+        // Migrations already wiped the tables — just delete the stale auth user and recreate
+        const { data: listData } = await supabase.auth.admin.listUsers();
+        const existing = listData?.users.find((u) => u.email === email);
+        if (existing) {
+          const { error: delErr } = await supabase.auth.admin.deleteUser(existing.id);
+          if (delErr) throw delErr;
+        }
+        const { data: retryData, error: retryError } = await supabase.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+        });
+        if (retryError) throw retryError;
+        userId = retryData.user.id;
+      } else {
+        throw createError;
       }
-      throw createError;
+    } else {
+      userId = createData.user.id;
     }
-    userId = createData.user.id;
 
     // 2. Upsert profile with onboarding_complete = true
     const { error: profileError } = await supabase.from('profile').upsert(
