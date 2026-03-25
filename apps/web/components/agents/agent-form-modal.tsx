@@ -50,18 +50,28 @@ const MODULE_LABELS: Record<string, string> = {
   calendar: 'Agenda',
 };
 
+const AGENT_EMOJIS = [
+  '🦅', '🦉', '🐺', '🦚',
+  '🐝', '🦫', '🐂', '🦊',
+  '🐻', '🦁', '🐯', '🦈',
+  '🐬', '🦜', '🐸', '🦎',
+] as const;
+
 const LLM_MODELS = [
-  { value: 'openrouter/auto', label: 'Auto (OpenRouter)' },
-  { value: 'openai/gpt-4.1-mini', label: 'GPT-4.1 Mini' },
-  { value: 'openai/gpt-4.1-nano', label: 'GPT-4.1 Nano' },
-  { value: 'anthropic/claude-sonnet-4', label: 'Claude Sonnet 4' },
-  { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-  { value: 'meta-llama/llama-4-scout', label: 'Llama 4 Scout' },
-  { value: 'qwen/qwen3-235b-a22b', label: 'Qwen3 235B' },
+  { value: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 120B' },
+  { value: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5' },
+  { value: 'stepfun/step-3.5-flash:free', label: 'Step 3.5 Flash' },
+  { value: 'qwen/qwen3-next-80b-a3b-instruct:free', label: 'Qwen3 Next 80B' },
+  { value: 'openai/gpt-oss-120b:free', label: 'GPT OSS 120B' },
+  { value: 'qwen/qwen3-coder:free', label: 'Qwen3 Coder' },
+  { value: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free', label: 'Dolphin Mistral 24B' },
+  { value: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B' },
+  { value: 'nousresearch/hermes-3-llama-3.1-405b:free', label: 'Hermes 3 405B' },
 ];
 
 interface FormState {
   // Identidade
+  avatarSeed: string;
   name: string;
   description: string;
   identity: string;
@@ -86,6 +96,7 @@ interface FormState {
 }
 
 const DEFAULT_FORM: FormState = {
+  avatarSeed: '',
   name: '',
   description: '',
   identity: '',
@@ -111,6 +122,7 @@ function agentToForm(agent: Agent): FormState {
   const isKnown = knownModels.includes(model);
 
   return {
+    avatarSeed: agent.avatar ?? '',
     name: agent.name,
     description: agent.tagline ?? '',
     identity: (agent as AgentFull).identity ?? '',
@@ -224,6 +236,7 @@ export function AgentFormModal({ open, agent, onClose, onSaved }: AgentFormModal
 
       const payload = {
         name: form.name.trim(),
+        avatar: form.avatarSeed || null,
         tagline: form.description.trim(),
         identity: form.identity.trim(),
         traits: form.traits
@@ -322,6 +335,28 @@ export function AgentFormModal({ open, agent, onClose, onSaved }: AgentFormModal
           {/* TAB: Identidade */}
           {activeTab === 'identity' && (
             <div className="space-y-4">
+              {/* Emoji selector */}
+              <div>
+                <span className={labelCls}>Avatar</span>
+                <div className="grid grid-cols-8 gap-1.5">
+                  {AGENT_EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => set({ avatarSeed: emoji })}
+                      className={`h-9 w-9 flex items-center justify-center rounded-[var(--radius-md)] text-xl transition-colors cursor-pointer ${
+                        form.avatarSeed === emoji
+                          ? 'bg-[var(--color-accent)]/20 border-2 border-[var(--color-accent)]'
+                          : 'bg-[var(--color-surface-2)] border border-[var(--color-border)] hover:bg-[var(--color-surface-3)]'
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+                <p className={hintCls}>Selecione um emoji para representar este agente.</p>
+              </div>
+
               <div>
                 <label htmlFor="agent-name" className={labelCls}>
                   Nome <span className="text-[var(--color-danger)]">*</span>

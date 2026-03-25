@@ -2,7 +2,6 @@
 
 import { AgentFormModal } from '@/components/agents/agent-form-modal';
 import { DelegateModal } from '@/components/agents/delegate-modal';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { Agent } from '@/lib/agent-chat';
@@ -11,14 +10,26 @@ import { useCallback, useEffect, useState } from 'react';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function getInitials(name: string): string {
-  return name.slice(0, 2).toUpperCase();
+const AGENT_EMOJIS: Record<string, string> = {
+  '🦅': '🦅', '🦉': '🦉', '🐺': '🐺', '🦚': '🦚',
+  '🐝': '🐝', '🦫': '🦫', '🐂': '🐂', '🦊': '🦊',
+  '🐻': '🐻', '🦁': '🦁', '🐯': '🐯', '🦈': '🦈',
+  '🐬': '🐬', '🦜': '🦜', '🐸': '🐸', '🦎': '🦎',
+};
+
+function getAgentEmoji(agent: { avatar?: string; name: string }): string {
+  if (agent.avatar && AGENT_EMOJIS[agent.avatar]) return agent.avatar;
+  const nameMap: Record<string, string> = {
+    Hawk: '🦅', Owl: '🦉', Wolf: '🐺', Peacock: '🦚',
+    Bee: '🐝', Beaver: '🦫', Bull: '🐂', Fox: '🦊',
+  };
+  return nameMap[agent.name] || agent.name.slice(0, 2).toUpperCase();
 }
 
-function getTierBadgeVariant(tier: string): 'default' | 'success' | 'muted' {
-  if (tier === 'orchestrator') return 'default';
-  if (tier === 'specialist') return 'success';
-  return 'muted';
+function getTierBadgeClass(tier: string): string {
+  if (tier === 'orchestrator') return 'bg-blue-500/10 text-blue-400 border border-blue-500/30';
+  if (tier === 'specialist') return 'bg-transparent text-[var(--color-text-muted)] border border-[var(--color-border)]';
+  return 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]';
 }
 
 function getTierLabel(tier: string): string {
@@ -53,8 +64,8 @@ function AgentRow({
   return (
     <div className="flex items-center gap-4 px-4 py-3 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-2)] transition-colors group">
       {/* Avatar */}
-      <div className="flex-shrink-0 w-9 h-9 rounded-full bg-[var(--color-accent)]/15 flex items-center justify-center text-sm font-bold text-[var(--color-accent)]">
-        {getInitials(agent.name)}
+      <div className="flex-shrink-0 w-9 h-9 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] flex items-center justify-center text-[22px] leading-none">
+        {getAgentEmoji(agent)}
       </div>
 
       {/* Name + tagline */}
@@ -67,9 +78,9 @@ function AgentRow({
 
       {/* Tier badge */}
       <div className="hidden sm:block flex-shrink-0">
-        <Badge variant={getTierBadgeVariant(agent.agent_tier)}>
+        <span className={`inline-flex items-center rounded-[var(--radius-full)] px-2.5 py-0.5 text-xs font-medium ${getTierBadgeClass(agent.agent_tier)}`}>
           {getTierLabel(agent.agent_tier)}
-        </Badge>
+        </span>
       </div>
 
       {/* Model */}

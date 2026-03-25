@@ -4,6 +4,24 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Agent, ChatSession } from '@/lib/agent-chat';
 import { Check, ChevronDown, Pencil, Plus, Trash2, X } from 'lucide-react';
+
+// ─── Agent emoji ─────────────────────────────────────────────────────────────
+
+const AGENT_EMOJIS: Record<string, string> = {
+  '🦅': '🦅', '🦉': '🦉', '🐺': '🐺', '🦚': '🦚',
+  '🐝': '🐝', '🦫': '🦫', '🐂': '🐂', '🦊': '🦊',
+  '🐻': '🐻', '🦁': '🦁', '🐯': '🐯', '🦈': '🦈',
+  '🐬': '🐬', '🦜': '🦜', '🐸': '🐸', '🦎': '🦎',
+};
+
+function getAgentEmoji(agent: { avatar?: string; name: string }): string {
+  if (agent.avatar && AGENT_EMOJIS[agent.avatar]) return agent.avatar;
+  const nameMap: Record<string, string> = {
+    Hawk: '🦅', Owl: '🦉', Wolf: '🐺', Peacock: '🦚',
+    Bee: '🐝', Beaver: '🦫', Bull: '🐂', Fox: '🦊',
+  };
+  return nameMap[agent.name] || agent.name.slice(0, 2).toUpperCase();
+}
 import { useState } from 'react';
 
 interface ChatSidebarProps {
@@ -91,8 +109,8 @@ export function ChatSidebar({
             onClick={() => setAgentDropdownOpen(!agentDropdownOpen)}
             className="flex items-center gap-2 w-full px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer"
           >
-            <div className="w-6 h-6 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-              {selectedAgent ? selectedAgent.name.slice(0, 2).toUpperCase() : '??'}
+            <div className="w-6 h-6 rounded-full bg-[var(--color-surface-3)] border border-[var(--color-border-subtle)] flex items-center justify-center text-sm leading-none flex-shrink-0">
+              {selectedAgent ? getAgentEmoji(selectedAgent) : '🤖'}
             </div>
             <span className="flex-1 text-sm font-medium text-[var(--color-text-primary)] text-left truncate">
               {selectedAgent?.name ?? 'Selecionar agente'}
@@ -122,8 +140,8 @@ export function ChatSidebar({
                       selectedAgent?.id === agent.id ? 'bg-[var(--color-accent)]/10' : ''
                     }`}
                   >
-                    <div className="w-5 h-5 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
-                      {agent.name.slice(0, 2).toUpperCase()}
+                    <div className="w-5 h-5 rounded-full bg-[var(--color-surface-3)] border border-[var(--color-border-subtle)] flex items-center justify-center text-xs leading-none flex-shrink-0">
+                      {getAgentEmoji(agent)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <span className="text-sm text-[var(--color-text-primary)] block truncate">
@@ -252,9 +270,9 @@ function SessionItem({
           : 'hover:bg-[var(--color-surface-2)] border-l-2 border-transparent'
       }`}
     >
-      {/* Agent initials mini avatar */}
-      <div className="w-5 h-5 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center text-[9px] font-bold text-[var(--color-accent)] flex-shrink-0">
-        {(session.agentName ?? 'H').slice(0, 2).toUpperCase()}
+      {/* Agent emoji mini avatar */}
+      <div className="w-5 h-5 rounded-full bg-[var(--color-surface-3)] border border-[var(--color-border-subtle)] flex items-center justify-center text-xs leading-none flex-shrink-0">
+        {getAgentEmoji({ name: session.agentName ?? 'H' })}
       </div>
 
       {editing ? (

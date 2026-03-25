@@ -3,6 +3,24 @@
 import type { Agent } from '@/lib/agent-chat';
 import { MessageSquare } from 'lucide-react';
 
+// ─── Agent emoji ─────────────────────────────────────────────────────────────
+
+const AGENT_EMOJIS: Record<string, string> = {
+  '🦅': '🦅', '🦉': '🦉', '🐺': '🐺', '🦚': '🦚',
+  '🐝': '🐝', '🦫': '🦫', '🐂': '🐂', '🦊': '🦊',
+  '🐻': '🐻', '🦁': '🦁', '🐯': '🐯', '🦈': '🦈',
+  '🐬': '🐬', '🦜': '🦜', '🐸': '🐸', '🦎': '🦎',
+};
+
+function getAgentEmoji(agent: { avatar?: string; name: string }): string {
+  if (agent.avatar && AGENT_EMOJIS[agent.avatar]) return agent.avatar;
+  const nameMap: Record<string, string> = {
+    Hawk: '🦅', Owl: '🦉', Wolf: '🐺', Peacock: '🦚',
+    Bee: '🐝', Beaver: '🦫', Bull: '🐂', Fox: '🦊',
+  };
+  return nameMap[agent.name] || agent.name.slice(0, 2).toUpperCase();
+}
+
 const STARTERS: Record<string, string[]> = {
   default: [
     'Como estão minhas finanças este mês?',
@@ -82,8 +100,8 @@ export function ChatEmpty({ agent, agents, onSelectAgent, onSuggest }: ChatEmpty
               onClick={() => onSelectAgent(a)}
               className="flex flex-col items-center gap-2 p-4 rounded-[var(--radius-lg)] bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all cursor-pointer"
             >
-              <div className="w-12 h-12 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-lg font-bold text-white">
-                {a.name.slice(0, 2).toUpperCase()}
+              <div className="w-12 h-12 rounded-full bg-[var(--color-surface-3)] border border-[var(--color-border)] flex items-center justify-center text-3xl leading-none">
+                {getAgentEmoji(a)}
               </div>
               <span className="text-xs font-medium text-[var(--color-text-primary)]">{a.name}</span>
             </button>
@@ -98,8 +116,8 @@ export function ChatEmpty({ agent, agents, onSelectAgent, onSuggest }: ChatEmpty
 
   return (
     <div className="flex flex-col items-center justify-center h-full">
-      <div className="w-20 h-20 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-3xl font-bold text-white mb-3">
-        {agent.name.slice(0, 2).toUpperCase()}
+      <div className="w-20 h-20 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-border)] flex items-center justify-center text-5xl leading-none mb-3">
+        {getAgentEmoji(agent)}
       </div>
       <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mt-3 mb-1">
         {agent.name}
