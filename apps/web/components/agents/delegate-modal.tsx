@@ -78,7 +78,7 @@ export function DelegateModal({ open, agent, onClose }: DelegateModalProps) {
         title: title.trim(),
         description: description.trim() || undefined,
         priority,
-        agent_id: agent?.id,
+        origin: 'web',
       });
       setSuccess(true);
       setTimeout(() => {
