@@ -81,49 +81,49 @@ services:
       retries: 3
       start_period: 15s
 
-  agent-ten3:
-    <<: *agent-defaults
-    environment:
-      - AGENT_SLOT=ten3
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
+  # agent-ten3:
+  #   <<: *agent-defaults
+  #   environment:
+  #     - AGENT_SLOT=ten3
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 15s
 
-  agent-ten4:
-    <<: *agent-defaults
-    environment:
-      - AGENT_SLOT=ten4
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
+  # agent-ten4:
+  #   <<: *agent-defaults
+  #   environment:
+  #     - AGENT_SLOT=ten4
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 15s
 
-  agent-ten5:
-    <<: *agent-defaults
-    environment:
-      - AGENT_SLOT=ten5
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
+  # agent-ten5:
+  #   <<: *agent-defaults
+  #   environment:
+  #     - AGENT_SLOT=ten5
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 15s
 
-  agent-ten6:
-    <<: *agent-defaults
-    environment:
-      - AGENT_SLOT=ten6
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
+  # agent-ten6:
+  #   <<: *agent-defaults
+  #   environment:
+  #     - AGENT_SLOT=ten6
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 15s
 
 volumes:
   backups:
