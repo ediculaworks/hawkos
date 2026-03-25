@@ -49,6 +49,7 @@ const INITIAL_STEPS: ConfigStep[] = [
   { label: 'Resetando e migrando banco', status: 'pending' },
   { label: 'Criando conta de usuário', status: 'pending' },
   { label: 'Realizando login', status: 'pending' },
+  { label: 'Verificando instalação', status: 'pending' },
 ];
 
 export function Step5Configure({ formData, onComplete, onError }: Step5ConfigureProps) {
@@ -244,6 +245,33 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
         setStepStatus(5, 'done');
         setProgress((6 / total) * 100);
 
+        // ── Step 7: Verify installation ───────────────────────────────────
+        setStepStatus(6, 'loading');
+        setProgress((6.5 / total) * 100);
+
+        const verifyRes = await fetch('/api/admin/verify-install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenantSlug: tenantResult.tenant.slug,
+            supabaseUrl: formData.supabaseUrl,
+            supabaseServiceKey: formData.serviceRoleKey,
+            email: formData.email,
+          }),
+        });
+        const verifyResult = await verifyRes.json();
+
+        if (!verifyRes.ok) {
+          throw new Error(verifyResult.error || 'Erro na verificação');
+        }
+
+        const failedChecks = verifyResult.checks?.filter((c: { ok: boolean; label: string; detail?: string }) => !c.ok);
+        if (failedChecks?.length > 0) {
+          const details = failedChecks.map((c: { label: string; detail?: string }) => `${c.label}: ${c.detail || 'falhou'}`).join('; ');
+          throw new Error(`Verificação falhou — ${details}`);
+        }
+
+        setStepStatus(6, 'done');
         setProgress(100);
         onComplete(tenantResult.envContent || '', tenantResult.tenant.slug);
       } catch (err) {
