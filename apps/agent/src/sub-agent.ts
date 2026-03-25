@@ -3,14 +3,20 @@ import OpenAI from 'openai';
 
 const DEFAULT_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free';
 
-const client = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
-  defaultHeaders: {
-    'HTTP-Referer': 'https://github.com/hawk-os',
-    'X-Title': 'Hawk OS',
-  },
-});
+let _client: OpenAI | null = null;
+function getClient(): OpenAI {
+  if (!_client) {
+    _client = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
+      defaultHeaders: {
+        'HTTP-Referer': 'https://github.com/hawk-os',
+        'X-Title': 'Hawk OS',
+      },
+    });
+  }
+  return _client;
+}
 
 // Cache loaded templates to avoid repeated DB queries within same process
 const templateCache = new Map<
@@ -66,7 +72,7 @@ export async function runSubAgent(params: {
     ? `${template.identity}\n\n---\n\nContexto adicional:\n${params.context}`
     : template.identity;
 
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: template.model,
     max_tokens: params.maxTokens ?? template.maxTokens,
     temperature: template.temperature,

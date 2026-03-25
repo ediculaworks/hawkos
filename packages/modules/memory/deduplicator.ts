@@ -2,10 +2,16 @@ import { db } from '@hawk/db';
 import OpenAI from 'openai';
 import { generateEmbedding, semanticSearchMemories } from './embeddings';
 
-const client = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
+let _client: OpenAI | null = null;
+function getClient(): OpenAI {
+  if (!_client) {
+    _client = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
+    });
+  }
+  return _client;
+}
 
 // Activity logging for ML training data (uses same db client)
 function logDedupDecision(
@@ -165,7 +171,7 @@ Decide:
 Respond in JSON format:
 {"decision": "SKIP|MERGE|CREATE", "merged_content": "only if MERGE, the combined text in Portuguese"}`;
 
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: MODEL,
     max_tokens: 512,
     messages: [{ role: 'user', content: prompt }],

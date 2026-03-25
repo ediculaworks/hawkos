@@ -24,14 +24,20 @@ function notify(type: string, data: Record<string, unknown>): void {
   notifier?.(type, data);
 }
 
-const client = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
-  defaultHeaders: {
-    'HTTP-Referer': 'https://github.com/hawk-os',
-    'X-Title': 'Hawk OS',
-  },
-});
+let _client: OpenAI | null = null;
+function getClient(): OpenAI {
+  if (!_client) {
+    _client = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
+      defaultHeaders: {
+        'HTTP-Referer': 'https://github.com/hawk-os',
+        'X-Title': 'Hawk OS',
+      },
+    });
+  }
+  return _client;
+}
 
 const DEFAULT_MODEL = process.env.OPENROUTER_MODEL ?? 'openrouter/auto';
 
@@ -137,7 +143,7 @@ async function executeStep(demand: Demand, step: DemandStep): Promise<void> {
       ? `${agentInfo.identity}\n\nVocê está executando uma etapa de uma demanda do Hawk OS.`
       : 'Você é um agente especialista executando uma etapa de uma demanda do Hawk OS.';
 
-    const response = await client.chat.completions.create({
+    const response = await getClient().chat.completions.create({
       model: agentInfo?.model ?? DEFAULT_MODEL,
       max_tokens: agentInfo?.maxTokens ?? 4096,
       temperature: agentInfo?.temperature ?? 0.3,

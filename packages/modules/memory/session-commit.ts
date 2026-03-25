@@ -5,10 +5,16 @@ import type { MemoryCandidate } from './deduplicator';
 import { predictImportance } from './importance-scorer';
 import { extractMemoriesByRules } from './rule-extractor';
 
-const client = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
+let _client: OpenAI | null = null;
+function getClient(): OpenAI {
+  if (!_client) {
+    _client = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
+    });
+  }
+  return _client;
+}
 
 // Worker model: free model for session compaction and memory extraction
 const MODEL = process.env.MEMORY_WORKER_MODEL ?? 'sourceful/riverflow-v2-fast';
@@ -252,7 +258,7 @@ function formatTranscript(messages: SessionMessage[]): string {
 async function generateArchiveSummary(
   transcript: string,
 ): Promise<{ abstract: string; overview: string }> {
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: MODEL,
     max_tokens: 1024,
     messages: [
@@ -297,7 +303,7 @@ Escreva em português.`,
 }
 
 async function extractMemories(transcript: string): Promise<MemoryCandidate[]> {
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: MODEL,
     max_tokens: 1024,
     messages: [
@@ -357,7 +363,7 @@ async function generateMemoryLayers(
   memoryType: string,
   module: string | null,
 ): Promise<void> {
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: MODEL,
     max_tokens: 512,
     messages: [

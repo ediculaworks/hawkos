@@ -17,14 +17,20 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const activityDb = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
-const client = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
-  defaultHeaders: {
-    'HTTP-Referer': 'https://github.com/hawk-os',
-    'X-Title': 'Hawk OS',
-  },
-});
+let _client: OpenAI | null = null;
+function getClient(): OpenAI {
+  if (!_client) {
+    _client = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
+      defaultHeaders: {
+        'HTTP-Referer': 'https://github.com/hawk-os',
+        'X-Title': 'Hawk OS',
+      },
+    });
+  }
+  return _client;
+}
 
 // ── Session Management (NanoClaw-inspired) ─────────────────
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -256,7 +262,7 @@ async function runLLMSession(params: {
 
     if (stream && onChunk) {
       // Streaming mode
-      const streamResponse = await client.chat.completions.create({
+      const streamResponse = await getClient().chat.completions.create({
         ...opts,
         stream: true,
       } as never);
@@ -298,7 +304,7 @@ async function runLLMSession(params: {
     }
 
     // Non-streaming mode
-    const response = await client.chat.completions.create(opts as never);
+    const response = await getClient().chat.completions.create(opts as never);
     const choice = response.choices[0];
     return {
       content: choice?.message.content ?? null,

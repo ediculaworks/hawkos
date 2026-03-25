@@ -4,14 +4,20 @@ import OpenAI from 'openai';
 import { createLog, createStep, resolveDependencies, updateDemand } from './queries';
 import type { CreateStepInput, Demand, TriageResult, TriageStep } from './types';
 
-const client = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
-  defaultHeaders: {
-    'HTTP-Referer': 'https://github.com/hawk-os',
-    'X-Title': 'Hawk OS',
-  },
-});
+let _client: OpenAI | null = null;
+function getClient(): OpenAI {
+  if (!_client) {
+    _client = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
+      defaultHeaders: {
+        'HTTP-Referer': 'https://github.com/hawk-os',
+        'X-Title': 'Hawk OS',
+      },
+    });
+  }
+  return _client;
+}
 
 const TRIAGE_MODEL = process.env.OPENROUTER_MODEL ?? 'openrouter/auto';
 
@@ -89,7 +95,7 @@ Regras:
 - Primeiro step sempre é análise/coleta de dados
 - assigned_agent_name deve ser um dos agentes listados (use o nome exato)`;
 
-    const response = await client.chat.completions.create({
+    const response = await getClient().chat.completions.create({
       model: TRIAGE_MODEL,
       max_tokens: 4096,
       temperature: 0.3,
