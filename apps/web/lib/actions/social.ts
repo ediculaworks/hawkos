@@ -172,78 +172,88 @@ export async function fetchDayContext(date: string): Promise<{
   objectiveTitle: string | null;
   eventTitle: string | null;
 }> {
-  const [journal, media, objectives, events] = await Promise.all([
-    db.from('journal_entries').select('mood, energy').eq('date', date).eq('type', 'daily').single(),
-    db.from('media_items').select('title').eq('finished_at', date).limit(1).single(),
-    db.from('objectives').select('title').eq('status', 'active').limit(1).single(),
-    db.from('calendar_events').select('title').eq('start_at', date).limit(1).single(),
-  ]);
+  return withTenant(async () => {
+    const [journal, media, objectives, events] = await Promise.all([
+      db.from('journal_entries').select('mood, energy').eq('date', date).eq('type', 'daily').single(),
+      db.from('media_items').select('title').eq('finished_at', date).limit(1).single(),
+      db.from('objectives').select('title').eq('status', 'active').limit(1).single(),
+      db.from('calendar_events').select('title').eq('start_at', date).limit(1).single(),
+    ]);
 
-  return {
-    mood: journal.data?.mood ?? null,
-    energy: journal.data?.energy ?? null,
-    mediaTitle: media.data?.title ?? null,
-    objectiveTitle: objectives.data?.title ?? null,
-    eventTitle: events.data?.title ?? null,
-  };
+    return {
+      mood: journal.data?.mood ?? null,
+      energy: journal.data?.energy ?? null,
+      mediaTitle: media.data?.title ?? null,
+      objectiveTitle: objectives.data?.title ?? null,
+      eventTitle: events.data?.title ?? null,
+    };
+  });
 }
 
 export async function addPost(input: CreatePostInput): Promise<SocialPost> {
-  return createPost(input);
+  return withTenant(async () => createPost(input));
 }
 
 export async function publish(id: string, url?: string): Promise<SocialPost> {
-  return publishPost(id, url);
+  return withTenant(async () => publishPost(id, url));
 }
 
 export async function updatePostStatusAction(input: UpdatePostStatusInput): Promise<SocialPost> {
-  return updatePostStatus(input);
+  return withTenant(async () => updatePostStatus(input));
 }
 
 export async function linkPostAction(input: LinkPostInput): Promise<SocialPost> {
-  return linkPostToEntity(input);
+  return withTenant(async () => linkPostToEntity(input));
 }
 
 export async function fetchObjectivesForLinking(): Promise<{ id: string; title: string }[]> {
-  const { data, error } = await db
-    .from('objectives')
-    .select('id, title')
-    .eq('status', 'active')
-    .order('priority', { ascending: false })
-    .limit(20);
-  if (error) throw new Error(`Failed to get objectives: ${error.message}`);
-  return (data ?? []) as { id: string; title: string }[];
+  return withTenant(async () => {
+    const { data, error } = await db
+      .from('objectives')
+      .select('id, title')
+      .eq('status', 'active')
+      .order('priority', { ascending: false })
+      .limit(20);
+    if (error) throw new Error(`Failed to get objectives: ${error.message}`);
+    return (data ?? []) as { id: string; title: string }[];
+  });
 }
 
 export async function fetchTasksForLinking(): Promise<{ id: string; title: string }[]> {
-  const { data, error } = await db
-    .from('tasks')
-    .select('id, title')
-    .in('status', ['todo', 'in_progress'])
-    .order('due_date', { ascending: true })
-    .limit(20);
-  if (error) throw new Error(`Failed to get tasks: ${error.message}`);
-  return (data ?? []) as { id: string; title: string }[];
+  return withTenant(async () => {
+    const { data, error } = await db
+      .from('tasks')
+      .select('id, title')
+      .in('status', ['todo', 'in_progress'])
+      .order('due_date', { ascending: true })
+      .limit(20);
+    if (error) throw new Error(`Failed to get tasks: ${error.message}`);
+    return (data ?? []) as { id: string; title: string }[];
+  });
 }
 
 export async function fetchProjectsForLinking(): Promise<{ id: string; name: string }[]> {
-  const { data, error } = await db
-    .from('projects')
-    .select('id, name')
-    .eq('status', 'active')
-    .order('priority', { ascending: false })
-    .limit(20);
-  if (error) throw new Error(`Failed to get projects: ${error.message}`);
-  return (data ?? []) as { id: string; name: string }[];
+  return withTenant(async () => {
+    const { data, error } = await db
+      .from('projects')
+      .select('id, name')
+      .eq('status', 'active')
+      .order('priority', { ascending: false })
+      .limit(20);
+    if (error) throw new Error(`Failed to get projects: ${error.message}`);
+    return (data ?? []) as { id: string; name: string }[];
+  });
 }
 
 export async function fetchPeopleForLinking(): Promise<{ id: string; name: string }[]> {
-  const { data, error } = await db
-    .from('people')
-    .select('id, name')
-    .eq('active', true)
-    .order('importance', { ascending: false })
-    .limit(20);
-  if (error) throw new Error(`Failed to get people: ${error.message}`);
-  return (data ?? []) as { id: string; name: string }[];
+  return withTenant(async () => {
+    const { data, error } = await db
+      .from('people')
+      .select('id, name')
+      .eq('active', true)
+      .order('importance', { ascending: false })
+      .limit(20);
+    if (error) throw new Error(`Failed to get people: ${error.message}`);
+    return (data ?? []) as { id: string; name: string }[];
+  });
 }
