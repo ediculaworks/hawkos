@@ -87,6 +87,10 @@ export async function POST(request: Request) {
       userId = createData.user.id;
     }
 
+    // 1b. Ensure password is set (createUser can silently skip password in some conditions)
+    const { error: pwError } = await supabase.auth.admin.updateUser(userId, { password });
+    if (pwError) console.warn('[setup-account] updateUser password failed:', pwError.message);
+
     // 2. Upsert profile with onboarding_complete = true
     const { error: profileError } = await supabase.from('profile').upsert(
       {
