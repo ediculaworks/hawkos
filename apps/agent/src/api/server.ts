@@ -301,7 +301,7 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
       const response = await handleChat(sid, message, onChunk);
 
       // Auto-title: update title from first user message if still default
-      const { data: conv } = await supabase
+      const { data: conv } = await getSupabase()
         .from('agent_conversations')
         .select('title')
         .eq('session_id', sid)
@@ -309,12 +309,12 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
 
       if (!conv?.title || conv.title === 'Nova sessão') {
         const autoTitle = message.length > 50 ? `${message.slice(0, 47)}...` : message;
-        await supabase
+        await getSupabase()
           .from('agent_conversations')
           .update({ title: autoTitle, last_message_at: new Date().toISOString() })
           .eq('session_id', sid);
       } else {
-        await supabase
+        await getSupabase()
           .from('agent_conversations')
           .update({ last_message_at: new Date().toISOString() })
           .eq('session_id', sid);
@@ -465,7 +465,7 @@ const agentServer = Bun.serve({
     }
 
     if (path === '/settings' && method === 'GET') {
-      const { data } = await supabase
+      const { data } = await getSupabase()
         .from('agent_settings')
         .select('*')
         .eq('id', 'singleton')
@@ -477,7 +477,7 @@ const agentServer = Bun.serve({
 
     if (path === '/settings' && method === 'PUT') {
       const body = (await req.json()) as Record<string, unknown>;
-      const { data, error } = await supabase
+      const { data, error } = await getSupabase()
         .from('agent_settings')
         .upsert({
           id: 'singleton',
@@ -559,7 +559,7 @@ const agentServer = Bun.serve({
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const { data, error } = await supabase
+      const { data, error } = await getSupabase()
         .from('automation_configs')
         .upsert({
           id: name,
@@ -614,7 +614,7 @@ const agentServer = Bun.serve({
 
     if (path === '/automations' && method === 'PUT') {
       const body = (await req.json()) as Record<string, unknown>;
-      const { data, error } = await supabase
+      const { data, error } = await getSupabase()
         .from('automation_configs')
         .upsert({
           id: body.id as string,
@@ -632,13 +632,13 @@ const agentServer = Bun.serve({
     if (path.startsWith('/automations/') && path.endsWith('/trigger') && method === 'POST') {
       const name = path.split('/')[2] ?? '';
       triggerAutomation(name);
-      const { data } = await supabase
+      const { data } = await getSupabase()
         .from('automation_configs')
         .select('run_count')
         .eq('id', name)
         .single();
       const newRunCount = (data?.run_count ?? 0) + 1;
-      await supabase
+      await getSupabase()
         .from('automation_configs')
         .update({
           last_run: new Date().toISOString(),
@@ -679,7 +679,7 @@ const agentServer = Bun.serve({
     }
 
     if (path === '/chat/sessions' && method === 'GET') {
-      const { data: allConversations, error } = await supabase
+      const { data: allConversations, error } = await getSupabase()
         .from('agent_conversations')
         .select('session_id, template_id, title, last_message_at, channel')
         .order('last_message_at', { ascending: false })
@@ -697,7 +697,7 @@ const agentServer = Bun.serve({
           let agentAvatar: string | undefined;
 
           if (conv.template_id) {
-            const agent = await supabase
+            const agent = await getSupabase()
               .from('agent_templates')
               .select('name, avatar_seed')
               .eq('id', conv.template_id)
@@ -726,7 +726,7 @@ const agentServer = Bun.serve({
 
     if (path.startsWith('/chat/sessions/') && path.endsWith('/messages') && method === 'GET') {
       const sessionId = path.split('/')[3] ?? '';
-      const { data } = await supabase
+      const { data } = await getSupabase()
         .from('conversation_messages')
         .select('*')
         .eq('session_id', sessionId)
@@ -805,7 +805,7 @@ const agentServer = Bun.serve({
       const from = url.searchParams.get('from');
       const to = url.searchParams.get('to');
 
-      let query = supabase
+      let query = getSupabase()!
         .from('activity_log')
         .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
@@ -867,7 +867,7 @@ const agentServer = Bun.serve({
     }
 
     if (path === '/agents' && method === 'GET') {
-      const { data: agents, error: _error } = await supabase
+      const { data: agents, error: _error } = await getSupabase()
         .from('agent_templates')
         .select('*')
         .order('created_at', { ascending: true });
@@ -905,7 +905,7 @@ const agentServer = Bun.serve({
       const body = (await req.json()) as Record<string, unknown>;
       const { from_agent_id, to_agent_id, session_id, message_type, content, context } = body;
 
-      const { data: message, error } = await supabase
+      const { data: message, error } = await getSupabase()
         .from('agent_messages')
         .insert({
           from_agent_id,
@@ -936,7 +936,7 @@ const agentServer = Bun.serve({
       const sessionId = url.searchParams.get('session_id');
       const status = url.searchParams.get('status');
 
-      let query = supabase
+      let query = getSupabase()!
         .from('agent_messages')
         .select('*')
         .order('created_at', { ascending: false })
@@ -969,7 +969,7 @@ const agentServer = Bun.serve({
     if (path.startsWith('/agent-messages/') && path.endsWith('/deliver') && method === 'POST') {
       const messageId = path.split('/')[2] ?? '';
 
-      const { error } = await supabase
+      const { error } = await getSupabase()
         .from('agent_messages')
         .update({ status: 'delivered', delivered_at: new Date().toISOString() })
         .eq('id', messageId);
@@ -992,7 +992,7 @@ const agentServer = Bun.serve({
       const { from_agent_id, to_agent_id, query, session_id, context } = body;
 
       // Get target agent info
-      const { data: targetAgent } = await supabase
+      const { data: targetAgent } = await getSupabase()
         .from('agent_templates')
         .select('*')
         .eq('id', to_agent_id)
@@ -1006,7 +1006,7 @@ const agentServer = Bun.serve({
       }
 
       // Create message record
-      const { data: message } = await supabase
+      const { data: message } = await getSupabase()
         .from('agent_messages')
         .insert({
           from_agent_id,
