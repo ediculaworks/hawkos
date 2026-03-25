@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
       identity,
       systemPrompt,
       memoryType,
+      isUserFacing,
     } = body;
 
     if (!name) {
@@ -104,26 +105,29 @@ export async function POST(request: NextRequest) {
       phrases: phrases ?? [],
     };
 
+    const insertData = {
+      name,
+      avatar_seed: avatar || 'robot',
+      description: tagline || '',
+      personality,
+      identity: identity || '',
+      knowledge: knowledge || '',
+      philosophy: philosophy || '',
+      system_prompt: systemPrompt || null,
+      tools_enabled: enabledTools ?? [],
+      llm_model: llmModel || null,
+      temperature: temperature ?? 0.7,
+      max_tokens: maxTokens ?? 4096,
+      agent_tier: agentTier || 'specialist',
+      memory_type: memoryType || 'shared',
+      is_user_facing: isUserFacing ?? true,
+      is_system: false,
+      is_default: false,
+    };
+
     const { data: agent, error } = await supabase
       .from('agent_templates')
-      .insert({
-        name,
-        avatar_seed: avatar || 'robot',
-        description: tagline || '',
-        personality,
-        knowledge: knowledge || '',
-        philosophy: philosophy || '',
-        tools_enabled: enabledTools ?? [],
-        is_system: false,
-        is_default: false,
-        llm_model: llmModel || null,
-        temperature: temperature ?? 0.7,
-        max_tokens: maxTokens ?? 4096,
-        agent_tier: agentTier || 'specialist',
-        identity: identity || '',
-        system_prompt: systemPrompt || null,
-        memory_type: memoryType || 'shared',
-      })
+      .insert(insertData)
       .select()
       .single();
 

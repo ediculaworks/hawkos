@@ -95,6 +95,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       identity,
       systemPrompt,
       memoryType,
+      isUserFacing,
     } = body;
 
     const personality = {
@@ -121,6 +122,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (identity !== undefined) updatePayload.identity = identity;
     if (systemPrompt !== undefined) updatePayload.system_prompt = systemPrompt;
     if (memoryType !== undefined) updatePayload.memory_type = memoryType;
+    if (isUserFacing !== undefined) updatePayload.is_user_facing = isUserFacing;
 
     const { data: agent, error } = await supabase
       .from('agent_templates')
