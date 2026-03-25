@@ -13,9 +13,12 @@ const WS_AUTH_TOKEN = process.env.AGENT_WS_TOKEN ?? '';
 const AGENT_API_SECRET = process.env.AGENT_API_SECRET ?? '';
 
 let _supabase: ReturnType<typeof createClient> | null = null;
-function getSupabase() {
+function getSupabase(): ReturnType<typeof createClient> | null {
   if (!_supabase) {
-    _supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const url = SUPABASE_URL || process.env.SUPABASE_URL;
+    const key = SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) return null;
+    _supabase = createClient(url, key);
   }
   return _supabase;
 }
@@ -172,7 +175,7 @@ async function logActivity(
   metadata?: Record<string, unknown>,
 ) {
   try {
-    await getSupabase().from('activity_log').insert({
+    await getSupabase()?.from('activity_log').insert({
       event_type: eventType,
       summary,
       module: mod,
@@ -185,7 +188,7 @@ async function logActivity(
 
 async function updateAgentStatus() {
   try {
-    await getSupabase().from('agent_status').upsert({
+    await getSupabase()?.from('agent_status').upsert({
       id: 'singleton',
       status: state.status,
       last_heartbeat: new Date().toISOString(),
@@ -274,7 +277,7 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
 
     // Ensure agent_conversations entry exists (upsert)
     const now = new Date().toISOString();
-    await getSupabase().from('agent_conversations').upsert(
+    await getSupabase()?.from('agent_conversations').upsert(
       {
         session_id: sid,
         last_message_at: now,
@@ -511,7 +514,7 @@ const agentServer = Bun.serve({
     }
 
     if (path === '/automations' && method === 'GET') {
-      const { data: configs } = await getSupabase().from('automation_configs').select('*').order('name');
+      const { data: configs } = await getSupabase()?.from('automation_configs').select('*').order('name');
       const merged = AUTOMATIONS.map((a) => {
         const config = configs?.find((c) => c.id === a.name);
         return {
@@ -594,7 +597,7 @@ const agentServer = Bun.serve({
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const { error } = await getSupabase().from('automation_configs').delete().eq('id', name);
+      const { error } = await getSupabase()?.from('automation_configs').delete().eq('id', name);
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), {
           status: 500,
@@ -744,7 +747,7 @@ const agentServer = Bun.serve({
       }
 
       // Always insert into agent_conversations so session appears in list immediately
-      const { error } = await getSupabase().from('agent_conversations').upsert({
+      const { error } = await getSupabase()?.from('agent_conversations').upsert({
         session_id: sessionId,
         template_id: agentId ?? null,
         title: 'Nova sessão',
@@ -770,8 +773,8 @@ const agentServer = Bun.serve({
 
     if (path.startsWith('/chat/sessions/') && path.endsWith('/delete') && method === 'DELETE') {
       const sessionId = path.split('/')[3] ?? '';
-      await getSupabase().from('conversation_messages').delete().eq('session_id', sessionId);
-      await getSupabase().from('agent_conversations').delete().eq('session_id', sessionId);
+      await getSupabase()?.from('conversation_messages').delete().eq('session_id', sessionId);
+      await getSupabase()?.from('agent_conversations').delete().eq('session_id', sessionId);
       return new Response(JSON.stringify({ ok: true, deleted: sessionId }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -782,7 +785,7 @@ const agentServer = Bun.serve({
       const body = (await req.json()) as Record<string, unknown>;
       const title = body.title as string;
 
-      await getSupabase().from('agent_conversations').upsert({
+      await getSupabase()?.from('agent_conversations').upsert({
         session_id: sessionId,
         title,
         last_message_at: new Date().toISOString(),

@@ -52,17 +52,17 @@ function decryptJson<T>(encryptedData: string, iv: string, masterKey: string): T
 
 export async function loadTenantCredentials(slot: string): Promise<TenantCredentials> {
   const adminUrl = process.env.ADMIN_SUPABASE_URL;
-  const adminAnonKey = process.env.ADMIN_SUPABASE_ANON_KEY;
-  const masterKey =
-    process.env.ADMIN_SUPABASE_SERVICE_KEY || process.env.ADMIN_SUPABASE_ANON_KEY || '';
+  const adminKey = process.env.ADMIN_SUPABASE_SERVICE_KEY || process.env.ADMIN_SUPABASE_ANON_KEY;
+  const masterKey = process.env.ADMIN_SUPABASE_SERVICE_KEY || '';
 
-  if (!adminUrl || !adminAnonKey) {
+  if (!adminUrl || !adminKey) {
     throw new Error(
-      'ADMIN_SUPABASE_URL and ADMIN_SUPABASE_ANON_KEY are required when AGENT_SLOT is set',
+      'ADMIN_SUPABASE_URL and ADMIN_SUPABASE_SERVICE_KEY are required when AGENT_SLOT is set',
     );
   }
 
-  const supabase = createClient(adminUrl, adminAnonKey, {
+  // Use service key to bypass RLS on tenants table
+  const supabase = createClient(adminUrl, adminKey, {
     auth: { persistSession: false },
   });
 
