@@ -20,7 +20,7 @@ export interface CachedTenantPrivate extends CachedTenant {
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes — tenants rarely change
 
 export const publicCache = new Map<string, { tenant: CachedTenant; expiresAt: number }>();
 export const privateCache = new Map<string, { tenant: CachedTenantPrivate; expiresAt: number }>();

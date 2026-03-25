@@ -160,7 +160,7 @@ export function applyTenantCredentials(credentials: TenantCredentials): void {
   console.log('[credential-manager] Applied tenant credentials from Admin Supabase');
 }
 
-const RETRY_INTERVAL_MS = 5 * 60_000; // 5 minutes between retries
+const RETRY_INTERVAL_MS = 30 * 60_000; // 30 minutes between retries (idle agents sleep)
 
 export async function initializeFromAdminSupabase(): Promise<void> {
   const slot = process.env.AGENT_SLOT;
@@ -184,7 +184,7 @@ export async function initializeFromAdminSupabase(): Promise<void> {
       if (isMissing) {
         if (!loggedWaiting) {
           console.log(
-            `[credential-manager] Tenant '${slot}' not registered yet — will check every ${RETRY_INTERVAL_MS / 60_000}min silently`,
+            `[credential-manager] Tenant '${slot}' not registered — sleeping (check every 30min)`,
           );
           loggedWaiting = true;
         }
