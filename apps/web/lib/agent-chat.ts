@@ -81,6 +81,7 @@ export function useChat() {
   const selectedAgentRef = useRef<Agent | null>(selectedAgent);
   const streamBufferRef = useRef<string>('');
   const streamFlushTimerRef = useRef<number | null>(null);
+  const pendingAgentIdRef = useRef<string | null>(null);
 
   // Keep refs in sync with state
   activeSessionRef.current = activeSession;
@@ -97,7 +98,17 @@ export function useChat() {
     try {
       const res = await fetch(`${getAgentApiUrl()}/chat/sessions`, { headers: agentHeaders() });
       const data = await res.json();
-      setSessions(data.sessions ?? []);
+      const loadedSessions: ChatSession[] = data.sessions ?? [];
+      setSessions(loadedSessions);
+
+      // Restore agent from active session on page refresh
+      const storedId = activeSessionRef.current;
+      if (storedId) {
+        const activeSessionData = loadedSessions.find((s) => s.id === storedId);
+        if (activeSessionData?.agentId) {
+          pendingAgentIdRef.current = activeSessionData.agentId;
+        }
+      }
     } catch (_err) {
     } finally {
       setSessionsLoading(false);
@@ -234,7 +245,12 @@ export function useChat() {
         const data = await res.json();
         setAgents(data.agents ?? []);
         if (data.agents?.length > 0 && !selectedAgentRef.current) {
-          setSelectedAgent(data.agents[0]);
+          const pendingId = pendingAgentIdRef.current;
+          const match = pendingId
+            ? (data.agents as Agent[]).find((a: Agent) => a.id === pendingId)
+            : null;
+          setSelectedAgent(match ?? data.agents[0]);
+          pendingAgentIdRef.current = null;
         }
       }
     } catch (_err) {
@@ -337,6 +353,15 @@ export function useChat() {
     setActiveSession(sessionId);
     setError(null);
     loadMessages(sessionId);
+
+    // Sync selectedAgent with the session's agent
+    const session = sessions.find((s) => s.id === sessionId);
+    if (session?.agentId) {
+      const agent = agents.find((a) => a.id === session.agentId);
+      if (agent) {
+        setSelectedAgent(agent);
+      }
+    }
   };
 
   const deleteSession = async (sessionId: string) => {
