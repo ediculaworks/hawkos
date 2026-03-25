@@ -4,7 +4,7 @@ function extractHost(value: string): string {
   try {
     return new URL(value).hostname; // hostname strips port
   } catch {
-    return value.split(':')[0]; // fallback: strip port manually
+    return value.split(':')[0] ?? value; // fallback: strip port manually
   }
 }
 
