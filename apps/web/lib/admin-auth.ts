@@ -3,11 +3,10 @@ import { NextResponse } from 'next/server';
 /**
  * Validates admin API requests.
  *
- * For mutation endpoints (POST/PUT/DELETE), requires one of:
- * - X-Admin-Secret header matching ADMIN_SUPABASE_SERVICE_KEY
- * - Origin header matching APP_URL (same-origin onboarding wizard)
- *
- * Returns null if authorized, or a NextResponse error if not.
+ * Allows requests if any of:
+ * 1. X-Admin-Secret header matches ADMIN_SUPABASE_SERVICE_KEY
+ * 2. Same-origin: Referer host matches Host header (browser onboarding wizard)
+ * 3. NODE_ENV === 'development'
  */
 export function requireAdminAuth(request: Request): NextResponse | null {
   const secret = request.headers.get('x-admin-secret');
@@ -15,16 +14,25 @@ export function requireAdminAuth(request: Request): NextResponse | null {
 
   // Check X-Admin-Secret header
   if (secret && adminKey && secret === adminKey) {
-    return null; // authorized
+    return null;
   }
 
-  // Allow same-origin requests (onboarding wizard)
-  const origin = request.headers.get('origin');
+  // Same-origin check: compare Referer host with Host header
+  const host = request.headers.get('host');
   const referer = request.headers.get('referer');
-  const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || '';
+  const origin = request.headers.get('origin');
 
-  if (appUrl && (origin?.startsWith(appUrl) || referer?.startsWith(appUrl))) {
-    return null; // authorized (same-origin)
+  if (host) {
+    if (referer) {
+      try {
+        if (new URL(referer).host === host) return null;
+      } catch {}
+    }
+    if (origin) {
+      try {
+        if (new URL(origin).host === host) return null;
+      } catch {}
+    }
   }
 
   // In development, allow all requests
