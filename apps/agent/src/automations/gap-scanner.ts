@@ -15,26 +15,15 @@ import {
   persistDataGaps,
 } from '@hawk/module-memory';
 import cron from 'node-cron';
-import OpenAI from 'openai';
-
-let _openai: OpenAI | null = null;
-function getOpenAI(): OpenAI {
-  if (!_openai) {
-    _openai = new OpenAI({
-      baseURL: 'https://openrouter.ai/api/v1',
-      apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
-    });
-  }
-  return _openai;
-}
+import { getWorkerClient, WORKER_MODEL } from '../llm-client.js';
 
 /**
  * Gera uma pergunta natural em português para um gap detectado.
  */
 async function generateQuestionForGap(gap: DataGap): Promise<string | null> {
   try {
-    const response = await getOpenAI().chat.completions.create({
-      model: 'openrouter/auto',
+    const response = await getWorkerClient().chat.completions.create({
+      model: WORKER_MODEL,
       max_tokens: 200,
       messages: [
         {

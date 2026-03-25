@@ -1,16 +1,24 @@
 import { db } from '@hawk/db';
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import { generateEmbedding, semanticSearchMemories } from './embeddings';
+import { setWorkerLLM } from './session-commit';
 
-let _client: OpenAI | null = null;
+// Re-export setWorkerLLM so agent can inject the worker client once
+export { setWorkerLLM };
+
+// Use the same worker client from session-commit (injected by agent)
+let _localClient: (() => OpenAI) | null = null;
+export function setDedupClient(clientFn: () => OpenAI): void {
+  _localClient = clientFn;
+}
+
 function getClient(): OpenAI {
-  if (!_client) {
-    _client = new OpenAI({
-      baseURL: 'https://openrouter.ai/api/v1',
-      apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
-    });
-  }
-  return _client;
+  if (_localClient) return _localClient();
+  const OpenAIModule = require('openai') as { default: new (opts: Record<string, unknown>) => OpenAI };
+  return new OpenAIModule.default({
+    baseURL: 'https://openrouter.ai/api/v1',
+    apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
+  });
 }
 
 // Activity logging for ML training data (uses same db client)

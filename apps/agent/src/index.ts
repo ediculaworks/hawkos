@@ -88,6 +88,14 @@ async function main() {
     console.error(`[hawk] Channel connection failed: ${msg}`);
     console.warn('[hawk] Running in API-only mode (no Discord). Check your DISCORD_BOT_TOKEN.');
   }
+  // ── Inject Ollama worker LLM for background tasks ────────────────
+  const { getWorkerClient, WORKER_MODEL, isOllamaAvailable } = await import('./llm-client.js');
+  const { setWorkerLLM } = await import('@hawk/module-memory/session-commit');
+  setWorkerLLM(getWorkerClient, WORKER_MODEL);
+  console.log(
+    `[hawk] Worker LLM: ${isOllamaAvailable() ? 'Ollama local' : 'OpenRouter'} (${WORKER_MODEL})`,
+  );
+
   // ── Active crons (no LLM calls) ──────────────────────────────────
   startNetWorthSnapshotCron();
   startExtensionSyncCron();
@@ -100,22 +108,22 @@ async function main() {
   setDemandBroadcast((type, data) => wsBroadcast(type, data));
   startDemandExecutorCron();
 
-  // ── DISABLED — consume LLM tokens in background ────────────────
-  // Re-enable when token budget allows (OpenRouter free tier limits)
+  // ── Background LLM crons (use Ollama local, no OpenRouter tokens) ──
+  startGapScannerCron();
+  const compactorTask = cron.schedule('0 * * * *', () => {
+    runSessionCompactor().catch((err) => console.error('[hawk] Session compactor failed:', err));
+  });
+  activeTasks.push(compactorTask);
+
+  // ── Still disabled (send Discord messages via handler = OpenRouter) ──
+  // Enable these only when token budget allows:
   // startHealthInsightsCron();
   // startContentPipelineCron();
   // startStreakGuardianCron();
-  // startGapScannerCron();
   // startAlertsCron();
   // startCheckinCrons();
   // startWeeklyReviewCron();
   // startHeartbeatCron();
-  // const analyticsTasks = startAnalyticsCrons();
-  // activeTasks.push(...analyticsTasks);
-  // const compactorTask = cron.schedule('0 * * * *', () => {
-  //   runSessionCompactor().catch((err) => console.error('[hawk] Session compactor failed:', err));
-  // });
-  // activeTasks.push(compactorTask);
 
   // Weekly: recompute adaptive memory half-lives from access patterns
   // Runs Sunday at 03:00 (low traffic) — the system learns optimal decay rates

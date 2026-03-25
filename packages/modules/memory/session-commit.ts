@@ -1,23 +1,33 @@
 import { db } from '@hawk/db';
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import { applyDedupResult, deduplicateMemory } from './deduplicator';
 import type { MemoryCandidate } from './deduplicator';
 import { predictImportance } from './importance-scorer';
 import { extractMemoriesByRules } from './rule-extractor';
 
-let _client: OpenAI | null = null;
-function getClient(): OpenAI {
-  if (!_client) {
-    _client = new OpenAI({
-      baseURL: 'https://openrouter.ai/api/v1',
-      apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
-    });
-  }
-  return _client;
+// Worker client + model injected from agent (Ollama local or OpenRouter)
+let _workerClient: (() => OpenAI) | null = null;
+let _workerModel = 'sourceful/riverflow-v2-fast';
+
+export function setWorkerLLM(clientFn: () => OpenAI, model: string): void {
+  _workerClient = clientFn;
+  _workerModel = model;
 }
 
-// Worker model: free model for session compaction and memory extraction
-const MODEL = process.env.MEMORY_WORKER_MODEL ?? 'sourceful/riverflow-v2-fast';
+function getClient(): OpenAI {
+  if (_workerClient) return _workerClient();
+  // Fallback: lazy OpenRouter client
+  const OpenAIModule = require('openai') as { default: new (opts: Record<string, unknown>) => OpenAI };
+  const client = new OpenAIModule.default({
+    baseURL: 'https://openrouter.ai/api/v1',
+    apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
+  });
+  return client;
+}
+
+function getModel(): string {
+  return _workerModel;
+}
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -259,7 +269,7 @@ async function generateArchiveSummary(
   transcript: string,
 ): Promise<{ abstract: string; overview: string }> {
   const response = await getClient().chat.completions.create({
-    model: MODEL,
+    model: getModel(),
     max_tokens: 1024,
     messages: [
       {
@@ -304,7 +314,7 @@ Escreva em português.`,
 
 async function extractMemories(transcript: string): Promise<MemoryCandidate[]> {
   const response = await getClient().chat.completions.create({
-    model: MODEL,
+    model: getModel(),
     max_tokens: 1024,
     messages: [
       {
@@ -364,7 +374,7 @@ async function generateMemoryLayers(
   module: string | null,
 ): Promise<void> {
   const response = await getClient().chat.completions.create({
-    model: MODEL,
+    model: getModel(),
     max_tokens: 512,
     messages: [
       {
