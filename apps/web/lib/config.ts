@@ -5,9 +5,10 @@
 function getTenantConfig() {
   if (typeof window !== 'undefined' && window.__HAWK_TENANT__) {
     const t = window.__HAWK_TENANT__;
+    const host = window.location.hostname;
     return {
-      apiUrl: `http://localhost:${t.agentApiPort}`,
-      wsUrl: `ws://localhost:${t.agentApiPort}/ws`,
+      apiUrl: `http://${host}:${t.agentApiPort}`,
+      wsUrl: `ws://${host}:${t.agentApiPort}/ws`,
       token: t.agentApiSecret,
     };
   }

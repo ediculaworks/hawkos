@@ -1,26 +1,32 @@
-import { createClient } from '@supabase/supabase-js';
+'use server';
+
+import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
+import { createTenantClient } from '@hawk/db';
 import { type NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
-function getServiceSupabase() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !supabaseKey) {
-    return null;
-  }
-  return createClient(supabaseUrl, supabaseKey);
-}
+async function getTenantSupabase() {
+  const cookieStore = await cookies();
+  const slug = cookieStore.get('hawk_tenant')?.value;
 
-function getAnonSupabase() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) {
-    return null;
+  if (slug) {
+    const tenant = await getTenantPrivateBySlug(slug);
+    if (tenant) {
+      return createTenantClient(tenant.supabaseUrl, tenant.supabaseServiceRoleKey);
+    }
   }
-  return createClient(supabaseUrl, supabaseKey);
+
+  // Single-tenant fallback
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+
+  const { createClient } = await import('@supabase/supabase-js');
+  return createClient(url, key);
 }
 
 export async function GET() {
-  const supabase = getAnonSupabase() ?? getServiceSupabase();
+  const supabase = await getTenantSupabase();
   if (!supabase) {
     return NextResponse.json({ error: 'Missing Supabase config' }, { status: 500 });
   }
@@ -62,7 +68,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = getServiceSupabase();
+  const supabase = await getTenantSupabase();
   if (!supabase) {
     return NextResponse.json({ error: 'Missing Supabase config' }, { status: 500 });
   }

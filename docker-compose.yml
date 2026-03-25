@@ -63,6 +63,8 @@ services:
     <<: *agent-defaults
     environment:
       - AGENT_SLOT=ten1
+    ports:
+      - "3011:3001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
@@ -74,6 +76,8 @@ services:
     <<: *agent-defaults
     environment:
       - AGENT_SLOT=ten2
+    ports:
+      - "3012:3001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
@@ -85,6 +89,8 @@ services:
     <<: *agent-defaults
     environment:
       - AGENT_SLOT=ten3
+    ports:
+      - "3013:3001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
@@ -96,6 +102,8 @@ services:
     <<: *agent-defaults
     environment:
       - AGENT_SLOT=ten4
+    ports:
+      - "3014:3001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
@@ -107,6 +115,8 @@ services:
     <<: *agent-defaults
     environment:
       - AGENT_SLOT=ten5
+    ports:
+      - "3015:3001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
@@ -118,6 +128,8 @@ services:
     <<: *agent-defaults
     environment:
       - AGENT_SLOT=ten6
+    ports:
+      - "3016:3001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
