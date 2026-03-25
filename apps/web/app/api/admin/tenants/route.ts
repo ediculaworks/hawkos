@@ -167,7 +167,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No available slots' }, { status: 400 });
     }
 
-    const agentPort = 3001 + SLOTS.indexOf(nextSlug);
+    const agentPort = 3011 + SLOTS.indexOf(nextSlug);
     const agentSecret = existingByUrl?.agent_secret ?? generateAgentSecret();
 
     // Encrypt service key using admin service key as master

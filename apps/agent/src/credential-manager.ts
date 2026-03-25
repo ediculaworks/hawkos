@@ -160,8 +160,7 @@ export function applyTenantCredentials(credentials: TenantCredentials): void {
   console.log('[credential-manager] Applied tenant credentials from Admin Supabase');
 }
 
-const RETRY_INTERVAL_MS = 60_000; // 1 minute between retries
-const MAX_RETRIES = Infinity; // keep waiting until tenant is registered
+const RETRY_INTERVAL_MS = 5 * 60_000; // 5 minutes between retries
 
 export async function initializeFromAdminSupabase(): Promise<void> {
   const slot = process.env.AGENT_SLOT;
@@ -170,9 +169,10 @@ export async function initializeFromAdminSupabase(): Promise<void> {
     return;
   }
 
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    console.log(`[credential-manager] Loading credentials for slot: ${slot} (attempt ${attempt})`);
+  console.log(`[credential-manager] Loading credentials for slot: ${slot}`);
 
+  let loggedWaiting = false;
+  while (true) {
     try {
       const credentials = await loadTenantCredentials(slot);
       applyTenantCredentials(credentials);
@@ -182,9 +182,12 @@ export async function initializeFromAdminSupabase(): Promise<void> {
       const isMissing = msg.includes('not found');
 
       if (isMissing) {
-        console.warn(
-          `[credential-manager] Tenant '${slot}' not registered yet — waiting ${RETRY_INTERVAL_MS / 1000}s before retry...`,
-        );
+        if (!loggedWaiting) {
+          console.log(
+            `[credential-manager] Tenant '${slot}' not registered yet — will check every ${RETRY_INTERVAL_MS / 60_000}min silently`,
+          );
+          loggedWaiting = true;
+        }
         await new Promise((r) => setTimeout(r, RETRY_INTERVAL_MS));
         continue;
       }
