@@ -160,6 +160,9 @@ export function applyTenantCredentials(credentials: TenantCredentials): void {
   console.log('[credential-manager] Applied tenant credentials from Admin Supabase');
 }
 
+const RETRY_INTERVAL_MS = 60_000; // 1 minute between retries
+const MAX_RETRIES = Infinity; // keep waiting until tenant is registered
+
 export async function initializeFromAdminSupabase(): Promise<void> {
   const slot = process.env.AGENT_SLOT;
   if (!slot) {
@@ -167,13 +170,28 @@ export async function initializeFromAdminSupabase(): Promise<void> {
     return;
   }
 
-  console.log(`[credential-manager] Loading credentials for slot: ${slot}`);
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    console.log(`[credential-manager] Loading credentials for slot: ${slot} (attempt ${attempt})`);
 
-  try {
-    const credentials = await loadTenantCredentials(slot);
-    applyTenantCredentials(credentials);
-  } catch (error) {
-    console.error(`[credential-manager] Failed to load credentials: ${error}`);
-    throw error;
+    try {
+      const credentials = await loadTenantCredentials(slot);
+      applyTenantCredentials(credentials);
+      return; // success
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      const isMissing = msg.includes('not found');
+
+      if (isMissing) {
+        console.warn(
+          `[credential-manager] Tenant '${slot}' not registered yet — waiting ${RETRY_INTERVAL_MS / 1000}s before retry...`,
+        );
+        await new Promise((r) => setTimeout(r, RETRY_INTERVAL_MS));
+        continue;
+      }
+
+      // Non-recoverable error (bad credentials, network, etc.)
+      console.error(`[credential-manager] Failed to load credentials: ${error}`);
+      throw error;
+    }
   }
 }

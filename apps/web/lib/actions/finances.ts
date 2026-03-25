@@ -154,45 +154,51 @@ export async function removeAccount(id: string): Promise<void> {
 }
 
 export async function editTransaction(id: string, updates: unknown): Promise<FinanceTransaction> {
-  const result = UpdateTransactionSchema.safeParse(updates);
-  if (!result.success)
-    throw new Error(`editTransaction: ${result.error.issues.map((e) => e.message).join('; ')}`);
-  return updateTransaction(id, result.data as UpdateTransactionInput);
+  return withTenant(async () => {
+    const result = UpdateTransactionSchema.safeParse(updates);
+    if (!result.success)
+      throw new Error(`editTransaction: ${result.error.issues.map((e) => e.message).join('; ')}`);
+    return updateTransaction(id, result.data as UpdateTransactionInput);
+  });
 }
 
 export async function removeTransaction(id: string): Promise<void> {
-  return deleteTransaction(id);
+  return withTenant(async () => deleteTransaction(id));
 }
 
 export async function fetchRecentTransactions(limit = 10) {
-  const result = await listTransactionsWithCategory(
-    undefined,
-    getMonthStart(),
-    getMonthEnd(),
-    undefined,
-    limit,
-  );
-  return result.data;
+  return withTenant(async () => {
+    const result = await listTransactionsWithCategory(
+      undefined,
+      getMonthStart(),
+      getMonthEnd(),
+      undefined,
+      limit,
+    );
+    return result.data;
+  });
 }
 
 export async function fetchBudgetStatus(month?: string): Promise<BudgetVsActual[]> {
-  const m =
-    month ?? `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-  return getBudgetVsActual(m);
+  return withTenant(async () => {
+    const m =
+      month ?? `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    return getBudgetVsActual(m);
+  });
 }
 
 export async function fetchPortfolioPositions(): Promise<PortfolioPosition[]> {
-  return getPortfolioPositions();
+  return withTenant(async () => getPortfolioPositions());
 }
 
 export async function fetchPortfolioAllocation(): Promise<
   { asset_class: string; total_value: number; percentage: number }[]
 > {
-  return getPortfolioAllocation();
+  return withTenant(async () => getPortfolioAllocation());
 }
 
 export async function fetchNetWorthHistory(months = 12): Promise<NetWorthSnapshot[]> {
-  return getNetWorthHistory(months);
+  return withTenant(async () => getNetWorthHistory(months));
 }
 
 export async function upsertBudgetAction(
@@ -206,5 +212,5 @@ export async function upsertBudgetAction(
     throw new Error('upsertBudgetAction: month deve ser YYYY-MM');
   if (typeof amount !== 'number' || amount < 0)
     throw new Error('upsertBudgetAction: amount inválido');
-  return upsertBudget(categoryId, month, amount);
+  return withTenant(async () => upsertBudget(categoryId, month, amount));
 }
