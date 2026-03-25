@@ -127,7 +127,9 @@ export async function POST(request: Request) {
           const results: { file: string; status: 'ok' | 'skipped'; error?: string }[] = [];
 
           for (let i = 0; i < files.length; i++) {
-            const { name, sql } = files[i];
+            const file = files[i];
+            if (!file) continue;
+            const { name, sql } = file;
             const label = name.replace(/^\d{14}_/, '').replace('.sql', '');
             send(controller, encoder, {
               type: 'file',
