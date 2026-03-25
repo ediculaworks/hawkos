@@ -240,8 +240,13 @@ async function runLLMSession(params: {
     tools_offered: filteredTools.map((t) => (t as { function: { name: string } }).function.name),
   }).catch(() => {});
 
-  // 8. Call LLM with agent's model (streaming if onChunk provided, non-streaming for tool calls)
+  // 8. Call LLM with agent's model + fallback chain for 429/rate limits
   const hasTools = filteredTools.length > 0;
+  const FALLBACK_MODELS = [
+    'stepfun/step-3.5-flash:free',
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'openrouter/free',
+  ];
 
   async function callLLM(
     msgs: OpenAI.ChatCompletionMessageParam[],
@@ -252,8 +257,39 @@ async function runLLMSession(params: {
     finishReason: string | null;
     usage?: { total_tokens?: number };
   }> {
+    const modelsToTry = [agent.model, ...FALLBACK_MODELS.filter((m) => m !== agent.model)];
+
+    for (let i = 0; i < modelsToTry.length; i++) {
+      const model = modelsToTry[i];
+      try {
+        return await _callLLMOnce(msgs, stream, model ?? agent.model);
+      } catch (err) {
+        const status = (err as { status?: number }).status;
+        if (status === 429 || status === 403) {
+          console.warn(`[handler] Model ${model} returned ${status}, trying fallback...`);
+          if (i < modelsToTry.length - 1) {
+            await new Promise((r) => setTimeout(r, 2000));
+            continue;
+          }
+        }
+        throw err;
+      }
+    }
+    throw new Error('All models exhausted');
+  }
+
+  async function _callLLMOnce(
+    msgs: OpenAI.ChatCompletionMessageParam[],
+    stream: boolean,
+    model: string,
+  ): Promise<{
+    content: string | null;
+    toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[];
+    finishReason: string | null;
+    usage?: { total_tokens?: number };
+  }> {
     const opts = {
-      model: agent.model,
+      model,
       max_tokens: agent.maxTokens,
       messages: msgs,
       tools: hasTools ? filteredTools : undefined,

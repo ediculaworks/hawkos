@@ -1,7 +1,10 @@
 'use server';
 
+import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
+import { createTenantClient } from '@hawk/db';
 import { createClient } from '@supabase/supabase-js';
 import { type NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
 const TABLES_TO_WIPE = [
   // Memory & Conversations (order matters for FK)
@@ -97,22 +100,31 @@ const TABLES_TO_WIPE = [
 ];
 
 export async function POST(request: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !serviceKey) {
-    return NextResponse.json(
-      { error: 'Missing Supabase service role configuration' },
-      { status: 500 },
-    );
+  // Multi-tenant: get Supabase from cookie
+  const cookieStore = await cookies();
+  const slug = cookieStore.get('hawk_tenant')?.value;
+  let supabase = null;
+  if (slug) {
+    const tenant = await getTenantPrivateBySlug(slug);
+    if (tenant) supabase = createTenantClient(tenant.supabaseUrl, tenant.supabaseServiceRoleKey);
+  }
+  // Single-tenant fallback
+  if (!supabase) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !serviceKey) {
+      return NextResponse.json(
+        { error: 'Missing Supabase service role configuration' },
+        { status: 500 },
+      );
+    }
+    supabase = createClient(url, serviceKey);
   }
 
   const body = await request.json();
   if (body?.confirmation !== 'APAGAR TUDO') {
     return NextResponse.json({ error: 'Invalid confirmation phrase' }, { status: 400 });
   }
-
-  const supabase = createClient(url, serviceKey);
 
   const errors: string[] = [];
   let wiped = 0;
