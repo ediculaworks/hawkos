@@ -133,12 +133,12 @@ INSERT INTO agent_templates (
   is_system,
   memory_type
 ) VALUES (
-  'Assistant',
-  'Assistente genérico para conversas gerais',
-  'assistant-001',
+  'Hawk',
+  'Agente pessoal principal — gestor do sistema',
+  'hawk-001',
   'pixel',
-  '{"traits": ["útil", "amigável"], "tone": "formal", "phrases": []}'::jsonb,
-  'Assistente de IA genérico',
+  '{"traits": ["analítico", "proativo", "direto"], "tone": "profissional mas acessível", "phrases": []}'::jsonb,
+  'Agente orquestrador principal do Hawk OS. Gerencia todos os módulos e delega para especialistas quando necessário.',
   true,
   false,
   'shared'
