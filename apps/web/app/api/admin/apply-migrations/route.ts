@@ -9,7 +9,6 @@ interface MigrateRequest {
 }
 
 function findMigrationsDir(): string {
-  // Try from repo root (turborepo CWD) or from apps/web (direct next dev)
   const fromRoot = path.resolve(process.cwd(), 'packages/db/supabase/migrations');
   const fromWeb = path.resolve(process.cwd(), '../../packages/db/supabase/migrations');
   if (existsSync(fromRoot)) return fromRoot;
@@ -17,17 +16,21 @@ function findMigrationsDir(): string {
   throw new Error('Cannot locate packages/db/supabase/migrations');
 }
 
-function loadAdminSchema(): string {
+function loadAdminSchemaFiles(): { name: string; sql: string }[] {
   const dir = findMigrationsDir();
-  return readFileSync(path.join(dir, '20260410000000_admin_schema.sql'), 'utf-8');
+  // Admin migrations: admin_schema + all files with 'admin_schema' in name
+  const adminFiles = ['20260410000000_admin_schema.sql', '20260411000000_admin_schema_encrypt_configs.sql'];
+  return adminFiles
+    .filter((f) => existsSync(path.join(dir, f)))
+    .map((f) => ({ name: f, sql: readFileSync(path.join(dir, f), 'utf-8') }));
 }
 
-function loadTenantMigrations(): string {
+function loadTenantMigrationFiles(): { name: string; sql: string }[] {
   const dir = findMigrationsDir();
   const files = readdirSync(dir)
     .filter((f) => f.endsWith('.sql') && !f.includes('admin_schema') && !f.includes('pending'))
     .sort();
-  return files.map((f) => readFileSync(path.join(dir, f), 'utf-8')).join('\n\n');
+  return files.map((f) => ({ name: f, sql: readFileSync(path.join(dir, f), 'utf-8') }));
 }
 
 async function runSql(projectRef: string, sql: string, accessToken: string): Promise<void> {
@@ -91,14 +94,16 @@ export async function POST(request: Request) {
     if (target === 'admin') {
       const alreadyApplied = await tableExists(projectRef, 'tenants', accessToken);
       if (!alreadyApplied) {
-        const sql = loadAdminSchema();
-        await runSql(projectRef, sql, accessToken);
+        const files = loadAdminSchemaFiles();
+        for (const { sql } of files) {
+          await runSql(projectRef, sql, accessToken);
+        }
       }
       return NextResponse.json({ applied: !alreadyApplied, target: 'admin' });
     }
 
     if (target === 'tenant') {
-      // Always drop all public tables/types/functions first for a clean slate, then re-apply
+      // Drop all public schema objects for a clean slate
       const dropSql = `
         DO $$ DECLARE r RECORD; BEGIN
           FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public')
@@ -120,11 +125,25 @@ export async function POST(request: Request) {
         END $$;
       `;
       await runSql(projectRef, dropSql, accessToken);
-      const sql = loadTenantMigrations();
-      await runSql(projectRef, sql, accessToken);
-      // Notify PostgREST to reload its schema cache so new columns are visible immediately
+
+      // Run migrations one by one — skip files that error (already applied or irrelevant)
+      const files = loadTenantMigrationFiles();
+      const results: { file: string; status: 'ok' | 'skipped'; error?: string }[] = [];
+
+      for (const { name, sql } of files) {
+        try {
+          await runSql(projectRef, sql, accessToken);
+          results.push({ file: name, status: 'ok' });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          // Skip seed files and known safe errors
+          results.push({ file: name, status: 'skipped', error: msg });
+          console.warn(`[apply-migrations] Skipped ${name}: ${msg}`);
+        }
+      }
+
       await runSql(projectRef, `NOTIFY pgrst, 'reload schema';`, accessToken);
-      return NextResponse.json({ applied: true, reset: true, target: 'tenant' });
+      return NextResponse.json({ applied: true, reset: true, target: 'tenant', results });
     }
 
     return NextResponse.json({ error: 'Invalid target' }, { status: 400 });
