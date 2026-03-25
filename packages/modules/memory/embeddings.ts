@@ -1,10 +1,16 @@
 import { db } from '@hawk/db';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY || 'placeholder',
+    });
+  }
+  return _openai;
+}
 
 const EMBEDDING_MODEL = 'openai/text-embedding-3-small';
 
@@ -12,7 +18,7 @@ const EMBEDDING_MODEL = 'openai/text-embedding-3-small';
  * Generate an embedding vector for a given text using OpenRouter.
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const response = await openai.embeddings.create({
+  const response = await getOpenAI().embeddings.create({
     model: EMBEDDING_MODEL,
     input: text.slice(0, 8000), // truncate to model limit
   });
