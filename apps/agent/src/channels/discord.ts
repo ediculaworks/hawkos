@@ -179,9 +179,7 @@ async function transcribeAudio(url: string): Promise<string | null> {
   }
 }
 
-if (!BOT_TOKEN) throw new Error('Missing DISCORD_BOT_TOKEN');
-if (!AUTHORIZED_USER_ID) throw new Error('Missing DISCORD_AUTHORIZED_USER_ID');
-
+// Token/user checks deferred to startDiscordBot() — env vars loaded at runtime
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -514,7 +512,11 @@ export async function sendToChannel(channelId: string, content: string): Promise
 }
 
 export async function startDiscordBot() {
-  await client.login(BOT_TOKEN);
+  const token = BOT_TOKEN || process.env.DISCORD_BOT_TOKEN;
+  if (!token) throw new Error('Missing DISCORD_BOT_TOKEN');
+  if (!AUTHORIZED_USER_ID && !process.env.DISCORD_AUTHORIZED_USER_ID)
+    throw new Error('Missing DISCORD_AUTHORIZED_USER_ID');
+  await client.login(token);
 }
 
 export function disconnectDiscord() {
