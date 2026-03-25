@@ -49,7 +49,6 @@ const INITIAL_STEPS: ConfigStep[] = [
   { label: 'Resetando e migrando banco', status: 'pending' },
   { label: 'Criando conta de usuário', status: 'pending' },
   { label: 'Realizando login', status: 'pending' },
-  { label: 'Gerando .env para agent', status: 'pending' },
 ];
 
 export function Step5Configure({ formData, onComplete, onError }: Step5ConfigureProps) {
@@ -245,15 +244,8 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
         setStepStatus(5, 'done');
         setProgress((6 / total) * 100);
 
-        // ── Step 7: Generate agent .env ───────────────────────────────────
-        setStepStatus(6, 'loading');
-        setProgress((6.5 / total) * 100);
-
-        const envContent = tenantResult.envContent || '';
-        setStepStatus(6, 'done');
         setProgress(100);
-
-        onComplete(envContent, tenantResult.tenant.slug);
+        onComplete(tenantResult.envContent || '', tenantResult.tenant.slug);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Erro desconhecido';
         setError(msg);
