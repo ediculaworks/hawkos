@@ -31,7 +31,7 @@ export function getWorkerClient(): OpenAI {
   if (!_workerClient) {
     const ollamaUrl = process.env.OLLAMA_BASE_URL;
     if (ollamaUrl) {
-      _workerClient = new OpenAI({ baseURL: ollamaUrl, apiKey: 'ollama' });
+      _workerClient = new OpenAI({ baseURL: ollamaUrl, apiKey: 'ollama', timeout: 120_000 });
     } else {
       _workerClient = new OpenAI({
         baseURL: 'https://openrouter.ai/api/v1',
