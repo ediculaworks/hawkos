@@ -87,27 +87,45 @@ export async function updateSession(request: NextRequest) {
 
   // Check onboarding status for authenticated users accessing dashboard
   if (user && isProtectedRoute) {
-    const { data: profile } = (await supabase
-      .from('profile')
-      .select('onboarding_complete')
-      .eq('id', user.id)
-      .maybeSingle()) as { data: { onboarding_complete?: boolean } | null };
-
-    const onboardingComplete = profile?.onboarding_complete ?? false;
     const isOnboardingRoute = path === '/onboarding';
+    const onboardingCookie = request.cookies.get('hawk_onboarding')?.value;
 
-    // If onboarding not complete and not on onboarding page → redirect to onboarding
-    if (!onboardingComplete && !isOnboardingRoute) {
-      const onboardingUrl = request.nextUrl.clone();
-      onboardingUrl.pathname = '/onboarding';
-      return NextResponse.redirect(onboardingUrl);
-    }
+    // Fast path: cookie says onboarding is complete — skip DB query
+    if (onboardingCookie === 'complete') {
+      if (isOnboardingRoute) {
+        const dashboardUrl = request.nextUrl.clone();
+        dashboardUrl.pathname = '/dashboard';
+        return NextResponse.redirect(dashboardUrl);
+      }
+    } else {
+      // Slow path: check profile in DB (only until cookie is set)
+      const { data: profile } = (await supabase
+        .from('profile')
+        .select('onboarding_complete')
+        .eq('id', user.id)
+        .maybeSingle()) as { data: { onboarding_complete?: boolean } | null };
 
-    // If onboarding complete and on onboarding page → redirect to dashboard
-    if (onboardingComplete && isOnboardingRoute) {
-      const dashboardUrl = request.nextUrl.clone();
-      dashboardUrl.pathname = '/dashboard';
-      return NextResponse.redirect(dashboardUrl);
+      const onboardingComplete = profile?.onboarding_complete ?? false;
+
+      if (onboardingComplete) {
+        // Set cookie so we never query again
+        supabaseResponse.cookies.set('hawk_onboarding', 'complete', {
+          path: '/',
+          maxAge: 86400 * 30,
+          httpOnly: true,
+          sameSite: 'lax',
+        });
+      } else if (!isOnboardingRoute) {
+        const onboardingUrl = request.nextUrl.clone();
+        onboardingUrl.pathname = '/onboarding';
+        return NextResponse.redirect(onboardingUrl);
+      }
+
+      if (onboardingComplete && isOnboardingRoute) {
+        const dashboardUrl = request.nextUrl.clone();
+        dashboardUrl.pathname = '/dashboard';
+        return NextResponse.redirect(dashboardUrl);
+      }
     }
   }
 
