@@ -1,6 +1,5 @@
 'use client';
 
-import { AgentSprite } from '@/components/agents/agent-sprite';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Agent, ChatSession } from '@/lib/agent-chat';
@@ -92,13 +91,9 @@ export function ChatSidebar({
             onClick={() => setAgentDropdownOpen(!agentDropdownOpen)}
             className="flex items-center gap-2 w-full px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer"
           >
-            {selectedAgent?.sprite_folder ? (
-              <AgentSprite folder={selectedAgent.sprite_folder} size={24} speed={600} />
-            ) : (
-              <span className="text-base">
-                {selectedAgent?.avatar === 'hawk' ? '\u{1F985}' : '\u{1F916}'}
-              </span>
-            )}
+            <div className="w-6 h-6 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+              {selectedAgent ? selectedAgent.name.slice(0, 2).toUpperCase() : '??'}
+            </div>
             <span className="flex-1 text-sm font-medium text-[var(--color-text-primary)] text-left truncate">
               {selectedAgent?.name ?? 'Selecionar agente'}
             </span>
@@ -127,17 +122,9 @@ export function ChatSidebar({
                       selectedAgent?.id === agent.id ? 'bg-[var(--color-accent)]/10' : ''
                     }`}
                   >
-                    {agent.sprite_folder ? (
-                      <AgentSprite
-                        folder={agent.sprite_folder}
-                        size={20}
-                        speed={selectedAgent?.id === agent.id ? 500 : 0}
-                      />
-                    ) : (
-                      <span className="text-sm">
-                        {agent.avatar === 'hawk' ? '\u{1F985}' : '\u{1F916}'}
-                      </span>
-                    )}
+                    <div className="w-5 h-5 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
+                      {agent.name.slice(0, 2).toUpperCase()}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <span className="text-sm text-[var(--color-text-primary)] block truncate">
                         {agent.name}
@@ -265,17 +252,10 @@ function SessionItem({
           : 'hover:bg-[var(--color-surface-2)] border-l-2 border-transparent'
       }`}
     >
-      {/* Mini sprite */}
-      {session.agentSpriteFolder ? (
-        <AgentSprite
-          folder={session.agentSpriteFolder}
-          size={20}
-          speed={isActive ? 500 : 0}
-          className="flex-shrink-0"
-        />
-      ) : (
-        <div className="w-5 h-5 flex-shrink-0" />
-      )}
+      {/* Agent initials mini avatar */}
+      <div className="w-5 h-5 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center text-[9px] font-bold text-[var(--color-accent)] flex-shrink-0">
+        {(session.agentName ?? 'H').slice(0, 2).toUpperCase()}
+      </div>
 
       {editing ? (
         <div className="flex-1 flex items-center gap-1">

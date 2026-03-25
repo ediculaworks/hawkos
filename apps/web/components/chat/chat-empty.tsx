@@ -1,6 +1,5 @@
 'use client';
 
-import { AgentSprite } from '@/components/agents/agent-sprite';
 import type { Agent } from '@/lib/agent-chat';
 import { MessageSquare } from 'lucide-react';
 
@@ -83,13 +82,9 @@ export function ChatEmpty({ agent, agents, onSelectAgent, onSuggest }: ChatEmpty
               onClick={() => onSelectAgent(a)}
               className="flex flex-col items-center gap-2 p-4 rounded-[var(--radius-lg)] bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all cursor-pointer"
             >
-              {a.sprite_folder ? (
-                <AgentSprite folder={a.sprite_folder} size={48} speed={500} />
-              ) : (
-                <div className="h-12 w-12 rounded-full bg-[var(--color-surface-3)] flex items-center justify-center text-2xl">
-                  {a.avatar === 'hawk' ? '\u{1F985}' : '\u{1F916}'}
-                </div>
-              )}
+              <div className="w-12 h-12 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-lg font-bold text-white">
+                {a.name.slice(0, 2).toUpperCase()}
+              </div>
               <span className="text-xs font-medium text-[var(--color-text-primary)]">{a.name}</span>
             </button>
           ))}
@@ -103,13 +98,9 @@ export function ChatEmpty({ agent, agents, onSelectAgent, onSuggest }: ChatEmpty
 
   return (
     <div className="flex flex-col items-center justify-center h-full">
-      {agent.sprite_folder ? (
-        <AgentSprite folder={agent.sprite_folder} size={80} speed={500} />
-      ) : (
-        <div className="h-20 w-20 rounded-full bg-[var(--color-surface-2)] flex items-center justify-center text-4xl mb-3">
-          {agent.avatar === 'hawk' ? '\u{1F985}' : '\u{1F916}'}
-        </div>
-      )}
+      <div className="w-20 h-20 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-3xl font-bold text-white mb-3">
+        {agent.name.slice(0, 2).toUpperCase()}
+      </div>
       <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mt-3 mb-1">
         {agent.name}
       </h2>

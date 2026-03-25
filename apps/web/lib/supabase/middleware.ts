@@ -63,9 +63,13 @@ export async function updateSession(request: NextRequest) {
   });
 
   // Refresh session — this keeps the auth cookie alive
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    // Invalid/expired refresh token — treat as unauthenticated
+  }
 
   // Not authenticated and trying to access protected route → login
   if (!user && isProtectedRoute) {

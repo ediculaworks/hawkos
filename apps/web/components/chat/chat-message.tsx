@@ -1,6 +1,5 @@
 'use client';
 
-import { AgentSprite } from '@/components/agents/agent-sprite';
 import type { Agent, ChatMessage } from '@/lib/agent-chat';
 import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp, User } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
@@ -96,13 +95,9 @@ function AssistantMessage({
       {/* Header: avatar + name + timestamp */}
       <div className="flex items-center gap-2.5 mb-2">
         <div className="flex-shrink-0">
-          {agent?.sprite_folder ? (
-            <AgentSprite folder={agent.sprite_folder} size={32} speed={600} />
-          ) : (
-            <div className="h-8 w-8 rounded-full bg-[var(--color-surface-2)] flex items-center justify-center text-sm">
-              {getAvatarEmoji(agent?.avatar)}
-            </div>
-          )}
+          <div className="h-8 w-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-bold text-white">
+            {agent ? agent.name.slice(0, 2).toUpperCase() : 'HA'}
+          </div>
         </div>
         <span className="text-xs font-medium text-[var(--color-text-secondary)]">
           {agent?.name ?? 'Hawk'}
@@ -182,13 +177,9 @@ export function TypingIndicator({ agent }: { agent: Agent | null }) {
   return (
     <div className="flex items-center gap-2.5 mb-4">
       <div className="flex-shrink-0">
-        {agent?.sprite_folder ? (
-          <AgentSprite folder={agent.sprite_folder} size={32} speed={400} />
-        ) : (
-          <div className="h-8 w-8 rounded-full bg-[var(--color-surface-2)] flex items-center justify-center text-sm">
-            {getAvatarEmoji(agent?.avatar)}
-          </div>
-        )}
+        <div className="h-8 w-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-bold text-white">
+          {agent ? agent.name.slice(0, 2).toUpperCase() : 'HA'}
+        </div>
       </div>
       <div className="flex items-center gap-1 px-3 py-2 rounded-[var(--radius-lg)] bg-[var(--color-surface-2)]">
         <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-text-muted)] animate-bounce [animation-delay:0ms]" />

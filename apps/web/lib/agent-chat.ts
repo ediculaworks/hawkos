@@ -27,7 +27,6 @@ export interface ChatSession {
   agentId?: string;
   agentName?: string;
   agentAvatar?: string;
-  agentSpriteFolder?: string;
   title?: string;
   channel?: 'web' | 'discord';
 }
@@ -249,7 +248,8 @@ export function useChat() {
           const match = pendingId
             ? (data.agents as Agent[]).find((a: Agent) => a.id === pendingId)
             : null;
-          setSelectedAgent(match ?? data.agents[0]);
+          const hawk = (data.agents as Agent[]).find((a: Agent) => a.agent_tier === 'orchestrator');
+          setSelectedAgent(match ?? hawk ?? data.agents[0]);
           pendingAgentIdRef.current = null;
         }
       }
@@ -260,7 +260,8 @@ export function useChat() {
           const data = await res.json();
           setAgents(data.agents ?? []);
           if (data.agents?.length > 0 && !selectedAgentRef.current) {
-            setSelectedAgent(data.agents[0]);
+            const hawk = (data.agents as Agent[]).find((a: Agent) => a.agent_tier === 'orchestrator');
+            setSelectedAgent(hawk ?? data.agents[0]);
           }
         }
       } catch (_err2) {}
