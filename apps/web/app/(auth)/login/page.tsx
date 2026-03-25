@@ -92,9 +92,9 @@ export default function LoginPage() {
   };
 
   const handleSplashComplete = useCallback(() => {
-    router.push('/dashboard');
-    router.refresh();
-  }, [router]);
+    // Full page reload ensures auth cookies are sent with the request
+    window.location.href = '/dashboard';
+  }, []);
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[var(--color-surface-0)]">

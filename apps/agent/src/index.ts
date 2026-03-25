@@ -88,30 +88,34 @@ async function main() {
     console.error(`[hawk] Channel connection failed: ${msg}`);
     console.warn('[hawk] Running in API-only mode (no Discord). Check your DISCORD_BOT_TOKEN.');
   }
-  startHealthInsightsCron();
-  startContentPipelineCron();
-  startStreakGuardianCron();
+  // ── Active crons (no LLM calls) ──────────────────────────────────
   startNetWorthSnapshotCron();
-  startGapScannerCron();
-  startAlertsCron();
-  startCheckinCrons();
-  startWeeklyReviewCron();
-  startHeartbeatCron();
-  startJobMonitorCron();
   startExtensionSyncCron();
   startBackupCron();
   startMonitorCron();
+  startJobMonitorCron();
+
   // Wire demand executor with WebSocket broadcast
   const { broadcast: wsBroadcast } = await import('./api/server.js');
   setDemandBroadcast((type, data) => wsBroadcast(type, data));
   startDemandExecutorCron();
-  const analyticsTasks = startAnalyticsCrons();
-  activeTasks.push(...analyticsTasks);
 
-  const compactorTask = cron.schedule('0 * * * *', () => {
-    runSessionCompactor().catch((err) => console.error('[hawk] Session compactor failed:', err));
-  });
-  activeTasks.push(compactorTask);
+  // ── DISABLED — consume LLM tokens in background ────────────────
+  // Re-enable when token budget allows (OpenRouter free tier limits)
+  // startHealthInsightsCron();
+  // startContentPipelineCron();
+  // startStreakGuardianCron();
+  // startGapScannerCron();
+  // startAlertsCron();
+  // startCheckinCrons();
+  // startWeeklyReviewCron();
+  // startHeartbeatCron();
+  // const analyticsTasks = startAnalyticsCrons();
+  // activeTasks.push(...analyticsTasks);
+  // const compactorTask = cron.schedule('0 * * * *', () => {
+  //   runSessionCompactor().catch((err) => console.error('[hawk] Session compactor failed:', err));
+  // });
+  // activeTasks.push(compactorTask);
 
   // Weekly: recompute adaptive memory half-lives from access patterns
   // Runs Sunday at 03:00 (low traffic) — the system learns optimal decay rates

@@ -40,7 +40,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     : '';
 
   return (
-    <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="pt-BR" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
       {/* biome-ignore lint/security/noDangerouslySetInnerHtml: tenant config injection into window globals */}
       {tenantScript ? <script dangerouslySetInnerHTML={{ __html: tenantScript }} /> : null}
       <body>
