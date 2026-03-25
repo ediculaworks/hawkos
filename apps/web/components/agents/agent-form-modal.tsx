@@ -58,15 +58,15 @@ const AGENT_EMOJIS = [
 ] as const;
 
 const LLM_MODELS = [
-  { value: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 120B' },
-  { value: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5' },
-  { value: 'stepfun/step-3.5-flash:free', label: 'Step 3.5 Flash' },
-  { value: 'qwen/qwen3-next-80b-a3b-instruct:free', label: 'Qwen3 Next 80B' },
-  { value: 'openai/gpt-oss-120b:free', label: 'GPT OSS 120B' },
-  { value: 'qwen/qwen3-coder:free', label: 'Qwen3 Coder' },
-  { value: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free', label: 'Dolphin Mistral 24B' },
-  { value: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B' },
-  { value: 'nousresearch/hermes-3-llama-3.1-405b:free', label: 'Hermes 3 405B' },
+  { value: 'qwen/qwen3-next-80b-a3b-instruct:free', label: 'Qwen3 Next 80B', tools: true },
+  { value: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 120B', tools: true },
+  { value: 'openai/gpt-oss-120b:free', label: 'GPT OSS 120B', tools: true },
+  { value: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5', tools: true },
+  { value: 'stepfun/step-3.5-flash:free', label: 'Step 3.5 Flash', tools: true },
+  { value: 'qwen/qwen3-coder:free', label: 'Qwen3 Coder', tools: true },
+  { value: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B', tools: true },
+  { value: 'nousresearch/hermes-3-llama-3.1-405b:free', label: 'Hermes 3 405B', tools: false },
+  { value: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free', label: 'Dolphin 24B', tools: false },
 ];
 
 interface FormState {
@@ -105,7 +105,7 @@ const DEFAULT_FORM: FormState = {
   phrases: '',
   knowledge: '',
   philosophy: '',
-  llm_model: 'openrouter/auto',
+  llm_model: 'qwen/qwen3-next-80b-a3b-instruct:free',
   llm_model_custom: '',
   agent_tier: 'specialist',
   temperature: 0.7,
@@ -502,7 +502,7 @@ export function AgentFormModal({ open, agent, onClose, onSaved }: AgentFormModal
                 >
                   {LLM_MODELS.map((m) => (
                     <option key={m.value} value={m.value}>
-                      {m.label}
+                      {m.tools ? `🔧 ${m.label}` : `${m.label} (sem tools)`}
                     </option>
                   ))}
                   <option value="__custom__">Personalizado...</option>
