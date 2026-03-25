@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     '@hawk/db',
     '@hawk/shared',
+    '@hawk/context-engine',
     '@hawk/module-calendar',
     '@hawk/module-career',
     '@hawk/module-finances',
@@ -20,8 +21,25 @@ const nextConfig: NextConfig = {
     '@hawk/module-knowledge',
     '@hawk/module-memory',
     '@hawk/module-people',
+    '@hawk/module-health',
+    '@hawk/module-housing',
+    '@hawk/module-assets',
+    '@hawk/module-entertainment',
+    '@hawk/module-legal',
+    '@hawk/module-security',
+    '@hawk/module-social',
+    '@hawk/module-spirituality',
     '@hawk/extensions',
   ],
+  async headers() {
+    return [
+      {
+        // All routes EXCEPT Next.js static assets (content-addressed, fine to cache)
+        source: '/((?!_next/static|_next/image|favicon.ico).*)',
+        headers: [{ key: 'Cache-Control', value: 'no-store, must-revalidate' }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

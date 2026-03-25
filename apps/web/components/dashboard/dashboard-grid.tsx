@@ -54,7 +54,16 @@ export function DashboardGrid() {
     [widgets, updateLayout],
   );
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div ref={containerRef} className="grid grid-cols-3 gap-4 animate-pulse">
+        {Array.from({ length: 6 }).map((_, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
+          <div key={i} className="h-48 rounded-[var(--radius-lg)] bg-[var(--color-surface-raised)]" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <>

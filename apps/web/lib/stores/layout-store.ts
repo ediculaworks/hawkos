@@ -10,7 +10,6 @@ const DEFAULT_LAYOUT: WidgetLayoutItem[] = [
   { i: 'routine-habits', widgetId: 'routine-habits', x: 4, y: 0, w: 4, h: 5 },
   { i: 'objectives-goals', widgetId: 'objectives-goals', x: 8, y: 0, w: 4, h: 4 },
   { i: 'finances-transactions', widgetId: 'finances-transactions', x: 0, y: 4, w: 4, h: 4 },
-  { i: 'journal-mood', widgetId: 'journal-mood', x: 4, y: 5, w: 4, h: 3 },
   { i: 'objectives-tasks', widgetId: 'objectives-tasks', x: 8, y: 4, w: 4, h: 4 },
 ];
 
@@ -58,6 +57,13 @@ export const useLayoutStore = create<LayoutState>()(
 
       resetLayout: () => set({ widgets: DEFAULT_LAYOUT }),
     }),
-    { name: 'hawk-layout' },
+    {
+      name: 'hawk-layout',
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.widgets = state.widgets.filter((w) => !!WIDGET_REGISTRY[w.widgetId]);
+        }
+      },
+    },
   ),
 );
