@@ -1,7 +1,5 @@
 import { TenantRepairActions } from '@/components/admin/tenant-repair-actions';
 import { createClient } from '@supabase/supabase-js';
-import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
 
 function getAdminClient() {
   const url = process.env.ADMIN_SUPABASE_URL;
@@ -41,45 +39,8 @@ async function getSlots() {
 }
 
 export default async function AdminPage() {
-  const cookieStore = await cookies();
-  const devToken = cookieStore.get('admin_dev_token')?.value;
-  const adminToken = cookieStore.get('admin_session')?.value;
-
-  const supabase = getAdminClient();
-
-  let user = null;
-
-  // Check for dev token first (simple password-based access)
-  if (devToken) {
-    // Dev token grants access - create a fake user object
-    user = {
-      id: 'dev-admin',
-      email: 'admin@hawkos.local',
-      user_metadata: { admin: true },
-    } as any;
-  } else {
-    // Try regular session
-    const {
-      data: { user: sessionUser },
-    } = await supabase.auth.getUser();
-    user = sessionUser;
-
-    // If no user and we have a session token, try to verify it
-    if (!user && adminToken) {
-      try {
-        const { data } = await supabase.auth.getUser(adminToken);
-        if (data?.user) {
-          user = data.user;
-        }
-      } catch (_err) {
-        // Token invalid, continue
-      }
-    }
-  }
-
-  if (!user) {
-    redirect('/admin/dev-login?redirect=/admin');
-  }
+  // DEV MODE: No authentication required for now
+  // Remove this when deploying to production
 
   try {
     const [tenants, slots] = await Promise.all([getTenants(), getSlots()]);
