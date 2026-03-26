@@ -93,7 +93,14 @@ export async function updateSession(request: NextRequest) {
   if (!user && isProtectedRoute) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
-    return NextResponse.redirect(loginUrl);
+    const response = NextResponse.redirect(loginUrl);
+    // Clear stale auth cookies to break redirect loops
+    for (const cookie of request.cookies.getAll()) {
+      if (cookie.name.startsWith('sb-') || cookie.name === 'hawk_onboarding') {
+        response.cookies.delete(cookie.name);
+      }
+    }
+    return response;
   }
 
   // Authenticated and on login page → dashboard

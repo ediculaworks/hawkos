@@ -33,6 +33,10 @@ export default function LoginPage() {
 
   // Fetch available tenants on mount
   useEffect(() => {
+    // Clear any stale auth session to prevent redirect loops after deploys
+    const supabase = createClient();
+    supabase.auth.signOut().catch(() => {});
+
     fetch('/api/tenants')
       .then((res) => res.json())
       .then((data) => {
