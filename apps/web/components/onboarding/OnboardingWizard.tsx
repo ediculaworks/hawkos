@@ -18,6 +18,7 @@ interface OnboardingData {
   supabaseUrl?: string;
   anonKey?: string;
   serviceRoleKey?: string;
+  supabaseAccessToken?: string;
   email?: string;
   password?: string;
   name?: string;
@@ -77,11 +78,11 @@ export function OnboardingWizard({ slots: _slots }: Props) {
   const currentStepInfo =
     ONBOARDING_STEPS.find((s) => s.id === currentStep) ?? ONBOARDING_STEPS[0]!;
 
-  // Persist draft on every change (never save password)
+  // Persist draft on every change (never save password or tokens)
   useEffect(() => {
     if (!mounted) return;
     try {
-      const { password: _pw, ...safeData } = formData;
+      const { password: _pw, supabaseAccessToken: _token, ...safeData } = formData;
       localStorage.setItem(
         'hawk-onboarding-draft',
         JSON.stringify({ ...safeData, _step: currentStepIndex }),
@@ -211,6 +212,7 @@ export function OnboardingWizard({ slots: _slots }: Props) {
               supabaseUrl: formData.supabaseUrl,
               anonKey: formData.anonKey,
               serviceRoleKey: formData.serviceRoleKey,
+              supabaseAccessToken: formData.supabaseAccessToken,
               openrouter: formData.openrouter,
               discord: formData.discord,
             }}
@@ -235,6 +237,7 @@ export function OnboardingWizard({ slots: _slots }: Props) {
               supabaseUrl: formData.supabaseUrl || '',
               anonKey: formData.anonKey || '',
               serviceRoleKey: formData.serviceRoleKey || '',
+              supabaseAccessToken: formData.supabaseAccessToken,
               name: formData.name,
               email: formData.email,
               password: formData.password,

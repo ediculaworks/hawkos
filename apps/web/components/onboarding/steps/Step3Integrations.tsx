@@ -13,6 +13,7 @@ interface Step3IntegrationsProps {
     supabaseUrl: string;
     anonKey: string;
     serviceRoleKey: string;
+    supabaseAccessToken?: string;
     openrouter: { apiKey: string; model?: string };
     discord?: {
       botToken: string;
@@ -27,6 +28,7 @@ interface Step3IntegrationsProps {
     supabaseUrl?: string;
     anonKey?: string;
     serviceRoleKey?: string;
+    supabaseAccessToken?: string;
     openrouter?: { apiKey?: string; model?: string };
     discord?: {
       botToken?: string;
@@ -57,6 +59,7 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
     url: initialValues?.supabaseUrl ?? '',
     anonKey: initialValues?.anonKey ?? '',
     serviceKey: initialValues?.serviceRoleKey ?? '',
+    accessToken: initialValues?.supabaseAccessToken ?? '',
   });
   const [supabaseStatus, setSupabaseStatus] = useState<TestStatus>('idle');
   const [supabaseError, setSupabaseError] = useState('');
@@ -175,6 +178,7 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
       supabaseUrl: supabase.url.trim(),
       anonKey: supabase.anonKey.trim(),
       serviceRoleKey: supabase.serviceKey.trim(),
+      supabaseAccessToken: supabase.accessToken || undefined,
       openrouter: { apiKey: openrouter.apiKey.trim(), model: resolvedModel },
       discord: discord.botToken.trim() ? discord : undefined,
     });
@@ -250,6 +254,31 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
               setSupabaseStatus('idle');
             }}
           />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+            Personal Access Token (para migrations)
+          </label>
+          <Input
+            type="password"
+            placeholder="sbp_xxxxxxxx"
+            value={supabase.accessToken}
+            onChange={(e) => {
+              setSupabase({ ...supabase, accessToken: e.target.value.trim() });
+            }}
+          />
+          <p className="text-xs text-[var(--color-text-muted)] mt-1">
+            Crie em{' '}
+            <a
+              href="https://app.supabase.com/account/tokens"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--color-accent)] hover:underline inline-flex items-center gap-1"
+            >
+              app.supabase.com → Account → Access Tokens <ExternalLink className="h-3 w-3" />
+            </a>
+            . Necessário para aplicar o schema no seu projeto.
+          </p>
         </div>
         {supabaseStatus === 'error' && supabaseError && (
           <p className="text-xs text-[var(--color-danger)]">{supabaseError}</p>

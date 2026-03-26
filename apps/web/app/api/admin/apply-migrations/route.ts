@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 interface MigrateRequest {
   projectRef: string;
   target: 'admin' | 'tenant';
+  tenantAccessToken?: string;
 }
 
 function findMigrationsDir(): string {
@@ -71,12 +72,25 @@ export async function POST(request: Request) {
   if (authError) return authError;
 
   const body: MigrateRequest = await request.json();
-  const { projectRef, target } = body;
+  const { projectRef, target, tenantAccessToken } = body;
 
-  const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
-  if (!accessToken) {
+  const adminAccessToken = process.env.SUPABASE_ACCESS_TOKEN;
+
+  // For tenant migrations, use tenant's token if provided, otherwise fall back to admin token
+  let effectiveToken: string | undefined;
+  if (target === 'tenant' && tenantAccessToken) {
+    effectiveToken = tenantAccessToken;
+  } else {
+    effectiveToken = adminAccessToken;
+  }
+
+  if (!effectiveToken) {
+    const reason =
+      target === 'tenant'
+        ? 'Token de acesso não fornecido. Forneça um Personal Access Token do Supabase no onboarding.'
+        : 'SUPABASE_ACCESS_TOKEN not set — migrations skipped';
     return NextResponse.json(
-      { skipped: true, reason: 'SUPABASE_ACCESS_TOKEN not set — migrations skipped' },
+      { skipped: true, reason },
       { status: 501 },
     );
   }
@@ -88,14 +102,14 @@ export async function POST(request: Request) {
       try {
         if (target === 'admin') {
           send(controller, encoder, { type: 'status', msg: 'Verificando schema do Admin...' });
-          const alreadyApplied = await tableExists(projectRef, 'tenants', accessToken);
+          const alreadyApplied = await tableExists(projectRef, 'tenants', effectiveToken);
           if (alreadyApplied) {
             send(controller, encoder, { type: 'status', msg: 'Schema já aplicado, pulando.' });
           } else {
             const files = loadAdminSchemaFiles();
             for (const { name, sql } of files) {
               send(controller, encoder, { type: 'file', name, msg: `Aplicando ${name}...` });
-              await runSql(projectRef, sql, accessToken);
+              await runSql(projectRef, sql, effectiveToken);
               send(controller, encoder, { type: 'file_done', name });
             }
           }
@@ -120,7 +134,7 @@ export async function POST(request: Request) {
               LOOP EXECUTE format('DROP FUNCTION IF EXISTS %s CASCADE', r.sig); END LOOP;
             END $$;
           `;
-          await runSql(projectRef, dropSql, accessToken);
+          await runSql(projectRef, dropSql, effectiveToken);
           send(controller, encoder, { type: 'status', msg: 'Schema limpo. Aplicando migrações...' });
 
           const files = loadTenantMigrationFiles();
@@ -138,7 +152,7 @@ export async function POST(request: Request) {
               progress: Math.round(((i + 1) / files.length) * 100),
             });
             try {
-              await runSql(projectRef, sql, accessToken);
+              await runSql(projectRef, sql, effectiveToken);
               results.push({ file: name, status: 'ok' });
               send(controller, encoder, { type: 'file_done', name, status: 'ok' });
             } catch (err) {
@@ -149,7 +163,7 @@ export async function POST(request: Request) {
             }
           }
 
-          await runSql(projectRef, `NOTIFY pgrst, 'reload schema';`, accessToken);
+          await runSql(projectRef, `NOTIFY pgrst, 'reload schema';`, effectiveToken);
           send(controller, encoder, { type: 'done', applied: true, reset: true, target: 'tenant', results });
         }
       } catch (err) {

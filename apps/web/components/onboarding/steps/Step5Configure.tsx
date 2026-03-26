@@ -13,6 +13,7 @@ interface Step5ConfigureProps {
     supabaseUrl?: string;
     anonKey?: string;
     serviceRoleKey?: string;
+    supabaseAccessToken?: string;
     name: string;
     email?: string;
     password?: string;
@@ -209,7 +210,11 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
           const tenantMigRes = await fetch('/api/admin/apply-migrations', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ projectRef: tenantRef, target: 'tenant' }),
+            body: JSON.stringify({
+              projectRef: tenantRef,
+              target: 'tenant',
+              tenantAccessToken: formData.supabaseAccessToken,
+            }),
           });
           if (tenantMigRes.status === 501) {
             setStepStatus(3, 'done', 'pulado (sem SUPABASE_ACCESS_TOKEN)');

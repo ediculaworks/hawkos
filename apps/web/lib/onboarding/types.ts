@@ -24,6 +24,7 @@ export interface OnboardingFormData {
   supabaseUrl: string;
   anonKey: string;
   serviceRoleKey: string;
+  supabaseAccessToken?: string;
   email: string;
   password: string;
   name: string;
