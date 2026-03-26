@@ -11,10 +11,11 @@ const SALT = 'hawk-os-admin-salt-v1';
 
 interface RepairRequest {
   tenantSlug: string;
-  action: 'reset-user' | 're-migrate';
+  action: 'reset-user' | 're-migrate' | 'fix-profile';
   email?: string;
   newPassword?: string;
   supabaseAccessToken?: string;
+  name?: string;
 }
 
 function deriveKey(masterKey: string): Buffer {
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
 
   try {
     const body: RepairRequest = await request.json();
-    const { tenantSlug, action, email, newPassword, supabaseAccessToken } = body;
+    const { tenantSlug, action, email, newPassword, supabaseAccessToken, name } = body;
 
     if (!tenantSlug) {
       return NextResponse.json({ error: 'tenantSlug required' }, { status: 400 });
@@ -65,6 +66,10 @@ export async function POST(request: Request) {
 
     if (action === 're-migrate') {
       return handleReMigrate(tenantSlug, supabaseAccessToken);
+    }
+
+    if (action === 'fix-profile') {
+      return handleFixProfile(tenantSlug, email, name);
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
@@ -218,4 +223,69 @@ async function handleReMigrate(
   } catch (error) {
     throw new Error(`Failed to call apply-migrations: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+async function handleFixProfile(
+  tenantSlug: string,
+  email?: string,
+  name?: string,
+): Promise<NextResponse> {
+  if (!email) {
+    return NextResponse.json({ error: 'email required for fix-profile' }, { status: 400 });
+  }
+
+  const admin = getAdminClient();
+  const masterKey = process.env.ADMIN_SUPABASE_SERVICE_KEY || '';
+
+  // Fetch tenant and decrypt service key
+  const { data: tenant, error: tenantError } = await admin
+    .from('tenants')
+    .select('supabase_url, supabase_service_key_encrypted, supabase_service_key_iv')
+    .eq('slug', tenantSlug)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (tenantError || !tenant) {
+    return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+  }
+
+  const serviceKey = decryptServiceKey(
+    tenant.supabase_service_key_encrypted,
+    tenant.supabase_service_key_iv,
+    masterKey,
+  );
+
+  // Create client for tenant's Supabase
+  const tenantClient = createClient(tenant.supabase_url, serviceKey, {
+    auth: { persistSession: false },
+  });
+
+  // Look up user
+  const { data: users, error: listError } = await tenantClient.auth.admin.listUsers();
+  if (listError) {
+    throw new Error(`Failed to list users: ${listError.message}`);
+  }
+
+  const user = users?.users.find((u) => u.email === email);
+  if (!user) {
+    return NextResponse.json({ error: `User ${email} not found` }, { status: 404 });
+  }
+
+  // Create or update profile
+  const { error: upsertError } = await tenantClient
+    .from('profile')
+    .upsert({
+      id: user.id,
+      name: name || email.split('@')[0],
+      onboarding_complete: true,
+    }, { onConflict: 'id' });
+
+  if (upsertError) {
+    throw new Error(`Failed to fix profile: ${upsertError.message}`);
+  }
+
+  return NextResponse.json({
+    success: true,
+    message: `Profile fixed for ${email} - onboarding_complete set to true`,
+  });
 }

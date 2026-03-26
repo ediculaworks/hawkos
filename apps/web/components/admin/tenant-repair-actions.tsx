@@ -9,7 +9,7 @@ interface TenantRepairActionsProps {
   tenantSlug: string;
 }
 
-type Modal = 'reset-user' | 're-migrate' | null;
+type Modal = 'reset-user' | 're-migrate' | 'fix-profile' | null;
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
 export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
@@ -23,6 +23,10 @@ export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
 
   // Re-migrate state
   const [pat, setPat] = useState('');
+
+  // Fix profile state
+  const [fixEmail, setFixEmail] = useState('');
+  const [fixName, setFixName] = useState('');
   const [migrationProgress, setMigrationProgress] = useState<string[]>([]);
 
   const handleResetUser = async () => {
@@ -151,6 +155,48 @@ export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
     }
   };
 
+  const handleFixProfile = async () => {
+    if (!fixEmail) {
+      setMessage('Email required');
+      setStatus('error');
+      return;
+    }
+
+    setStatus('loading');
+    setMessage('');
+
+    try {
+      const res = await fetch('/api/admin/repair-tenant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantSlug,
+          action: 'fix-profile',
+          email: fixEmail,
+          name: fixName || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to fix profile');
+      }
+
+      const result = await res.json();
+      setStatus('success');
+      setMessage(`✓ ${result.message}`);
+      setFixEmail('');
+      setFixName('');
+      setTimeout(() => {
+        setModal(null);
+        setStatus('idle');
+      }, 2000);
+    } catch (err) {
+      setStatus('error');
+      setMessage(err instanceof Error ? err.message : 'Failed to fix profile');
+    }
+  };
+
   if (modal === null) {
     return (
       <div className="flex gap-2">
@@ -175,6 +221,17 @@ export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
           }}
         >
           Re-migrar
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setModal('fix-profile');
+            setStatus('idle');
+            setMessage('');
+          }}
+        >
+          Fix Onboarding
         </Button>
       </div>
     );
@@ -248,6 +305,85 @@ export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
             <Button
               size="sm"
               onClick={handleResetUser}
+              disabled={status === 'loading'}
+              className="flex-1"
+            >
+              {status === 'loading' && <Loader2 className="h-3 w-3 mr-2 animate-spin" />}
+              {status === 'loading' ? 'Processando...' : 'Confirmar'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (modal === 'fix-profile') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="w-full max-w-md rounded-lg bg-[var(--color-surface-1)] p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Corrigir Onboarding</h2>
+
+          {status !== 'success' && (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+                  Email do Usuário
+                </label>
+                <Input
+                  placeholder="usuario@example.com"
+                  value={fixEmail}
+                  onChange={(e) => setFixEmail(e.target.value)}
+                  disabled={status === 'loading'}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+                  Nome (Opcional)
+                </label>
+                <Input
+                  placeholder="Nome do usuário"
+                  value={fixName}
+                  onChange={(e) => setFixName(e.target.value)}
+                  disabled={status === 'loading'}
+                />
+              </div>
+            </>
+          )}
+
+          {message && (
+            <div
+              className={`text-xs p-3 rounded flex items-start gap-2 ${
+                status === 'error'
+                  ? 'bg-[var(--color-danger)]/20 text-[var(--color-danger)]'
+                  : status === 'success'
+                    ? 'bg-[var(--color-success)]/20 text-[var(--color-success)]'
+                    : 'bg-[var(--color-accent)]/20 text-[var(--color-accent)]'
+              }`}
+            >
+              {status === 'loading' ? (
+                <Loader2 className="h-3 w-3 shrink-0 animate-spin mt-0.5" />
+              ) : status === 'error' ? (
+                <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+              ) : (
+                <Check className="h-3 w-3 shrink-0 mt-0.5" />
+              )}
+              <span>{message}</span>
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setModal(null)}
+              disabled={status === 'loading'}
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleFixProfile}
               disabled={status === 'loading'}
               className="flex-1"
             >
