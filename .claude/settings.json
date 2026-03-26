@@ -26,7 +26,8 @@
       "Bash(find c:/Users/lucas/Desktop/LifeOS/resources/repositories/openclaw/src/agents/tools -type f -name *.ts)",
       "Bash(find /c/Users/lucas/Desktop/LifeOS -maxdepth 1 -type f \\\\\\(-name Dockerfile -o -name docker-compose.yml -o -name *.sh -o -name *.json \\\\\\))",
       "Bash(find /c/Users/lucas/Desktop/LifeOS -maxdepth 2 -type f \\\\\\(-name *install* -o -name *setup* -o -name *.sh \\\\\\))",
-      "Bash(ssh -i \"C:/Users/lucas/.ssh/hawkos_vps\" root@168.231.89.31 \"docker compose -f /docker/hawkos/docker-compose.yml logs agent-ten1 2>&1 | grep -i ''worker\\\\|ollama''\")"
+      "Bash(ssh -i \"C:/Users/lucas/.ssh/hawkos_vps\" root@168.231.89.31 \"docker compose -f /docker/hawkos/docker-compose.yml logs agent-ten1 2>&1 | grep -i ''worker\\\\|ollama''\")",
+      "Bash(ssh -i \"C:/Users/lucas/.ssh/hawkos_vps\" root@168.231.89.31 \"cd /docker/hawkos && docker compose logs web --tail 100\")"
     ],
     "deny": [
       "Read(./secrets/**)",

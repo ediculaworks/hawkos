@@ -42,27 +42,38 @@ async function getSlots() {
 
 export default async function AdminPage() {
   const cookieStore = await cookies();
+  const devToken = cookieStore.get('admin_dev_token')?.value;
   const adminToken = cookieStore.get('admin_session')?.value;
 
   const supabase = getAdminClient();
 
   let user = null;
 
-  // Try regular session first
-  const {
-    data: { user: sessionUser },
-  } = await supabase.auth.getUser();
-  user = sessionUser;
+  // Check for dev token first (simple password-based access)
+  if (devToken) {
+    // Dev token grants access - create a fake user object
+    user = {
+      id: 'dev-admin',
+      email: 'admin@hawkos.local',
+      user_metadata: { admin: true },
+    } as any;
+  } else {
+    // Try regular session
+    const {
+      data: { user: sessionUser },
+    } = await supabase.auth.getUser();
+    user = sessionUser;
 
-  // If no user and we have a dev token, verify it
-  if (!user && adminToken) {
-    try {
-      const { data } = await supabase.auth.getUser(adminToken);
-      if (data?.user) {
-        user = data.user;
+    // If no user and we have a session token, try to verify it
+    if (!user && adminToken) {
+      try {
+        const { data } = await supabase.auth.getUser(adminToken);
+        if (data?.user) {
+          user = data.user;
+        }
+      } catch (_err) {
+        // Token invalid, continue
       }
-    } catch (_err) {
-      // Token invalid, continue
     }
   }
 
