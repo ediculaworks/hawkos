@@ -28,15 +28,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const tenantSlug = cookieStore.get('hawk_tenant')?.value;
   const tenant = tenantSlug ? await getTenantPrivateBySlug(tenantSlug) : null;
 
-  // Inject tenant config into browser globals (public info only — no secrets)
-  const tenantScript = tenant
-    ? `window.__HAWK_TENANT__=${JSON.stringify({
-        slug: tenant.slug,
-        supabaseUrl: tenant.supabaseUrl,
-        supabaseAnonKey: tenant.supabaseAnonKey,
-        agentApiPort: tenant.agentApiPort,
-      })};`
-    : '';
+  // Inject tenant config + build ID into browser globals
+  const buildId = process.env.BUILD_ID ?? Date.now().toString(36);
+  const tenantScript = [
+    `window.__HAWK_BUILD__='${buildId}';`,
+    tenant
+      ? `window.__HAWK_TENANT__=${JSON.stringify({
+          slug: tenant.slug,
+          supabaseUrl: tenant.supabaseUrl,
+          supabaseAnonKey: tenant.supabaseAnonKey,
+          agentApiPort: tenant.agentApiPort,
+        })};`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('');
 
   return (
     <html

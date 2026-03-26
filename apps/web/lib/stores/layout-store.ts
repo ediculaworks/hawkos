@@ -59,6 +59,8 @@ export const useLayoutStore = create<LayoutState>()(
     }),
     {
       name: 'hawk-layout',
+      version: 2,
+      skipHydration: true,
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.widgets = state.widgets.filter((w) => !!WIDGET_REGISTRY[w.widgetId]);
