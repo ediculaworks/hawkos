@@ -4,6 +4,8 @@ import { WikiLayout } from '@/components/wiki/wiki-layout';
 import type { TocHeading } from '@/components/wiki/wiki-toc';
 import { notFound } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+
 interface WikiPageProps {
   params: Promise<{ slug?: string[] }>;
 }
@@ -46,8 +48,4 @@ export default async function WikiPage({ params }: WikiPageProps) {
   const headings = extractHeadings(content);
 
   return <WikiLayout content={content} currentSlug={slug} headings={headings} />;
-}
-
-export function generateStaticParams() {
-  return [];
 }
