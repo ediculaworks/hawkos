@@ -63,7 +63,7 @@ export default async function AdminPage() {
               </h1>
               <p className="text-[var(--color-text-muted)]">Hawk OS Platform Management</p>
             </div>
-            <div className="text-sm text-[var(--color-text-muted)]">Logged in as: {user.email}</div>
+            <div className="text-sm text-[var(--color-text-muted)]">Admin Dashboard (Dev Mode)</div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
