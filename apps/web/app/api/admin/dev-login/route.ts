@@ -67,16 +67,24 @@ export async function POST(request: Request) {
     console.log('[dev-login] Using userId:', userId);
 
     // Sign in as the admin user to get a valid session
+    console.log('[dev-login] Attempting to sign in with email/password...');
     const { data: signInData, error: signInError } = await admin.auth.signInWithPassword({
       email: adminEmail,
       password: devPassword,
     });
 
-    if (signInError || !signInData.session) {
-      throw signInError || new Error('Failed to create session');
+    console.log('[dev-login] SignIn result:', {
+      hasSession: !!signInData?.session,
+      hasUser: !!signInData?.user,
+      signInError,
+    });
+
+    if (signInError || !signInData?.session) {
+      throw signInError || new Error('Failed to create session - no session returned');
     }
 
     const { session } = signInData;
+    console.log('[dev-login] Session created:', { token: session.access_token.substring(0, 20) + '...' });
 
     // Return session and set cookie
     const response = NextResponse.json({
