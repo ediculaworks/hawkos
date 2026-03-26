@@ -55,7 +55,7 @@ export async function getTenantPrivateBySlug(slug: string): Promise<CachedTenant
   const { data } = await admin
     .from('tenants')
     .select(
-      'slug, label, supabase_url, supabase_anon_key, supabase_service_key_encrypted, supabase_service_key_iv, agent_port, agent_secret, key_salt',
+      'slug, label, supabase_url, supabase_anon_key, supabase_service_key_encrypted, supabase_service_key_iv, agent_port, agent_secret',
     )
     .eq('slug', slug)
     .eq('status', 'active')
@@ -63,11 +63,14 @@ export async function getTenantPrivateBySlug(slug: string): Promise<CachedTenant
 
   if (!data) return null;
 
+  // key_salt column may not exist yet (migration pending) — fall back to legacy salt
+  const salt = (data as Record<string, unknown>).key_salt as string | null | undefined;
+
   const serviceKey = decryptServiceKey(
     data.supabase_service_key_encrypted,
     data.supabase_service_key_iv,
     masterKey,
-    data.key_salt,
+    salt ?? null,
   );
 
   const tenant: CachedTenantPrivate = {
