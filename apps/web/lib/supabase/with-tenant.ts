@@ -6,12 +6,15 @@ import { cookies } from 'next/headers';
 // Cache service-role clients per tenant slug (stateless, safe to reuse)
 const clientCache = new Map<string, SupabaseClient>();
 
-async function getServiceClient(slug: string): Promise<SupabaseClient> {
+async function getServiceClient(slug: string): Promise<SupabaseClient | null> {
   const cached = clientCache.get(slug);
   if (cached) return cached;
 
   const tenant = await getTenantPrivateBySlug(slug);
-  if (!tenant) throw new Error(`Unknown tenant: ${slug}`);
+  if (!tenant) {
+    console.warn(`[with-tenant] Tenant "${slug}" not found — falling back to default env vars`);
+    return null;
+  }
 
   const client = createTenantClient(tenant.supabaseUrl, tenant.supabaseServiceRoleKey);
   clientCache.set(slug, client);
@@ -41,5 +44,9 @@ export async function withTenant<T>(fn: () => Promise<T>): Promise<T> {
   }
 
   const client = await getServiceClient(slug);
+  if (!client) {
+    // Tenant not found in admin DB — fall back to default env vars
+    return fn();
+  }
   return tenantStore.run(client, fn);
 }
