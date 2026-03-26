@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils/cn';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Command, LayoutGrid, LogOut, MessageSquare, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -32,6 +32,13 @@ export function TopBar() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const [greeting, setGreeting] = useState('');
+  const [dateStr, setDateStr] = useState('');
+
+  useEffect(() => {
+    setGreeting(getGreeting());
+    setDateStr(formatTodayDate());
+  }, []);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -69,9 +76,12 @@ export function TopBar() {
         <LayoutGrid className="h-4 w-4 text-[var(--color-text-muted)]" />
         <div>
           <p className="text-sm font-medium text-[var(--color-text-primary)]">
-            {getGreeting()}, {profileName ?? 'Usuário'}
+            {greeting ? `${greeting}, ` : ''}
+            {profileName ?? 'Usuário'}
           </p>
-          <p className="text-xs text-[var(--color-text-muted)] capitalize">{formatTodayDate()}</p>
+          {dateStr && (
+            <p className="text-xs text-[var(--color-text-muted)] capitalize">{dateStr}</p>
+          )}
         </div>
       </div>
 
