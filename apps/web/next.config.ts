@@ -35,6 +35,9 @@ const nextConfig: NextConfig = {
     '@hawk/module-journal',
     '@hawk/module-knowledge',
     '@hawk/extensions',
+    'react-markdown',
+    'remark-gfm',
+    'remark-breaks',
   ],
   async headers() {
     return [
