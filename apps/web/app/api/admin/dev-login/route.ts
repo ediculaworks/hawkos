@@ -28,6 +28,8 @@ export async function POST(request: Request) {
     // Create or find admin user
     const adminEmail = 'admin@hawkos.local';
 
+    console.log('[dev-login] Attempting to create/find user:', adminEmail);
+
     // Try to create admin user
     const { data: newUser, error: createError } = await admin.auth.admin.createUser({
       email: adminEmail,
@@ -35,23 +37,34 @@ export async function POST(request: Request) {
       email_confirm: true,
     });
 
+    console.log('[dev-login] Create response:', { newUser: newUser?.user?.id, createError });
+
     let userId = newUser?.user?.id;
 
     // If user exists, get it
-    if (createError && 'message' in createError && String(createError.message).includes('already exists')) {
-      const { data: users } = await admin.auth.admin.listUsers();
+    if (createError) {
+      console.log('[dev-login] Create error detected, checking if user exists...');
+      const { data: users, error: listError } = await admin.auth.admin.listUsers();
+      console.log('[dev-login] List users result:', { count: users?.users?.length, listError });
       const existing = users?.users?.find((u) => u.email === adminEmail);
       userId = existing?.id;
+      console.log('[dev-login] Found existing user:', userId);
 
       // Update password just in case
       if (userId) {
-        await admin.auth.admin.updateUserById(userId, { password: devPassword });
+        console.log('[dev-login] Updating password for:', userId);
+        const { error: updateError } = await admin.auth.admin.updateUserById(userId, {
+          password: devPassword,
+        });
+        console.log('[dev-login] Password update result:', updateError);
       }
     }
 
     if (!userId) {
-      throw new Error('Failed to create/find admin user');
+      throw new Error(`Failed to create/find admin user (createError: ${createError})`);
     }
+
+    console.log('[dev-login] Using userId:', userId);
 
     // Sign in as the admin user to get a valid session
     const { data: signInData, error: signInError } = await admin.auth.signInWithPassword({
