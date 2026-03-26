@@ -162,7 +162,8 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
           let adminDone = false;
           await readNdjsonStream(adminMigRes, (event) => {
             if (event.type === 'done') adminDone = true;
-            if (event.type === 'error') throw new Error(String(event.error || 'Erro Admin Supabase'));
+            if (event.type === 'error')
+              throw new Error(String(event.error || 'Erro Admin Supabase'));
           });
           if (!adminDone) throw new Error('Erro ao preparar Admin Supabase');
           setStepStatus(1, 'done');
@@ -289,13 +290,23 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
 
         if (formData.email && formData.password && formData.supabaseUrl && formData.anonKey) {
           const supabase = createBrowserClient(formData.supabaseUrl, formData.anonKey);
-          const { error: signInError } = await supabase.auth.signInWithPassword({
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email: formData.email,
             password: formData.password,
           });
           if (signInError) throw signInError;
-          // Set hawk_tenant cookie so middleware knows which Supabase to use
-          document.cookie = `hawk_tenant=${tenantResult.tenant.slug}; path=/; max-age=31536000; SameSite=Lax`;
+          // Set hawk_tenant cookie server-side (HttpOnly) — never use document.cookie for this
+          if (signInData.session?.access_token) {
+            const cookieRes = await fetch('/api/auth/set-tenant', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                tenantSlug: tenantResult.tenant.slug,
+                accessToken: signInData.session.access_token,
+              }),
+            });
+            if (!cookieRes.ok) throw new Error('Erro ao configurar sessão do tenant');
+          }
         }
         setStepStatus(5, 'done');
         setProgress((6 / total) * 100);
@@ -320,9 +331,13 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
           throw new Error(verifyResult.error || 'Erro na verificação');
         }
 
-        const failedChecks = verifyResult.checks?.filter((c: { ok: boolean; label: string; detail?: string }) => !c.ok);
+        const failedChecks = verifyResult.checks?.filter(
+          (c: { ok: boolean; label: string; detail?: string }) => !c.ok,
+        );
         if (failedChecks?.length > 0) {
-          const details = failedChecks.map((c: { label: string; detail?: string }) => `${c.label}: ${c.detail || 'falhou'}`).join('; ');
+          const details = failedChecks
+            .map((c: { label: string; detail?: string }) => `${c.label}: ${c.detail || 'falhou'}`)
+            .join('; ');
           throw new Error(`Verificação falhou — ${details}`);
         }
 

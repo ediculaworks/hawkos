@@ -71,6 +71,24 @@ export async function updateSession(request: NextRequest) {
     // Invalid/expired refresh token — treat as unauthenticated
   }
 
+  // Validate that the authenticated user belongs to the tenant in the cookie.
+  // Prevents a user from swapping hawk_tenant to access another tenant's Supabase.
+  if (user && tenantSlug) {
+    const { data: profile } = (await supabase
+      .from('profile')
+      .select('tenant_slot')
+      .eq('id', user.id)
+      .maybeSingle()) as { data: { tenant_slot?: string } | null };
+
+    if (profile?.tenant_slot && profile.tenant_slot !== tenantSlug) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = '/login';
+      const response = NextResponse.redirect(loginUrl);
+      response.cookies.delete('hawk_tenant');
+      return response;
+    }
+  }
+
   // Not authenticated and trying to access protected route → login
   if (!user && isProtectedRoute) {
     const loginUrl = request.nextUrl.clone();
@@ -90,15 +108,11 @@ export async function updateSession(request: NextRequest) {
     const isOnboardingRoute = path === '/onboarding';
     const onboardingCookie = request.cookies.get('hawk_onboarding')?.value;
 
-    // Fast path: cookie says onboarding is complete — skip DB query
-    if (onboardingCookie === 'complete') {
-      if (isOnboardingRoute) {
-        const dashboardUrl = request.nextUrl.clone();
-        dashboardUrl.pathname = '/dashboard';
-        return NextResponse.redirect(dashboardUrl);
-      }
+    // Check onboarding status — always query DB, cache for 24h only
+    if (onboardingCookie === 'complete' && !isOnboardingRoute) {
+      // Fast path: cookie still valid — skip DB query
     } else {
-      // Slow path: check profile in DB (only until cookie is set)
+      // Check profile in DB
       const { data: profile } = (await supabase
         .from('profile')
         .select('onboarding_complete')
@@ -108,12 +122,12 @@ export async function updateSession(request: NextRequest) {
       const onboardingComplete = profile?.onboarding_complete ?? false;
 
       if (onboardingComplete) {
-        // Set cookie so we never query again
+        // Cache for 24h (down from 30 days) — re-validates more frequently
         supabaseResponse.cookies.set('hawk_onboarding', 'complete', {
           path: '/',
-          maxAge: 86400 * 30,
+          maxAge: 86400,
           httpOnly: true,
-          sameSite: 'lax',
+          sameSite: 'strict',
         });
       } else if (!isOnboardingRoute) {
         const onboardingUrl = request.nextUrl.clone();

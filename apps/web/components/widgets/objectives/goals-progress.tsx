@@ -2,6 +2,7 @@
 
 import { fetchGoals } from '@/lib/actions/objectives';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 const PRIORITY_COLORS: Record<string, string> = {
   high: 'var(--color-danger)',
@@ -15,11 +16,14 @@ export default function GoalsProgressWidget() {
     queryFn: () => fetchGoals(),
   });
 
-  if (!goals) return null;
+  const allGoals = useMemo(() => {
+    if (!goals) return [];
+    return [...(goals.short ?? []), ...(goals.medium ?? []), ...(goals.long ?? [])].sort(
+      (a, b) => b.priority - a.priority,
+    );
+  }, [goals]);
 
-  const allGoals = [...(goals.short ?? []), ...(goals.medium ?? []), ...(goals.long ?? [])].sort(
-    (a, b) => b.priority - a.priority,
-  );
+  if (!goals) return null;
 
   if (allGoals.length === 0) {
     return <p className="text-sm text-[var(--color-text-muted)]">Nenhuma meta ativa</p>;

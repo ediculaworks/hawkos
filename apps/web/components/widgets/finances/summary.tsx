@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils/cn';
 import { formatCurrency } from '@/lib/utils/format';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowUpDown, TrendingDown, TrendingUp } from 'lucide-react';
+import { useMemo } from 'react';
 
 export default function FinancesSummaryWidget() {
   const { data: summary } = useQuery({
@@ -18,7 +19,10 @@ export default function FinancesSummaryWidget() {
     queryFn: () => fetchAccounts(),
   });
 
-  const totalBalance = accounts?.reduce((sum, a) => sum + a.balance, 0) ?? 0;
+  const totalBalance = useMemo(
+    () => accounts?.reduce((sum, a) => sum + a.balance, 0) ?? 0,
+    [accounts],
+  );
   const netIsPositive = (summary?.net ?? 0) >= 0;
 
   return (

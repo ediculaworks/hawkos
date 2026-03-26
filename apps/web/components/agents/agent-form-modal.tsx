@@ -51,10 +51,22 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 const AGENT_EMOJIS = [
-  '🦅', '🦉', '🐺', '🦚',
-  '🐝', '🦫', '🐂', '🦊',
-  '🐻', '🦁', '🐯', '🦈',
-  '🐬', '🦜', '🐸', '🦎',
+  '🦅',
+  '🦉',
+  '🐺',
+  '🦚',
+  '🐝',
+  '🦫',
+  '🐂',
+  '🦊',
+  '🐻',
+  '🦁',
+  '🐯',
+  '🦈',
+  '🐬',
+  '🦜',
+  '🐸',
+  '🦎',
 ] as const;
 
 const LLM_MODELS = [
@@ -66,7 +78,11 @@ const LLM_MODELS = [
   { value: 'qwen/qwen3-coder:free', label: 'Qwen3 Coder', tools: true },
   { value: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B', tools: true },
   { value: 'nousresearch/hermes-3-llama-3.1-405b:free', label: 'Hermes 3 405B', tools: false },
-  { value: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free', label: 'Dolphin 24B', tools: false },
+  {
+    value: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
+    label: 'Dolphin 24B',
+    tools: false,
+  },
 ];
 
 interface FormState {
@@ -546,7 +562,10 @@ export function AgentFormModal({ open, agent, onClose, onSaved }: AgentFormModal
               {/* Temperature */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="agent-temperature" className="text-sm font-medium text-[var(--color-text-secondary)]">
+                  <label
+                    htmlFor="agent-temperature"
+                    className="text-sm font-medium text-[var(--color-text-secondary)]"
+                  >
                     Temperatura
                   </label>
                   <span className="text-sm font-mono text-[var(--color-text-muted)]">

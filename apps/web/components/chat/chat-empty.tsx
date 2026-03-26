@@ -6,17 +6,35 @@ import { MessageSquare } from 'lucide-react';
 // ─── Agent emoji ─────────────────────────────────────────────────────────────
 
 const AGENT_EMOJIS: Record<string, string> = {
-  '🦅': '🦅', '🦉': '🦉', '🐺': '🐺', '🦚': '🦚',
-  '🐝': '🐝', '🦫': '🦫', '🐂': '🐂', '🦊': '🦊',
-  '🐻': '🐻', '🦁': '🦁', '🐯': '🐯', '🦈': '🦈',
-  '🐬': '🐬', '🦜': '🦜', '🐸': '🐸', '🦎': '🦎',
+  '🦅': '🦅',
+  '🦉': '🦉',
+  '🐺': '🐺',
+  '🦚': '🦚',
+  '🐝': '🐝',
+  '🦫': '🦫',
+  '🐂': '🐂',
+  '🦊': '🦊',
+  '🐻': '🐻',
+  '🦁': '🦁',
+  '🐯': '🐯',
+  '🦈': '🦈',
+  '🐬': '🐬',
+  '🦜': '🦜',
+  '🐸': '🐸',
+  '🦎': '🦎',
 };
 
 function getAgentEmoji(agent: { avatar?: string; name: string }): string {
   if (agent.avatar && AGENT_EMOJIS[agent.avatar]) return agent.avatar;
   const nameMap: Record<string, string> = {
-    Hawk: '🦅', Owl: '🦉', Wolf: '🐺', Peacock: '🦚',
-    Bee: '🐝', Beaver: '🦫', Bull: '🐂', Fox: '🦊',
+    Hawk: '🦅',
+    Owl: '🦉',
+    Wolf: '🐺',
+    Peacock: '🦚',
+    Bee: '🐝',
+    Beaver: '🦫',
+    Bull: '🐂',
+    Fox: '🦊',
   };
   return nameMap[agent.name] || agent.name.slice(0, 2).toUpperCase();
 }

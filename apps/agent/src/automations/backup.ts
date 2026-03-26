@@ -70,7 +70,11 @@ export async function runBackup(): Promise<string> {
 
   for (const table of BACKUP_TABLES) {
     try {
-      const { data } = await db.from(table).select('*').limit(50000);
+      const { data } = await db
+        // biome-ignore lint/suspicious/noExplicitAny: dynamic table names from BACKUP_TABLES
+        .from(table as any)
+        .select('*')
+        .limit(50000);
       if (data && data.length > 0) {
         backup[table] = data;
         totalRows += data.length;

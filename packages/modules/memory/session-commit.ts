@@ -17,7 +17,9 @@ export function setWorkerLLM(clientFn: () => OpenAI, model: string): void {
 function getClient(): OpenAI {
   if (_workerClient) return _workerClient();
   // Fallback: lazy OpenRouter client
-  const OpenAIModule = require('openai') as { default: new (opts: Record<string, unknown>) => OpenAI };
+  const OpenAIModule = require('openai') as {
+    default: new (opts: Record<string, unknown>) => OpenAI;
+  };
   const client = new OpenAIModule.default({
     baseURL: 'https://openrouter.ai/api/v1',
     apiKey: process.env.OPENROUTER_API_KEY || 'not-set',

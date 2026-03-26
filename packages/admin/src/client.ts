@@ -1,14 +1,17 @@
 import { type SupabaseClient, createClient } from '@supabase/supabase-js';
-import { decrypt, encrypt, generateAgentSecret } from './crypto.js';
+import { decrypt, encrypt, generateAgentSecret } from './crypto';
 import type {
   AdminUser,
   CreateTenantResult,
   DiscordConfig,
+  IntegrationConfigMap,
+  IntegrationProvider,
   OpenRouterConfig,
   Tenant,
   TenantAudit,
   TenantAvailability,
   TenantInsert,
+  TenantIntegration,
   TenantMetrics,
   TenantModule,
   TenantUpdate,
@@ -214,6 +217,126 @@ export class AdminClient {
       if (error) throw error;
     }
   }
+
+  // ── Integration CRUD ─────────────────────────────────────────────────
+
+  async listTenantIntegrations(tenantId: string): Promise<TenantIntegration[]> {
+    const { data, error } = await this.supabase
+      .from('tenant_integrations')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('provider');
+    if (error) throw error;
+    return data || [];
+  }
+
+  async getTenantIntegration(
+    tenantId: string,
+    provider: IntegrationProvider,
+  ): Promise<TenantIntegration | null> {
+    const { data, error } = await this.supabase
+      .from('tenant_integrations')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('provider', provider)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+
+  async upsertTenantIntegration(
+    tenantId: string,
+    provider: IntegrationProvider,
+    config: Record<string, unknown>,
+    enabled: boolean,
+  ): Promise<TenantIntegration> {
+    const { encrypted, iv } = encrypt(JSON.stringify(config), this.masterKey);
+
+    const { data, error } = await this.supabase
+      .from('tenant_integrations')
+      .upsert(
+        {
+          tenant_id: tenantId,
+          provider,
+          config_encrypted: encrypted,
+          config_iv: iv,
+          enabled,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'tenant_id,provider' },
+      )
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async deleteTenantIntegration(tenantId: string, provider: IntegrationProvider): Promise<void> {
+    const { error } = await this.supabase
+      .from('tenant_integrations')
+      .delete()
+      .eq('tenant_id', tenantId)
+      .eq('provider', provider);
+    if (error) throw error;
+  }
+
+  getDecryptedIntegrationConfig<P extends IntegrationProvider>(
+    integration: TenantIntegration,
+  ): IntegrationConfigMap[P] {
+    if (!integration.config_encrypted || !integration.config_iv) {
+      return {} as IntegrationConfigMap[P];
+    }
+    const json = decrypt(integration.config_encrypted, integration.config_iv, this.masterKey);
+    return JSON.parse(json) as IntegrationConfigMap[P];
+  }
+
+  async getDecryptedIntegrations(
+    tenantId: string,
+  ): Promise<Map<IntegrationProvider, { config: Record<string, unknown>; enabled: boolean }>> {
+    const integrations = await this.listTenantIntegrations(tenantId);
+    const result = new Map<
+      IntegrationProvider,
+      { config: Record<string, unknown>; enabled: boolean }
+    >();
+
+    for (const integration of integrations) {
+      const config = this.getDecryptedIntegrationConfig(integration) as Record<string, unknown>;
+      result.set(integration.provider, { config, enabled: integration.enabled });
+    }
+
+    return result;
+  }
+
+  async updateTenantDiscordConfig(tenantId: string, config: DiscordConfig): Promise<void> {
+    const { encrypted, iv } = encrypt(JSON.stringify(config), this.masterKey);
+    const { error } = await this.supabase
+      .from('tenants')
+      .update({
+        discord_config_encrypted: encrypted,
+        discord_config_iv: iv,
+        discord_config: { _encrypted: true },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', tenantId);
+    if (error) throw error;
+  }
+
+  async updateTenantOpenRouterConfig(tenantId: string, config: OpenRouterConfig): Promise<void> {
+    const { encrypted, iv } = encrypt(JSON.stringify(config), this.masterKey);
+    const { error } = await this.supabase
+      .from('tenants')
+      .update({
+        openrouter_config_encrypted: encrypted,
+        openrouter_config_iv: iv,
+        openrouter_config: { _encrypted: true },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', tenantId);
+    if (error) throw error;
+  }
+
+  // ── Audit & Metrics ────────────────────────────────────────────────
 
   async logAudit(
     tenantId: string,

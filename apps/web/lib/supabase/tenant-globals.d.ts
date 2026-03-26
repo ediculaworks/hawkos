@@ -3,7 +3,6 @@ interface HawkTenantGlobals {
   supabaseUrl: string;
   supabaseAnonKey: string;
   agentApiPort: number;
-  agentApiSecret: string;
 }
 
 interface Window {

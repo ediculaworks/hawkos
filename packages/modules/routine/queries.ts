@@ -17,33 +17,25 @@ import type {
 export async function listHabitsWithTodayStatus(): Promise<HabitWithLog[]> {
   const today = new Date().toISOString().split('T')[0] as string;
 
+  // Single query with LEFT JOIN via Supabase relational syntax
   const { data: habits, error } = await db
     .from('habits')
-    .select('*')
+    .select(
+      'id, name, description, frequency, icon, active, current_streak, best_streak, streak_freeze_count, created_at, habit_logs!left(id, completed, notes, date)',
+    )
     .eq('active', true)
+    .eq('habit_logs.date', today)
     .order('name');
 
   if (error) throw new Error(`Failed to list habits: ${error.message}`);
 
-  const habitIds = (habits ?? []).map((h) => h.id);
-  if (habitIds.length === 0) return [];
-
-  const { data: logs, error: logError } = await db
-    .from('habit_logs')
-    .select('*')
-    .in('habit_id', habitIds)
-    .eq('date', today);
-
-  if (logError) throw new Error(`Failed to get today logs: ${logError.message}`);
-
-  const logMap = new Map((logs ?? []).map((l) => [l.habit_id, l]));
-
   return (habits ?? []).map((habit) => {
-    const log = logMap.get(habit.id) ?? null;
+    const logs = habit.habit_logs as unknown as HabitLog[] | null;
+    const log = logs?.[0] ?? null;
     return {
-      ...(habit as Habit),
+      ...(habit as unknown as Habit),
       completed_today: log?.completed ?? false,
-      log_today: log as HabitLog | null,
+      log_today: log,
     };
   });
 }

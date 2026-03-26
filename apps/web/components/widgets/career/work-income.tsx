@@ -4,6 +4,7 @@ import { fetchWorkSummary } from '@/lib/actions/career';
 import { fetchFinanceSummary } from '@/lib/actions/finances';
 import { useQuery } from '@tanstack/react-query';
 import { Briefcase, Clock, DollarSign, TrendingUp } from 'lucide-react';
+import { useMemo } from 'react';
 
 export default function WorkIncomeWidget() {
   const { data: workSummary } = useQuery({
@@ -16,9 +17,16 @@ export default function WorkIncomeWidget() {
     queryFn: () => fetchFinanceSummary(),
   });
 
-  const totalHoursWeek = workSummary?.reduce((acc, ws) => acc + (ws.total_hours_week ?? 0), 0) ?? 0;
-  const totalHoursMonth =
-    workSummary?.reduce((acc, ws) => acc + (ws.total_hours_month ?? 0), 0) ?? 0;
+  const { totalHoursWeek, totalHoursMonth } = useMemo(() => {
+    if (!workSummary) return { totalHoursWeek: 0, totalHoursMonth: 0 };
+    return workSummary.reduce(
+      (acc, ws) => ({
+        totalHoursWeek: acc.totalHoursWeek + (ws.total_hours_week ?? 0),
+        totalHoursMonth: acc.totalHoursMonth + (ws.total_hours_month ?? 0),
+      }),
+      { totalHoursWeek: 0, totalHoursMonth: 0 },
+    );
+  }, [workSummary]);
   const totalIncome = financeSummary?.income ?? 0;
   const totalExpenses = financeSummary?.expenses ?? 0;
   const netBalance = financeSummary?.net ?? 0;

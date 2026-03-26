@@ -264,14 +264,14 @@ export type Database = {
       agent_settings: {
         Row: {
           agent_name: string
+          alerts_enabled: boolean
+          alerts_time: string
           auto_restart: boolean
           big_purchase_threshold: number
           checkin_evening_enabled: boolean
           checkin_evening_time: string
           checkin_morning_enabled: boolean
           checkin_morning_time: string
-          alerts_enabled: boolean
-          alerts_time: string
           enabled_channels: string[]
           heartbeat_interval: number
           id: string
@@ -282,8 +282,8 @@ export type Database = {
           security_review_day: number
           security_review_time: string
           system_prompt_path: string
-          tenant_name: string
           temperature: number
+          tenant_name: string
           timezone: string
           updated_at: string
           weekly_review_enabled: boolean
@@ -291,14 +291,14 @@ export type Database = {
         }
         Insert: {
           agent_name?: string
+          alerts_enabled?: boolean
+          alerts_time?: string
           auto_restart?: boolean
           big_purchase_threshold?: number
           checkin_evening_enabled?: boolean
           checkin_evening_time?: string
           checkin_morning_enabled?: boolean
           checkin_morning_time?: string
-          alerts_enabled?: boolean
-          alerts_time?: string
           enabled_channels?: string[]
           heartbeat_interval?: number
           id?: string
@@ -309,8 +309,8 @@ export type Database = {
           security_review_day?: number
           security_review_time?: string
           system_prompt_path?: string
-          tenant_name?: string
           temperature?: number
+          tenant_name?: string
           timezone?: string
           updated_at?: string
           weekly_review_enabled?: boolean
@@ -318,14 +318,14 @@ export type Database = {
         }
         Update: {
           agent_name?: string
+          alerts_enabled?: boolean
+          alerts_time?: string
           auto_restart?: boolean
           big_purchase_threshold?: number
           checkin_evening_enabled?: boolean
           checkin_evening_time?: string
           checkin_morning_enabled?: boolean
           checkin_morning_time?: string
-          alerts_enabled?: boolean
-          alerts_time?: string
           enabled_channels?: string[]
           heartbeat_interval?: number
           id?: string
@@ -336,8 +336,8 @@ export type Database = {
           security_review_day?: number
           security_review_time?: string
           system_prompt_path?: string
-          tenant_name?: string
           temperature?: number
+          tenant_name?: string
           timezone?: string
           updated_at?: string
           weekly_review_enabled?: boolean
@@ -529,6 +529,7 @@ export type Database = {
         Row: {
           category: string
           cron_expression: string
+          cron_override: string | null
           custom: boolean
           description: string | null
           enabled: boolean
@@ -543,6 +544,7 @@ export type Database = {
         Insert: {
           category?: string
           cron_expression: string
+          cron_override?: string | null
           custom?: boolean
           description?: string | null
           enabled?: boolean
@@ -557,6 +559,7 @@ export type Database = {
         Update: {
           category?: string
           cron_expression?: string
+          cron_override?: string | null
           custom?: boolean
           description?: string | null
           enabled?: boolean
@@ -3176,6 +3179,44 @@ export type Database = {
           },
         ]
       }
+      integration_configs: {
+        Row: {
+          config: Json
+          created_at: string | null
+          enabled: boolean | null
+          id: string
+          profile_id: string | null
+          provider: string
+          updated_at: string | null
+        }
+        Insert: {
+          config?: Json
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          profile_id?: string | null
+          provider: string
+          updated_at?: string | null
+        }
+        Update: {
+          config?: Json
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          profile_id?: string | null
+          provider?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_configs_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interactions: {
         Row: {
           channel: string | null
@@ -4383,26 +4424,35 @@ export type Database = {
       profile: {
         Row: {
           birth_date: string | null
+          cpf: string | null
           created_at: string | null
           id: string
           metadata: Json | null
           name: string
+          onboarding_complete: boolean | null
+          tenant_slot: string | null
           updated_at: string | null
         }
         Insert: {
           birth_date?: string | null
+          cpf?: string | null
           created_at?: string | null
           id?: string
           metadata?: Json | null
           name: string
+          onboarding_complete?: boolean | null
+          tenant_slot?: string | null
           updated_at?: string | null
         }
         Update: {
           birth_date?: string | null
+          cpf?: string | null
           created_at?: string | null
           id?: string
           metadata?: Json | null
           name?: string
+          onboarding_complete?: boolean | null
+          tenant_slot?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -5033,6 +5083,44 @@ export type Database = {
             columns: ["state_id"]
             isOneToOne: false
             referencedRelation: "issue_states"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_slots: {
+        Row: {
+          anon_key: string
+          created_at: string | null
+          occupied: boolean | null
+          occupied_by: string | null
+          service_role_key: string
+          slot: string
+          supabase_url: string
+        }
+        Insert: {
+          anon_key: string
+          created_at?: string | null
+          occupied?: boolean | null
+          occupied_by?: string | null
+          service_role_key: string
+          slot: string
+          supabase_url: string
+        }
+        Update: {
+          anon_key?: string
+          created_at?: string | null
+          occupied?: boolean | null
+          occupied_by?: string | null
+          service_role_key?: string
+          slot?: string
+          supabase_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_slots_occupied_by_fkey"
+            columns: ["occupied_by"]
+            isOneToOne: false
+            referencedRelation: "profile"
             referencedColumns: ["id"]
           },
         ]

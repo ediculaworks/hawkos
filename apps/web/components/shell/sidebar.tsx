@@ -23,7 +23,8 @@ import { usePathname } from 'next/navigation';
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { sidebarCollapsed, toggleSidebar } = useUIStore();
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const badges = useSidebarBadges();
 
   return (
@@ -167,6 +168,7 @@ function SidebarLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       className={cn(
         'group flex items-center gap-[var(--space-3)] rounded-[var(--radius-md)] px-[var(--space-3)] min-h-[36px]',
         'transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out-quart)]',

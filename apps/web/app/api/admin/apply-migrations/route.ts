@@ -19,7 +19,10 @@ function findMigrationsDir(): string {
 
 function loadAdminSchemaFiles(): { name: string; sql: string }[] {
   const dir = findMigrationsDir();
-  const adminFiles = ['20260410000000_admin_schema.sql', '20260411000000_admin_schema_encrypt_configs.sql'];
+  const adminFiles = [
+    '20260410000000_admin_schema.sql',
+    '20260411000000_admin_schema_encrypt_configs.sql',
+  ];
   return adminFiles
     .filter((f) => existsSync(path.join(dir, f)))
     .map((f) => ({ name: f, sql: readFileSync(path.join(dir, f), 'utf-8') }));
@@ -48,13 +51,19 @@ async function runSql(projectRef: string, sql: string, accessToken: string): Pro
   }
 }
 
-async function tableExists(projectRef: string, tableName: string, accessToken: string): Promise<boolean> {
+async function tableExists(
+  projectRef: string,
+  tableName: string,
+  accessToken: string,
+): Promise<boolean> {
   const response = await fetch(
     `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
     {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: `SELECT to_regclass('public.${tableName}') IS NOT NULL AS exists` }),
+      body: JSON.stringify({
+        query: `SELECT to_regclass('public.${tableName}') IS NOT NULL AS exists`,
+      }),
     },
   );
   if (!response.ok) return false;
@@ -64,7 +73,7 @@ async function tableExists(projectRef: string, tableName: string, accessToken: s
 }
 
 function send(controller: ReadableStreamDefaultController, encoder: TextEncoder, data: object) {
-  controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'));
+  controller.enqueue(encoder.encode(`${JSON.stringify(data)}\n`));
 }
 
 export async function POST(request: Request) {
@@ -89,10 +98,7 @@ export async function POST(request: Request) {
       target === 'tenant'
         ? 'Token de acesso não fornecido. Forneça um Personal Access Token do Supabase no onboarding.'
         : 'SUPABASE_ACCESS_TOKEN not set — migrations skipped';
-    return NextResponse.json(
-      { skipped: true, reason },
-      { status: 501 },
-    );
+    return NextResponse.json({ skipped: true, reason }, { status: 501 });
   }
 
   const encoder = new TextEncoder();
@@ -135,7 +141,10 @@ export async function POST(request: Request) {
             END $$;
           `;
           await runSql(projectRef, dropSql, effectiveToken);
-          send(controller, encoder, { type: 'status', msg: 'Schema limpo. Aplicando migrações...' });
+          send(controller, encoder, {
+            type: 'status',
+            msg: 'Schema limpo. Aplicando migrações...',
+          });
 
           const files = loadTenantMigrationFiles();
           const results: { file: string; status: 'ok' | 'skipped'; error?: string }[] = [];
@@ -164,7 +173,13 @@ export async function POST(request: Request) {
           }
 
           await runSql(projectRef, `NOTIFY pgrst, 'reload schema';`, effectiveToken);
-          send(controller, encoder, { type: 'done', applied: true, reset: true, target: 'tenant', results });
+          send(controller, encoder, {
+            type: 'done',
+            applied: true,
+            reset: true,
+            target: 'tenant',
+            results,
+          });
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

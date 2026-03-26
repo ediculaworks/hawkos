@@ -19,7 +19,8 @@ export default function RecentTransactionsWidget() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => removeTransaction(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['finances'] });
+      queryClient.invalidateQueries({ queryKey: ['finances', 'transactions-recent'] });
+      queryClient.invalidateQueries({ queryKey: ['finances', 'summary'] });
       toast.success('Transação excluída');
     },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),

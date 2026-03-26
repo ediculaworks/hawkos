@@ -1,6 +1,11 @@
 import { resolve } from 'node:path';
+import bundleAnalyzer from '@next/bundle-analyzer';
 import { config } from 'dotenv';
 import type { NextConfig } from 'next';
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+});
 
 // Load root .env (monorepo pattern — Next.js only reads from its own dir)
 config({ path: resolve(process.cwd(), '../../.env') });
@@ -17,8 +22,6 @@ const nextConfig: NextConfig = {
     '@hawk/module-finances',
     '@hawk/module-routine',
     '@hawk/module-objectives',
-    '@hawk/module-journal',
-    '@hawk/module-knowledge',
     '@hawk/module-memory',
     '@hawk/module-people',
     '@hawk/module-health',
@@ -29,17 +32,32 @@ const nextConfig: NextConfig = {
     '@hawk/module-security',
     '@hawk/module-social',
     '@hawk/module-spirituality',
+    '@hawk/module-journal',
+    '@hawk/module-knowledge',
     '@hawk/extensions',
   ],
   async headers() {
     return [
       {
-        // All routes EXCEPT Next.js static assets (content-addressed, fine to cache)
-        source: '/((?!_next/static|_next/image|favicon.ico).*)',
+        // Dashboard and API routes — always fresh
+        source: '/dashboard/:path*',
         headers: [{ key: 'Cache-Control', value: 'no-store, must-revalidate' }],
+      },
+      {
+        source: '/api/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store, must-revalidate' }],
+      },
+      {
+        // Auth/login pages — cache for 1 hour
+        source: '/login',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=3600' }],
+      },
+      {
+        source: '/auth/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=3600' }],
       },
     ];
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

@@ -1,7 +1,6 @@
 import { createDecipheriv, createHash } from 'node:crypto';
 import { requireAdminAuth } from '@/lib/admin-auth';
 import { extractProjectRef } from '@/lib/onboarding/utils';
-import { invalidateTenantCache } from '@/lib/tenants/cache';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
@@ -139,23 +138,22 @@ async function handleResetUser(
       action: 'updated',
       message: `Password reset for ${email}`,
     });
-  } else {
-    // Create new user
-    const { data: newUser, error: createError } = await tenantClient.auth.admin.createUser({
-      email,
-      password: newPassword,
-      email_confirm: true,
-    });
-    if (createError) {
-      throw new Error(`Failed to create user: ${createError.message}`);
-    }
-    return NextResponse.json({
-      success: true,
-      action: 'created',
-      userId: newUser?.user?.id,
-      message: `User created: ${email}`,
-    });
   }
+  // Create new user
+  const { data: newUser, error: createError } = await tenantClient.auth.admin.createUser({
+    email,
+    password: newPassword,
+    email_confirm: true,
+  });
+  if (createError) {
+    throw new Error(`Failed to create user: ${createError.message}`);
+  }
+  return NextResponse.json({
+    success: true,
+    action: 'created',
+    userId: newUser?.user?.id,
+    message: `User created: ${email}`,
+  });
 }
 
 async function handleReMigrate(
@@ -192,7 +190,10 @@ async function handleReMigrate(
   // Call apply-migrations internally with streaming response
   try {
     const migrateRes = await fetch(
-      new URL('/api/admin/apply-migrations', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
+      new URL(
+        '/api/admin/apply-migrations',
+        process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      ),
       {
         method: 'POST',
         headers: {
@@ -221,7 +222,9 @@ async function handleReMigrate(
       },
     });
   } catch (error) {
-    throw new Error(`Failed to call apply-migrations: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `Failed to call apply-migrations: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
@@ -272,13 +275,14 @@ async function handleFixProfile(
   }
 
   // Create or update profile
-  const { error: upsertError } = await tenantClient
-    .from('profile')
-    .upsert({
+  const { error: upsertError } = await tenantClient.from('profile').upsert(
+    {
       id: user.id,
       name: name || email.split('@')[0],
       onboarding_complete: true,
-    }, { onConflict: 'id' });
+    },
+    { onConflict: 'id' },
+  );
 
   if (upsertError) {
     throw new Error(`Failed to fix profile: ${upsertError.message}`);

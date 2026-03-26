@@ -10,7 +10,6 @@ interface ResetAccountRequest {
 }
 
 export async function POST(request: Request) {
-
   try {
     const body: ResetAccountRequest = await request.json();
     const { email, password, supabaseUrl, supabaseAnonKey, supabaseServiceKey } = body;

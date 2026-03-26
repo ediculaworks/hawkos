@@ -138,7 +138,7 @@ function CommandRow({
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function CommandPalette() {
-  const { commandPaletteOpen } = useUIStore();
+  const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen);
   const {
     showHelp,
     query,

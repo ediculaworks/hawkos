@@ -60,6 +60,7 @@ export default function AgentActivityWidget() {
       }
     });
     const interval = setInterval(() => {
+      if (document.hidden) return;
       fetchActivityLogs({ limit: 30 }).then((res) => {
         if (mounted) setLogs(res.logs);
       });

@@ -1,7 +1,7 @@
 'use client';
 
-import { addDemand } from '@/lib/actions/demands';
 import { Button } from '@/components/ui/button';
+import { addDemand } from '@/lib/actions/demands';
 import type { Agent } from '@/lib/agent-chat';
 import { Send, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -111,9 +111,7 @@ export function DelegateModal({ open, agent, onClose }: DelegateModalProps) {
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">
               Delegar tarefa
             </h2>
-            {agent && (
-              <p className="text-xs text-[var(--color-text-muted)]">para {agent.name}</p>
-            )}
+            {agent && <p className="text-xs text-[var(--color-text-muted)]">para {agent.name}</p>}
           </div>
         </div>
         <button
@@ -190,7 +188,7 @@ export function DelegateModal({ open, agent, onClose }: DelegateModalProps) {
                     onClick={() => setPriority(opt.value)}
                     className={`flex-1 py-2 px-1 text-sm font-medium rounded-[var(--radius-md)] transition-colors cursor-pointer border ${
                       priority === opt.value
-                        ? 'bg-[var(--color-surface-3)] border-[var(--color-border)] ' + opt.color
+                        ? `bg-[var(--color-surface-3)] border-[var(--color-border)] ${opt.color}`
                         : 'bg-[var(--color-surface-2)] border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-3)]'
                     }`}
                   >

@@ -11,24 +11,43 @@ import { useCallback, useEffect, useState } from 'react';
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const AGENT_EMOJIS: Record<string, string> = {
-  '🦅': '🦅', '🦉': '🦉', '🐺': '🐺', '🦚': '🦚',
-  '🐝': '🐝', '🦫': '🦫', '🐂': '🐂', '🦊': '🦊',
-  '🐻': '🐻', '🦁': '🦁', '🐯': '🐯', '🦈': '🦈',
-  '🐬': '🐬', '🦜': '🦜', '🐸': '🐸', '🦎': '🦎',
+  '🦅': '🦅',
+  '🦉': '🦉',
+  '🐺': '🐺',
+  '🦚': '🦚',
+  '🐝': '🐝',
+  '🦫': '🦫',
+  '🐂': '🐂',
+  '🦊': '🦊',
+  '🐻': '🐻',
+  '🦁': '🦁',
+  '🐯': '🐯',
+  '🦈': '🦈',
+  '🐬': '🐬',
+  '🦜': '🦜',
+  '🐸': '🐸',
+  '🦎': '🦎',
 };
 
 function getAgentEmoji(agent: { avatar?: string; name: string }): string {
   if (agent.avatar && AGENT_EMOJIS[agent.avatar]) return agent.avatar;
   const nameMap: Record<string, string> = {
-    Hawk: '🦅', Owl: '🦉', Wolf: '🐺', Peacock: '🦚',
-    Bee: '🐝', Beaver: '🦫', Bull: '🐂', Fox: '🦊',
+    Hawk: '🦅',
+    Owl: '🦉',
+    Wolf: '🐺',
+    Peacock: '🦚',
+    Bee: '🐝',
+    Beaver: '🦫',
+    Bull: '🐂',
+    Fox: '🦊',
   };
   return nameMap[agent.name] || agent.name.slice(0, 2).toUpperCase();
 }
 
 function getTierBadgeClass(tier: string): string {
   if (tier === 'orchestrator') return 'bg-blue-500/10 text-blue-400 border border-blue-500/30';
-  if (tier === 'specialist') return 'bg-transparent text-[var(--color-text-muted)] border border-[var(--color-border)]';
+  if (tier === 'specialist')
+    return 'bg-transparent text-[var(--color-text-muted)] border border-[var(--color-border)]';
   return 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]';
 }
 
@@ -70,7 +89,9 @@ function AgentRow({
 
       {/* Name + tagline */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{agent.name}</p>
+        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+          {agent.name}
+        </p>
         {agent.tagline && (
           <p className="text-xs text-[var(--color-text-muted)] truncate">{agent.tagline}</p>
         )}
@@ -78,14 +99,19 @@ function AgentRow({
 
       {/* Tier badge */}
       <div className="hidden sm:block flex-shrink-0">
-        <span className={`inline-flex items-center rounded-[var(--radius-full)] px-2.5 py-0.5 text-xs font-medium ${getTierBadgeClass(agent.agent_tier)}`}>
+        <span
+          className={`inline-flex items-center rounded-[var(--radius-full)] px-2.5 py-0.5 text-xs font-medium ${getTierBadgeClass(agent.agent_tier)}`}
+        >
           {getTierLabel(agent.agent_tier)}
         </span>
       </div>
 
       {/* Model */}
       <div className="hidden md:block flex-shrink-0 w-40">
-        <p className="text-xs font-mono text-[var(--color-text-muted)] truncate" title={agent.llm_model ?? undefined}>
+        <p
+          className="text-xs font-mono text-[var(--color-text-muted)] truncate"
+          title={agent.llm_model ?? undefined}
+        >
           {truncateModel(agent.llm_model)}
         </p>
       </div>
@@ -301,7 +327,8 @@ export default function AgentsPage() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--color-border)] bg-[var(--color-surface-2)]">
             <span className="text-xs text-[var(--color-text-muted)]">
-              Mostrando {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, userFacing.length)} de {userFacing.length}
+              Mostrando {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, userFacing.length)}{' '}
+              de {userFacing.length}
             </span>
             <div className="flex items-center gap-1">
               <Button

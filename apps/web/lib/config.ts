@@ -7,9 +7,10 @@ function getTenantConfig() {
     const t = window.__HAWK_TENANT__;
     const host = window.location.hostname;
     return {
-      apiUrl: `http://${host}:${t.agentApiPort}`,
+      // Proxy through Next.js — agentApiSecret never reaches the browser
+      apiUrl: '/api/agent',
       wsUrl: `ws://${host}:${t.agentApiPort}/ws`,
-      token: t.agentApiSecret,
+      token: '',
     };
   }
   return {

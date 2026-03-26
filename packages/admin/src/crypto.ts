@@ -3,16 +3,20 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const TAG_LENGTH = 16;
-const SALT = 'hawk-os-admin-salt-v1';
+const LEGACY_SALT = 'hawk-os-admin-salt-v1';
 
-function deriveKey(masterKey: string): Buffer {
+function deriveKey(masterKey: string, salt?: string | null): Buffer {
   return createHash('sha256')
-    .update(masterKey + SALT)
+    .update(masterKey + (salt || LEGACY_SALT))
     .digest();
 }
 
-export function encrypt(text: string, masterKey: string): { encrypted: string; iv: string } {
-  const key = deriveKey(masterKey);
+export function encrypt(
+  text: string,
+  masterKey: string,
+  salt?: string | null,
+): { encrypted: string; iv: string } {
+  const key = deriveKey(masterKey, salt);
   const iv = randomBytes(IV_LENGTH);
 
   const cipher = createCipheriv(ALGORITHM, key, iv);
@@ -28,8 +32,13 @@ export function encrypt(text: string, masterKey: string): { encrypted: string; i
   };
 }
 
-export function decrypt(encryptedData: string, iv: string, masterKey: string): string {
-  const key = deriveKey(masterKey);
+export function decrypt(
+  encryptedData: string,
+  iv: string,
+  masterKey: string,
+  salt?: string | null,
+): string {
+  const key = deriveKey(masterKey, salt);
   const ivBuffer = Buffer.from(iv, 'base64');
   const combined = Buffer.from(encryptedData, 'base64');
 

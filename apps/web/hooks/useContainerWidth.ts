@@ -23,8 +23,10 @@ export function useContainerWidth(options: UseContainerWidthOptions = {}): UseCo
   useEffect(() => {
     updateWidth();
 
+    let rafId: number;
     const observer = new ResizeObserver(() => {
-      updateWidth();
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(updateWidth);
     });
 
     if (containerRef.current) {
@@ -32,6 +34,7 @@ export function useContainerWidth(options: UseContainerWidthOptions = {}): UseCo
     }
 
     return () => {
+      cancelAnimationFrame(rafId);
       observer.disconnect();
     };
   }, [updateWidth]);

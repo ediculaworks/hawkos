@@ -4,6 +4,7 @@ import { fetchUpcomingEvents } from '@/lib/actions/calendar';
 import { fetchActiveTasks, fetchOverdueTasks } from '@/lib/actions/objectives';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Calendar, CheckSquare, Clock } from 'lucide-react';
+import { useMemo } from 'react';
 
 export default function DeadlinesWidget() {
   const { data: overdueTasks } = useQuery({
@@ -21,19 +22,25 @@ export default function DeadlinesWidget() {
     queryFn: () => fetchUpcomingEvents(7),
   });
 
-  const today = new Date().toISOString().split('T')[0] ?? '';
-
-  const tasksWithDue = upcomingTasks?.filter((t) => t.due_date) ?? [];
-  const urgentTasks = tasksWithDue
-    .filter((t) => {
-      if (!t.due_date) return false;
-      const diff = Math.ceil((new Date(t.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-      return diff <= 3;
-    })
-    .slice(0, 5);
-
   const overdueCount = overdueTasks?.length ?? 0;
-  const todayEvents = upcomingEvents?.filter((e) => e.start_at.startsWith(today)) ?? [];
+
+  const urgentTasks = useMemo(() => {
+    const tasks = upcomingTasks?.filter((t) => t.due_date) ?? [];
+    return tasks
+      .filter((t) => {
+        if (!t.due_date) return false;
+        const diff = Math.ceil(
+          (new Date(t.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+        );
+        return diff <= 3;
+      })
+      .slice(0, 5);
+  }, [upcomingTasks]);
+
+  const todayEvents = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0] ?? '';
+    return upcomingEvents?.filter((e) => e.start_at.startsWith(today)) ?? [];
+  }, [upcomingEvents]);
 
   return (
     <div className="space-y-[var(--space-3)]">

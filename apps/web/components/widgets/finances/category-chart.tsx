@@ -4,6 +4,7 @@ import { fetchRecentTransactions } from '@/lib/actions/finances';
 import { CHART_COLORS } from '@/lib/utils/chart-colors';
 import { formatCurrency } from '@/lib/utils/format';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 export default function CategoryChartWidget() {
@@ -16,18 +17,18 @@ export default function CategoryChartWidget() {
     return <p className="text-sm text-[var(--color-text-muted)]">Sem dados de despesas</p>;
   }
 
-  // Aggregate by description (approximation — ideally by category name)
-  const expenses = transactions.filter((t) => t.type === 'expense');
-  const grouped: Record<string, number> = {};
-  for (const t of expenses) {
-    const key = t.description || 'Outros';
-    grouped[key] = (grouped[key] ?? 0) + t.amount;
-  }
-
-  const data = Object.entries(grouped)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([name, value]) => ({ name: name.length > 12 ? `${name.slice(0, 12)}…` : name, value }));
+  const data = useMemo(() => {
+    const expenses = transactions.filter((t) => t.type === 'expense');
+    const grouped: Record<string, number> = {};
+    for (const t of expenses) {
+      const key = t.description || 'Outros';
+      grouped[key] = (grouped[key] ?? 0) + t.amount;
+    }
+    return Object.entries(grouped)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([name, value]) => ({ name: name.length > 12 ? `${name.slice(0, 12)}…` : name, value }));
+  }, [transactions]);
 
   if (data.length === 0) {
     return <p className="text-sm text-[var(--color-text-muted)]">Sem despesas este mês</p>;

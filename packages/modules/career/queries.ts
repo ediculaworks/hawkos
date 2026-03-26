@@ -13,7 +13,11 @@ import type {
  * Listar workspaces ativos
  */
 export async function listWorkspaces(): Promise<Workspace[]> {
-  const { data, error } = await db.from('workspaces').select('*').eq('active', true).order('name');
+  const { data, error } = await db
+    .from('workspaces')
+    .select('id, name, type, active, hourly_rate, monthly_income, metadata')
+    .eq('active', true)
+    .order('name');
 
   if (error) throw new Error(`Failed to list workspaces: ${error.message}`);
   return (data ?? []) as Workspace[];
@@ -25,7 +29,7 @@ export async function listWorkspaces(): Promise<Workspace[]> {
 export async function findWorkspaceByName(name: string): Promise<Workspace | null> {
   const { data, error } = await db
     .from('workspaces')
-    .select('*')
+    .select('id, name, type, active, hourly_rate, monthly_income, metadata')
     .ilike('name', `%${name}%`)
     .eq('active', true)
     .limit(1)
@@ -41,7 +45,9 @@ export async function findWorkspaceByName(name: string): Promise<Workspace | nul
 export async function listActiveProjects(): Promise<Project[]> {
   const { data, error } = await db
     .from('projects')
-    .select('*')
+    .select(
+      'id, name, description, status, priority, workspace_id, github_repo, start_date, end_date, metadata',
+    )
     .eq('status', 'active')
     .order('priority', { ascending: false });
 
@@ -55,7 +61,9 @@ export async function listActiveProjects(): Promise<Project[]> {
 export async function findProjectByName(name: string): Promise<Project | null> {
   const { data, error } = await db
     .from('projects')
-    .select('*')
+    .select(
+      'id, name, description, status, priority, workspace_id, github_repo, start_date, end_date, metadata',
+    )
     .ilike('name', `%${name}%`)
     .eq('status', 'active')
     .limit(1)
@@ -112,7 +120,9 @@ export async function getWorkSummary(): Promise<WorkSummary[]> {
 
   const { data: logs, error } = await db
     .from('work_logs')
-    .select('*')
+    .select(
+      'id, workspace_id, project_id, date, duration_minutes, description, billable, created_at, metadata',
+    )
     .gte('date', monthStr)
     .order('date', { ascending: false });
 
@@ -142,7 +152,9 @@ export async function getWorkSummary(): Promise<WorkSummary[]> {
 export async function listRecentWorkLogs(limit = 10): Promise<WorkLog[]> {
   const { data, error } = await db
     .from('work_logs')
-    .select('*')
+    .select(
+      'id, workspace_id, project_id, date, duration_minutes, description, billable, created_at, metadata',
+    )
     .order('date', { ascending: false })
     .limit(limit);
 

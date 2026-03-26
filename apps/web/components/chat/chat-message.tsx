@@ -189,13 +189,3 @@ export function TypingIndicator({ agent }: { agent: Agent | null }) {
     </div>
   );
 }
-
-function getAvatarEmoji(avatar?: string): string {
-  const emojis: Record<string, string> = {
-    hawk: '\u{1F985}',
-    robot: '\u{1F916}',
-    wizard: '\u{1F9D9}',
-    mentor: '\u{1F9D1}\u200D\u{1F3EB}',
-  };
-  return emojis[avatar ?? 'robot'] ?? '\u{1F916}';
-}

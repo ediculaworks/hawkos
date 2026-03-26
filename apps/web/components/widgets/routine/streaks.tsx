@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { fetchWeekSummary } from '@/lib/actions/routine';
 import { useQuery } from '@tanstack/react-query';
 import { Zap } from 'lucide-react';
+import { useMemo } from 'react';
 
 export default function StreaksWidget() {
   const { data: summary } = useQuery({
@@ -21,7 +22,10 @@ export default function StreaksWidget() {
     );
   }
 
-  const sorted = [...summary].sort((a, b) => b.habit.current_streak - a.habit.current_streak);
+  const sorted = useMemo(
+    () => [...summary].sort((a, b) => b.habit.current_streak - a.habit.current_streak),
+    [summary],
+  );
 
   return (
     <div className="space-y-[var(--space-2)]">

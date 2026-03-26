@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client';
 import { createBrowserClient } from '@supabase/ssr';
 import { ChevronDown, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { SplashScreen } from './splash-screen';
 
@@ -19,7 +18,6 @@ interface TenantPublic {
 type Stage = 'form' | 'authenticating' | 'splash';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -62,14 +60,12 @@ export default function LoginPage() {
       if (selectedTenant) {
         // Multi-tenant: create client for the selected tenant's Supabase
         supabase = createBrowserClient(selectedTenant.supabaseUrl, selectedTenant.supabaseAnonKey);
-        // Set tenant cookie so middleware and server-side code know which tenant
-        document.cookie = `hawk_tenant=${selectedTenant.slug};path=/;max-age=${60 * 60 * 24 * 365};samesite=lax`;
       } else {
         // Single-tenant fallback: use env vars
         supabase = createClient();
       }
 
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -82,6 +78,23 @@ export default function LoginPage() {
         );
         setStage('form');
         return;
+      }
+
+      // Set tenant cookie server-side (HttpOnly) — never use document.cookie for this
+      if (selectedTenant && authData.session?.access_token) {
+        const res = await fetch('/api/auth/set-tenant', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenantSlug: selectedTenant.slug,
+            accessToken: authData.session.access_token,
+          }),
+        });
+        if (!res.ok) {
+          setError('Erro ao configurar sessão. Tente novamente.');
+          setStage('form');
+          return;
+        }
       }
 
       setStage('splash');

@@ -31,7 +31,8 @@ import type {
   PortfolioPosition,
   UpdateTransactionInput,
 } from '@hawk/module-finances/types';
-import { withTenant } from '../supabase/with-tenant';
+import { revalidateTag, unstable_cache } from 'next/cache';
+import { getTenantSlug, withTenant } from '../supabase/with-tenant';
 
 import {
   CreateAccountSchema,
@@ -58,15 +59,34 @@ function getMonthEnd(date?: Date): string {
 }
 
 export async function fetchFinanceSummary(startDate?: string): Promise<FinanceSummary> {
-  return withTenant(async () => getFinanceSummary(undefined, startDate ?? getMonthStart()));
+  const slug = await getTenantSlug();
+  const start = startDate ?? getMonthStart();
+  return withTenant(() =>
+    unstable_cache(() => getFinanceSummary(undefined, start), [`fin-summary-${slug}-${start}`], {
+      revalidate: 300,
+      tags: ['finances'],
+    })(),
+  );
 }
 
 export async function fetchAccounts(): Promise<FinanceAccount[]> {
-  return withTenant(async () => getAccounts());
+  const slug = await getTenantSlug();
+  return withTenant(() =>
+    unstable_cache(() => getAccounts(), [`fin-accounts-${slug}`], {
+      revalidate: 900,
+      tags: ['finances'],
+    })(),
+  );
 }
 
 export async function fetchCategories(type?: 'income' | 'expense') {
-  return withTenant(async () => getCategories(type));
+  const slug = await getTenantSlug();
+  return withTenant(() =>
+    unstable_cache(() => getCategories(type), [`fin-categories-${slug}-${type ?? 'all'}`], {
+      revalidate: 3600,
+      tags: ['finances-categories'],
+    })(),
+  );
 }
 
 export async function fetchTransactionsWithCat(
@@ -118,12 +138,14 @@ export async function fetchMonthComparison(): Promise<{
 }
 
 export async function addTransaction(input: unknown): Promise<FinanceTransaction> {
-  return withTenant(async () => {
+  const res = await withTenant(async () => {
     const result = CreateTransactionSchema.safeParse(input);
     if (!result.success)
       throw new Error(`addTransaction: ${result.error.issues.map((e) => e.message).join('; ')}`);
     return createTransaction(result.data as CreateTransactionInput);
   });
+  revalidateTag('finances', 'default');
+  return res;
 }
 
 export async function addAccount(input: unknown): Promise<FinanceAccount> {
@@ -163,7 +185,8 @@ export async function editTransaction(id: string, updates: unknown): Promise<Fin
 }
 
 export async function removeTransaction(id: string): Promise<void> {
-  return withTenant(async () => deleteTransaction(id));
+  await withTenant(async () => deleteTransaction(id));
+  revalidateTag('finances', 'default');
 }
 
 export async function fetchRecentTransactions(limit = 10) {

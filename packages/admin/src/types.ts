@@ -31,6 +31,10 @@ export interface Tenant {
   supabase_service_key_iv: string;
   discord_config: DiscordConfig;
   openrouter_config: OpenRouterConfig;
+  discord_config_encrypted: string | null;
+  discord_config_iv: string | null;
+  openrouter_config_encrypted: string | null;
+  openrouter_config_iv: string | null;
   agent_port: number;
   agent_secret: string | null;
   status: TenantStatus;
@@ -81,11 +85,50 @@ export interface OpenRouterConfig {
   max_tokens?: number;
 }
 
+export interface AnthropicConfig {
+  api_key?: string;
+  model?: string;
+  max_tokens?: number;
+}
+
+export interface GroqConfig {
+  api_key?: string;
+  model?: string;
+}
+
+export interface GoogleConfig {
+  client_id?: string;
+  client_secret?: string;
+  refresh_token?: string;
+}
+
+export interface GitHubConfig {
+  token?: string;
+  owner?: string;
+  repos?: string[];
+}
+
+export interface ClickUpConfig {
+  api_token?: string;
+  workspace_id?: string;
+  team_id?: string;
+}
+
+export type IntegrationConfigMap = {
+  discord: DiscordConfig;
+  openrouter: OpenRouterConfig;
+  anthropic: AnthropicConfig;
+  groq: GroqConfig;
+  google: GoogleConfig;
+  github: GitHubConfig;
+  clickup: ClickUpConfig;
+};
+
 export interface TenantIntegration {
   id: string;
   tenant_id: string;
   provider: IntegrationProvider;
-  config_encrypted: Record<string, unknown>;
+  config_encrypted: string;
   config_iv: string | null;
   enabled: boolean;
   created_at: string;

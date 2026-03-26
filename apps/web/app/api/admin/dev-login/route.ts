@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
+import { NextResponse } from 'next/server';
 
 /**
  * DEV ONLY: Simple password-based admin access for testing.
@@ -16,9 +16,7 @@ export async function POST(request: Request) {
   }
 
   // Create a simple token (hash of password + timestamp)
-  const token = createHash('sha256')
-    .update(`${password}:${Date.now()}`)
-    .digest('hex');
+  const token = createHash('sha256').update(`${password}:${Date.now()}`).digest('hex');
 
   const response = NextResponse.json({
     success: true,
@@ -33,7 +31,7 @@ export async function POST(request: Request) {
     maxAge: 60 * 60 * 24 * 7, // 7 days
   });
 
-  console.log('[dev-login] Admin access granted with token:', token.substring(0, 20) + '...');
+  console.log('[dev-login] Admin access granted with token:', `${token.substring(0, 20)}...`);
 
   return response;
 }

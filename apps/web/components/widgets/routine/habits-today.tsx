@@ -30,7 +30,8 @@ export default function HabitsTodayWidget() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['routine'] });
+      queryClient.invalidateQueries({ queryKey: ['routine', 'habits-today'] });
+      queryClient.invalidateQueries({ queryKey: ['routine', 'week-summary'] });
     },
   });
 

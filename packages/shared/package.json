@@ -10,7 +10,8 @@
     "./constants": "./src/constants.ts",
     "./validation": "./src/validation.ts",
     "./tenants": "./src/tenants.ts",
-    "./tenant-registry": "./src/tenant-registry.ts"
+    "./tenant-registry": "./src/tenant-registry.ts",
+    "./r2": "./src/r2.ts"
   },
   "dependencies": {
     "zod": "^4.3.6"

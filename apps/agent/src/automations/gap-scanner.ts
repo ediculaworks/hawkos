@@ -15,7 +15,7 @@ import {
   persistDataGaps,
 } from '@hawk/module-memory';
 import cron from 'node-cron';
-import { getWorkerClient, WORKER_MODEL } from '../llm-client.js';
+import { WORKER_MODEL, getWorkerClient } from '../llm-client.js';
 
 /**
  * Gera uma pergunta natural em português para um gap detectado.

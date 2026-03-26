@@ -1,8 +1,8 @@
 import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
 import { createTenantClient } from '@hawk/db';
 import { createClient } from '@supabase/supabase-js';
-import { type NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { type NextRequest, NextResponse } from 'next/server';
 
 async function getTenantSupabase() {
   const cookieStore = await cookies();
@@ -74,9 +74,23 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     const body = await request.json();
     const {
-      name, avatar, tagline, traits, tone, phrases, knowledge, philosophy,
-      enabledTools, llmModel, temperature, maxTokens, agentTier,
-      identity, systemPrompt, memoryType, isUserFacing,
+      name,
+      avatar,
+      tagline,
+      traits,
+      tone,
+      phrases,
+      knowledge,
+      philosophy,
+      enabledTools,
+      llmModel,
+      temperature,
+      maxTokens,
+      agentTier,
+      identity,
+      systemPrompt,
+      memoryType,
+      isUserFacing,
     } = body;
 
     const updatePayload: Record<string, unknown> = {

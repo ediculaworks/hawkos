@@ -27,7 +27,8 @@ function formatTodayDate(): string {
 }
 
 export function TopBar() {
-  const { sidebarCollapsed, openCommandPalette } = useUIStore();
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
+  const openCommandPalette = useUIStore((s) => s.openCommandPalette);
   const queryClient = useQueryClient();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -47,7 +48,12 @@ export function TopBar() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await queryClient.invalidateQueries();
+    await queryClient.invalidateQueries({
+      predicate: (q) => {
+        const key = q.queryKey[0];
+        return typeof key === 'string' && key !== 'sidebar-badge';
+      },
+    });
     setTimeout(() => setRefreshing(false), 500);
   };
 

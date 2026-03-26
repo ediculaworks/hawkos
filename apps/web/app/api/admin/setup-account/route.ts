@@ -63,8 +63,10 @@ export async function POST(request: Request) {
     });
 
     if (createError) {
-      const msg = createError.message.toLowerCase();
-      const isAlreadyExists = msg.includes('already') && msg.includes('registered');
+      // Supabase returns status 422 for "user already registered"
+      const isAlreadyExists =
+        ('status' in createError && createError.status === 422) ||
+        createError.message?.toLowerCase().includes('already');
       if (isAlreadyExists) {
         // Migrations already wiped the tables — just delete the stale auth user and recreate
         const { data: listData } = await supabase.auth.admin.listUsers();

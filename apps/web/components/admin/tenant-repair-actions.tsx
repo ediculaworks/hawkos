@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AlertTriangle, Loader2, Check } from 'lucide-react';
+import { AlertTriangle, Check, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface TenantRepairActionsProps {
@@ -133,7 +133,7 @@ export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
             } else if (event.type === 'error') {
               throw new Error(event.error || 'Migration error');
             }
-          } catch (parseErr) {
+          } catch {
             // Ignore parse errors
           }
         }
@@ -145,7 +145,7 @@ export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
           if (event.type === 'error') {
             throw new Error(event.error || 'Migration error');
           }
-        } catch (parseErr) {
+        } catch {
           // Ignore parse errors
         }
       }
@@ -431,8 +431,8 @@ export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
           {migrationProgress.length > 0 && (
             <div className="bg-[var(--color-surface-2)] rounded p-3 flex-1 overflow-y-auto">
               <div className="text-xs font-mono space-y-1 text-[var(--color-text-muted)]">
-                {migrationProgress.map((line, i) => (
-                  <div key={i}>{line}</div>
+                {migrationProgress.map((line) => (
+                  <div key={line}>{line}</div>
                 ))}
               </div>
             </div>

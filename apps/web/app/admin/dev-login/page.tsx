@@ -3,13 +3,11 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function AdminDevLogin() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const router = useRouter();
 
   const handleLogin = async () => {
     setLoading(true);

@@ -4,22 +4,15 @@ import { trainPredictionModels } from '@hawk/module-health/predictor';
 import { computeAdaptiveHalfLives, learnImportanceWeights } from '@hawk/module-memory';
 import cron, { type ScheduledTask } from 'node-cron';
 import { stopApiServer } from './api/server.js';
-import { startAlertsCron } from './automations/alerts.js';
-import { setAnalyticsNotifier, startAnalyticsCrons } from './automations/analytics.js';
+import { setAnalyticsNotifier } from './automations/analytics.js';
 import { startBackupCron } from './automations/backup.js';
-import { startContentPipelineCron } from './automations/content-pipeline.js';
-import { startCheckinCrons } from './automations/daily-checkin.js';
 import { setDemandBroadcast, startDemandExecutorCron } from './automations/demand-executor.js';
 import { startExtensionSyncCron } from './automations/extension-sync.js';
 import { startGapScannerCron } from './automations/gap-scanner.js';
-import { startHealthInsightsCron } from './automations/health-insights.js';
-import { startHeartbeatCron } from './automations/heartbeat.js';
 import { startJobMonitorCron } from './automations/job-monitor.js';
 import { startMonitorCron } from './automations/monitor.js';
 import { startNetWorthSnapshotCron } from './automations/net-worth-snapshot.js';
 import { runSessionCompactor } from './automations/session-compactor.js';
-import { startStreakGuardianCron } from './automations/streak-guardian.js';
-import { startWeeklyReviewCron } from './automations/weekly-review.js';
 import { discordChannel } from './channels/discord-adapter.js';
 import { sendToChannel } from './channels/discord.js';
 import { channelRegistry } from './channels/registry.js';
@@ -91,7 +84,8 @@ async function main() {
   // ── Inject Ollama worker LLM for background tasks ────────────────
   const { getWorkerClient, WORKER_MODEL, isOllamaAvailable } = await import('./llm-client.js');
   const { setWorkerLLM } = await import('@hawk/module-memory/session-commit');
-  setWorkerLLM(getWorkerClient, WORKER_MODEL);
+  // biome-ignore lint/suspicious/noExplicitAny: OpenAI type resolution differs between agent and memory packages
+  setWorkerLLM(getWorkerClient as any, WORKER_MODEL);
   console.log(
     `[hawk] Worker LLM: ${isOllamaAvailable() ? 'Ollama local' : 'OpenRouter'} (${WORKER_MODEL})`,
   );

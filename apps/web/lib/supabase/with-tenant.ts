@@ -19,6 +19,14 @@ async function getServiceClient(slug: string): Promise<SupabaseClient> {
 }
 
 /**
+ * Returns the current tenant slug from cookies (or 'default' for single-tenant).
+ */
+export async function getTenantSlug(): Promise<string> {
+  const cookieStore = await cookies();
+  return cookieStore.get('hawk_tenant')?.value ?? 'default';
+}
+
+/**
  * Wraps a server action to run within the correct tenant's Supabase context.
  * All `db` queries inside `fn` will automatically route to the tenant's database
  * via the AsyncLocalStorage proxy in @hawk/db.

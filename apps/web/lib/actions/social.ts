@@ -174,7 +174,12 @@ export async function fetchDayContext(date: string): Promise<{
 }> {
   return withTenant(async () => {
     const [journal, media, objectives, events] = await Promise.all([
-      db.from('journal_entries').select('mood, energy').eq('date', date).eq('type', 'daily').single(),
+      db
+        .from('journal_entries')
+        .select('mood, energy')
+        .eq('date', date)
+        .eq('type', 'daily')
+        .single(),
       db.from('media_items').select('title').eq('finished_at', date).limit(1).single(),
       db.from('objectives').select('title').eq('status', 'active').limit(1).single(),
       db.from('calendar_events').select('title').eq('start_at', date).limit(1).single(),

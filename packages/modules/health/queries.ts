@@ -62,7 +62,9 @@ export async function getTodaySleep(): Promise<SleepSession | null> {
   const today = new Date().toISOString().split('T')[0] as string as string;
   const { data, error } = await db
     .from('sleep_sessions')
-    .select('*')
+    .select(
+      'id, date, duration_h, quality, sleep_start, sleep_end, notes, source, created_at, deep_pct, external_id, hr_avg, interruptions, light_pct, raw_payload, rem_pct',
+    )
     .eq('date', today)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -79,7 +81,9 @@ export async function listRecentSleep(days = 7): Promise<SleepSession[]> {
 
   const { data, error } = await db
     .from('sleep_sessions')
-    .select('*')
+    .select(
+      'id, date, duration_h, quality, sleep_start, sleep_end, notes, source, created_at, deep_pct, external_id, hr_avg, interruptions, light_pct, raw_payload, rem_pct',
+    )
     .gte('date', sinceStr)
     .order('date', { ascending: false });
 
@@ -133,7 +137,9 @@ export async function getTodayWorkouts(): Promise<WorkoutSession[]> {
   const today = new Date().toISOString().split('T')[0] as string;
   const { data, error } = await db
     .from('workout_sessions')
-    .select('*')
+    .select(
+      'id, date, type, duration_m, notes, source, created_at, avg_hr, calories, distance_km, ended_at, external_id, max_hr, raw_payload, started_at',
+    )
     .eq('date', today)
     .order('created_at', { ascending: true });
 
@@ -146,14 +152,16 @@ export async function getWorkoutWithSets(
 ): Promise<WorkoutSession & { sets: WorkoutSet[] }> {
   const { data: workout, error: wErr } = await db
     .from('workout_sessions')
-    .select('*')
+    .select(
+      'id, date, type, duration_m, notes, source, created_at, avg_hr, calories, distance_km, ended_at, external_id, max_hr, raw_payload, started_at',
+    )
     .eq('id', workoutId)
     .single();
   if (wErr) throw new Error(`Failed to get workout: ${wErr.message}`);
 
   const { data: sets, error: sErr } = await db
     .from('workout_sets')
-    .select('*')
+    .select('duration_s, exercise_name, id, notes, reps, rpe, set_number, weight_kg, workout_id')
     .eq('workout_id', workoutId)
     .order('set_number', { ascending: true });
   if (sErr) throw new Error(`Failed to get workout sets: ${sErr.message}`);
@@ -164,7 +172,9 @@ export async function getWorkoutWithSets(
 export async function listRecentWorkouts(limit = 10): Promise<WorkoutSession[]> {
   const { data, error } = await db
     .from('workout_sessions')
-    .select('*')
+    .select(
+      'avg_hr, calories, created_at, date, distance_km, duration_m, ended_at, external_id, id, max_hr, notes, raw_payload, source, started_at, type',
+    )
     .order('date', { ascending: false })
     .limit(limit);
 
@@ -195,7 +205,9 @@ export async function logWeight(input: LogWeightInput): Promise<BodyMeasurement>
 export async function getLatestWeight(): Promise<BodyMeasurement | null> {
   const { data, error } = await db
     .from('body_measurements')
-    .select('*')
+    .select(
+      'body_fat_pct, chest_cm, created_at, external_id, height_cm, hip_cm, id, measured_at, muscle_mass_kg, notes, raw_payload, source, waist_cm, weight_kg',
+    )
     .not('weight_kg', 'is', null)
     .order('measured_at', { ascending: false })
     .limit(1)
@@ -208,7 +220,9 @@ export async function getLatestWeight(): Promise<BodyMeasurement | null> {
 export async function listWeightHistory(limit = 30): Promise<BodyMeasurement[]> {
   const { data, error } = await db
     .from('body_measurements')
-    .select('*')
+    .select(
+      'body_fat_pct, chest_cm, created_at, external_id, height_cm, hip_cm, id, measured_at, muscle_mass_kg, notes, raw_payload, source, waist_cm, weight_kg',
+    )
     .not('weight_kg', 'is', null)
     .order('measured_at', { ascending: false })
     .limit(limit);
@@ -243,7 +257,7 @@ export async function logSubstance(input: LogSubstanceInput): Promise<SubstanceL
 export async function listRecentSubstanceLogs(limit = 20): Promise<SubstanceLog[]> {
   const { data, error } = await db
     .from('substance_logs')
-    .select('*')
+    .select('context, cost_brl, created_at, id, logged_at, notes, quantity, route, substance, unit')
     .order('logged_at', { ascending: false })
     .limit(limit);
 
@@ -341,7 +355,9 @@ export async function addLabResult(input: AddLabResultInput): Promise<LabResult>
 export async function listLabResults(limit = 20): Promise<LabResult[]> {
   const { data, error } = await db
     .from('lab_results')
-    .select('*')
+    .select(
+      'collected_at, created_at, exam_type, id, lab_name, name, notes, reference_max, reference_min, status, unit, value_number, value_text',
+    )
     .order('collected_at', { ascending: false })
     .limit(limit);
 
@@ -352,7 +368,9 @@ export async function listLabResults(limit = 20): Promise<LabResult[]> {
 export async function getLabHistory(name: string): Promise<LabResult[]> {
   const { data, error } = await db
     .from('lab_results')
-    .select('*')
+    .select(
+      'id, name, value_number, value_text, unit, status, reference_min, reference_max, collected_at, lab_name, exam_type, notes, created_at',
+    )
     .ilike('name', `%${name}%`)
     .order('collected_at', { ascending: false })
     .limit(10);
@@ -387,7 +405,9 @@ export async function createMedication(input: CreateMedicationInput): Promise<Me
 export async function listActiveMedications(): Promise<Medication[]> {
   const { data, error } = await db
     .from('medications')
-    .select('*')
+    .select(
+      'id, name, dosage, frequency, route, active_ingredient, indication, prescriber, start_date, end_date, active, notes, created_at',
+    )
     .eq('active', true)
     .order('name', { ascending: true });
 
@@ -425,8 +445,13 @@ export async function getMedicationAdherence(days = 30): Promise<
   const sinceStr = since.toISOString();
 
   const [{ data: meds }, { data: logs }] = await Promise.all([
-    db.from('medications').select('*').eq('active', true),
-    db.from('medication_logs').select('*').gte('scheduled_at', sinceStr),
+    db.from('medications').select('id, name, dosage, frequency, active').eq('active', true),
+    db
+      .from('medication_logs')
+      .select(
+        'id, medication_id, taken, taken_at, scheduled_at, skipped_reason, dose_actual, notes, created_at',
+      )
+      .gte('scheduled_at', sinceStr),
   ]);
 
   return (meds ?? []).map((med) => {
@@ -450,7 +475,9 @@ export async function getMedicationAdherence(days = 30): Promise<
 export async function listConditions(): Promise<Condition[]> {
   const { data, error } = await db
     .from('conditions')
-    .select('*')
+    .select(
+      'id, name, status, category, diagnosed_at, icd10_code, treating_professional, notes, created_at',
+    )
     .order('status', { ascending: true })
     .order('name', { ascending: true });
 
@@ -654,7 +681,9 @@ export async function getTodayNutrition(): Promise<{
   const today = new Date().toISOString().split('T')[0] as string;
   const { data, error } = await db
     .from('nutrition_logs')
-    .select('*')
+    .select(
+      'id, description, meal_type, calories, protein_g, carbs_g, fat_g, fiber_g, logged_at, notes, source, created_at',
+    )
     .gte('logged_at', `${today}T00:00:00`)
     .lte('logged_at', `${today}T23:59:59`)
     .order('logged_at', { ascending: true });
@@ -673,7 +702,9 @@ export async function getDailyHealthSummary(date?: string): Promise<DailyHealthS
   const targetDate = date ?? (new Date().toISOString().split('T')[0] as string);
   const { data, error } = await db
     .from('daily_health_summary')
-    .select('*')
+    .select(
+      'date, sleep_hours, sleep_quality, mood, energy, exercised, workout_type, workout_min, weight_kg, cannabis_g, tobacco_qty, substance_cost, calories_total, meds_taken, meds_skipped',
+    )
     .eq('date', targetDate)
     .maybeSingle();
 
@@ -688,7 +719,9 @@ export async function getWeekHealthStats(): Promise<WeekHealthStats> {
 
   const { data, error } = await db
     .from('daily_health_summary')
-    .select('*')
+    .select(
+      'date, sleep_hours, sleep_quality, mood, energy, exercised, workout_type, workout_min, weight_kg, cannabis_g, tobacco_qty, substance_cost, calories_total, meds_taken, meds_skipped',
+    )
     .gte('date', sinceStr)
     .order('date', { ascending: false });
 
@@ -741,7 +774,12 @@ type ExerciseRow = {
 };
 
 export async function listExercises(muscleGroup?: string): Promise<ExerciseRow[]> {
-  let query = db.from('exercises').select('*').order('name', { ascending: true });
+  let query = db
+    .from('exercises')
+    .select(
+      'id, name, muscle_group, secondary_muscles, equipment, exercise_type, instructions, video_url, is_custom, created_at',
+    )
+    .order('name', { ascending: true });
   if (muscleGroup) query = query.eq('muscle_group', muscleGroup);
   const { data, error } = await query;
   if (error) throw new Error(`Failed to list exercises: ${error.message}`);
@@ -749,7 +787,13 @@ export async function listExercises(muscleGroup?: string): Promise<ExerciseRow[]
 }
 
 export async function getExerciseById(id: string): Promise<ExerciseRow | null> {
-  const { data, error } = await db.from('exercises').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await db
+    .from('exercises')
+    .select(
+      'id, name, muscle_group, secondary_muscles, equipment, exercise_type, instructions, video_url, is_custom, created_at',
+    )
+    .eq('id', id)
+    .maybeSingle();
   if (error) throw new Error(`Failed to get exercise: ${error.message}`);
   return data as ExerciseRow | null;
 }
@@ -777,7 +821,9 @@ export async function createExercise(input: CreateExerciseInput): Promise<Exerci
 export async function searchExercises(query: string): Promise<Exercise[]> {
   const { data, error } = await db
     .from('exercises')
-    .select('*')
+    .select(
+      'id, name, muscle_group, secondary_muscles, equipment, exercise_type, instructions, video_url, is_custom, created_at',
+    )
     .ilike('name', `%${query}%`)
     .order('name', { ascending: true })
     .limit(20);
@@ -791,7 +837,12 @@ export async function searchExercises(query: string): Promise<Exercise[]> {
 // ─────────────────────────────────────────────
 
 export async function listWorkoutTemplates(includeInactive = false): Promise<WorkoutTemplate[]> {
-  let query = db.from('workout_templates').select('*').order('name', { ascending: true });
+  let query = db
+    .from('workout_templates')
+    .select(
+      'id, name, description, frequency, estimated_duration_m, is_active, created_at, updated_at',
+    )
+    .order('name', { ascending: true });
   if (!includeInactive) query = query.eq('is_active', true);
   const { data, error } = await query;
   if (error) throw new Error(`Failed to list workout templates: ${error.message}`);
@@ -803,7 +854,9 @@ export async function getWorkoutTemplateWithSets(
 ): Promise<WorkoutTemplateWithSets | null> {
   const { data: template, error: tErr } = await db
     .from('workout_templates')
-    .select('*')
+    .select(
+      'id, name, description, frequency, estimated_duration_m, is_active, created_at, updated_at',
+    )
     .eq('id', id)
     .single();
 
@@ -811,7 +864,9 @@ export async function getWorkoutTemplateWithSets(
 
   const { data: sets, error: sErr } = await db
     .from('workout_template_sets')
-    .select('*')
+    .select(
+      'id, template_id, exercise_id, set_order, target_sets, target_reps, target_weight_kg, rest_seconds, notes',
+    )
     .eq('template_id', id)
     .order('set_order', { ascending: true });
 

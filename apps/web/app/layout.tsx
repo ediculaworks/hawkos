@@ -28,19 +28,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const tenantSlug = cookieStore.get('hawk_tenant')?.value;
   const tenant = tenantSlug ? await getTenantPrivateBySlug(tenantSlug) : null;
 
-  // Inject tenant config into browser globals (public + agent routing info)
+  // Inject tenant config into browser globals (public info only — no secrets)
   const tenantScript = tenant
     ? `window.__HAWK_TENANT__=${JSON.stringify({
         slug: tenant.slug,
         supabaseUrl: tenant.supabaseUrl,
         supabaseAnonKey: tenant.supabaseAnonKey,
         agentApiPort: tenant.agentApiPort,
-        agentApiSecret: tenant.agentApiSecret,
       })};`
     : '';
 
   return (
-    <html lang="pt-BR" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html
+      lang="pt-BR"
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable}`}
+    >
       {/* biome-ignore lint/security/noDangerouslySetInnerHtml: tenant config injection into window globals */}
       {tenantScript ? <script dangerouslySetInnerHTML={{ __html: tenantScript }} /> : null}
       <body>

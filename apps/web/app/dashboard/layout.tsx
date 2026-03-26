@@ -2,6 +2,7 @@
 
 import { CommandPalette } from '@/components/shell/command-palette';
 import { FloatingAgentCTA } from '@/components/shell/floating-agent-cta';
+import { HydrationGate } from '@/components/shell/hydration-gate';
 import { Sidebar } from '@/components/shell/sidebar';
 import { TopBar } from '@/components/shell/topbar';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
@@ -9,7 +10,15 @@ import { useUIStore } from '@/lib/stores/ui-store';
 import { cn } from '@/lib/utils/cn';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { sidebarCollapsed } = useUIStore();
+  return (
+    <HydrationGate>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </HydrationGate>
+  );
+}
+
+function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
 
   return (
     <div className="min-h-screen">

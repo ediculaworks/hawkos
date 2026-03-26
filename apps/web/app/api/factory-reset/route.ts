@@ -3,8 +3,8 @@
 import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
 import { createTenantClient } from '@hawk/db';
 import { createClient } from '@supabase/supabase-js';
-import { type NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { type NextRequest, NextResponse } from 'next/server';
 
 const TABLES_TO_WIPE = [
   // Memory & Conversations (order matters for FK)

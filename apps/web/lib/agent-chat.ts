@@ -260,7 +260,9 @@ export function useChat() {
           const data = await res.json();
           setAgents(data.agents ?? []);
           if (data.agents?.length > 0 && !selectedAgentRef.current) {
-            const hawk = (data.agents as Agent[]).find((a: Agent) => a.agent_tier === 'orchestrator');
+            const hawk = (data.agents as Agent[]).find(
+              (a: Agent) => a.agent_tier === 'orchestrator',
+            );
             setSelectedAgent(hawk ?? data.agents[0]);
           }
         }

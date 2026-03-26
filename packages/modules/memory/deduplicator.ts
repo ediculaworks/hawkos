@@ -14,7 +14,9 @@ export function setDedupClient(clientFn: () => OpenAI): void {
 
 function getClient(): OpenAI {
   if (_localClient) return _localClient();
-  const OpenAIModule = require('openai') as { default: new (opts: Record<string, unknown>) => OpenAI };
+  const OpenAIModule = require('openai') as {
+    default: new (opts: Record<string, unknown>) => OpenAI;
+  };
   return new OpenAIModule.default({
     baseURL: 'https://openrouter.ai/api/v1',
     apiKey: process.env.OPENROUTER_API_KEY || 'not-set',

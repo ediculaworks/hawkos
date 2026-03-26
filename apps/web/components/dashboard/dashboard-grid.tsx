@@ -5,36 +5,39 @@ import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { useLayoutStore } from '@/lib/stores/layout-store';
 import { WIDGET_REGISTRY } from '@/lib/widgets/registry';
 import { Plus } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { type Layout, Responsive } from 'react-grid-layout';
 import { WidgetPicker } from './widget-picker';
 import { WidgetWrapper } from './widget-wrapper';
-import 'react-grid-layout/css/styles.css';
 
 export function DashboardGrid() {
-  const { widgets, updateLayout } = useLayoutStore();
+  const widgets = useLayoutStore((s) => s.widgets);
+  const updateLayout = useLayoutStore((s) => s.updateLayout);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { containerRef, width } = useContainerWidth({ initialWidth: 1200 });
 
   useEffect(() => setMounted(true), []);
 
-  const layouts = {
-    lg: widgets.map((w) => {
-      const def = WIDGET_REGISTRY[w.widgetId];
-      return {
-        i: w.i,
-        x: w.x,
-        y: w.y,
-        w: w.w,
-        h: w.h,
-        minW: def?.minSize.w ?? 2,
-        minH: def?.minSize.h ?? 2,
-        maxW: def?.maxSize.w ?? 12,
-        maxH: def?.maxSize.h ?? 10,
-      };
+  const layouts = useMemo(
+    () => ({
+      lg: widgets.map((w) => {
+        const def = WIDGET_REGISTRY[w.widgetId];
+        return {
+          i: w.i,
+          x: w.x,
+          y: w.y,
+          w: w.w,
+          h: w.h,
+          minW: def?.minSize.w ?? 2,
+          minH: def?.minSize.h ?? 2,
+          maxW: def?.maxSize.w ?? 12,
+          maxH: def?.maxSize.h ?? 10,
+        };
+      }),
     }),
-  };
+    [widgets],
+  );
 
   const handleLayoutChange = useCallback(
     (layout: Layout) => {
@@ -57,9 +60,11 @@ export function DashboardGrid() {
   if (!mounted) {
     return (
       <div ref={containerRef} className="grid grid-cols-3 gap-4 animate-pulse">
-        {Array.from({ length: 6 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-          <div key={i} className="h-48 rounded-[var(--radius-lg)] bg-[var(--color-surface-raised)]" />
+        {[1, 2, 3, 4, 5, 6].map((n) => (
+          <div
+            key={n}
+            className="h-48 rounded-[var(--radius-lg)] bg-[var(--color-surface-raised)]"
+          />
         ))}
       </div>
     );

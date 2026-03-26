@@ -47,6 +47,6 @@ export const useUIStore = create<UIState>()(
           return { collapsedSections: { ...s.collapsedSections, [moduleId]: next } };
         }),
     }),
-    { name: 'hawk-ui' },
+    { name: 'hawk-ui', skipHydration: true },
   ),
 );

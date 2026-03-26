@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { Database } from '@hawk/db';
 import { createClient } from '@supabase/supabase-js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -12,15 +13,21 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const WS_AUTH_TOKEN = process.env.AGENT_WS_TOKEN ?? '';
 const AGENT_API_SECRET = process.env.AGENT_API_SECRET ?? '';
 
-let _supabase: ReturnType<typeof createClient> | null = null;
-function getSupabase(): ReturnType<typeof createClient> | null {
+let _supabase: ReturnType<typeof createClient<Database>> | null = null;
+function getSupabase() {
   if (!_supabase) {
     const url = SUPABASE_URL || process.env.SUPABASE_URL;
     const key = SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !key) return null;
-    _supabase = createClient(url, key);
+    _supabase = createClient<Database>(url, key);
   }
   return _supabase;
+}
+
+function requireSupabase() {
+  const db = getSupabase();
+  if (!db) throw new Error('Supabase not configured');
+  return db;
 }
 
 function requireAuth(req: Request): Response | null {
@@ -175,12 +182,16 @@ async function logActivity(
   metadata?: Record<string, unknown>,
 ) {
   try {
-    await getSupabase()?.from('activity_log').insert({
-      event_type: eventType,
-      summary,
-      module: mod,
-      metadata: metadata ?? {},
-    });
+    await requireSupabase()
+      .from('activity_log')
+      .insert({
+        event_type: eventType,
+        summary,
+        module: mod,
+        metadata: (metadata ?? {}) as Record<string, unknown>,
+        // biome-ignore lint/suspicious/noExplicitAny: Supabase generated types lag behind schema
+        // biome-ignore lint/suspicious/noExplicitAny: Supabase types lag behind schema
+      } as any);
   } catch (err) {
     console.error('[api-server] Failed to log activity:', err);
   }
@@ -188,13 +199,15 @@ async function logActivity(
 
 async function updateAgentStatus() {
   try {
-    await getSupabase()?.from('agent_status').upsert({
-      id: 'singleton',
-      status: state.status,
-      last_heartbeat: new Date().toISOString(),
-      environment: process.env.NODE_ENV ?? 'development',
-      version: '0.1.0',
-    });
+    await requireSupabase()
+      ?.from('agent_status')
+      .upsert({
+        id: 'singleton',
+        status: state.status,
+        last_heartbeat: new Date().toISOString(),
+        environment: process.env.NODE_ENV ?? 'development',
+        version: '0.1.0',
+      });
   } catch (err) {
     console.error('[api-server] Failed to update agent status:', err);
   }
@@ -277,7 +290,7 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
 
     // Ensure agent_conversations entry exists (upsert)
     const now = new Date().toISOString();
-    await getSupabase()?.from('agent_conversations').upsert(
+    await requireSupabase().from('agent_conversations').upsert(
       {
         session_id: sid,
         last_message_at: now,
@@ -301,7 +314,7 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
       const response = await handleChat(sid, message, onChunk);
 
       // Auto-title: update title from first user message if still default
-      const { data: conv } = await getSupabase()
+      const { data: conv } = await requireSupabase()
         .from('agent_conversations')
         .select('title')
         .eq('session_id', sid)
@@ -309,12 +322,12 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
 
       if (!conv?.title || conv.title === 'Nova sessão') {
         const autoTitle = message.length > 50 ? `${message.slice(0, 47)}...` : message;
-        await getSupabase()
+        await requireSupabase()
           .from('agent_conversations')
           .update({ title: autoTitle, last_message_at: new Date().toISOString() })
           .eq('session_id', sid);
       } else {
-        await getSupabase()
+        await requireSupabase()
           .from('agent_conversations')
           .update({ last_message_at: new Date().toISOString() })
           .eq('session_id', sid);
@@ -450,6 +463,31 @@ const agentServer = Bun.serve({
     const authError = requireAuth(req);
     if (authError) return authError;
 
+    if (path === '/reload-credentials' && method === 'POST') {
+      try {
+        const { refreshCredentials } = await import('../credential-manager.js');
+        const success = await refreshCredentials();
+        return new Response(
+          JSON.stringify({
+            success,
+            reloaded_at: new Date().toISOString(),
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      } catch (err) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: err instanceof Error ? err.message : 'Unknown error',
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          },
+        );
+      }
+    }
+
     if (path === '/status' && method === 'GET') {
       return new Response(
         JSON.stringify({
@@ -465,7 +503,7 @@ const agentServer = Bun.serve({
     }
 
     if (path === '/settings' && method === 'GET') {
-      const { data } = await getSupabase()
+      const { data } = await requireSupabase()
         .from('agent_settings')
         .select('*')
         .eq('id', 'singleton')
@@ -477,7 +515,7 @@ const agentServer = Bun.serve({
 
     if (path === '/settings' && method === 'PUT') {
       const body = (await req.json()) as Record<string, unknown>;
-      const { data, error } = await getSupabase()
+      const { data, error } = await requireSupabase()
         .from('agent_settings')
         .upsert({
           id: 'singleton',
@@ -514,7 +552,10 @@ const agentServer = Bun.serve({
     }
 
     if (path === '/automations' && method === 'GET') {
-      const { data: configs } = await getSupabase()?.from('automation_configs').select('*').order('name');
+      const db = requireSupabase();
+      const { data: configs } = db
+        ? await db.from('automation_configs').select('*').order('name')
+        : { data: null };
       const merged = AUTOMATIONS.map((a) => {
         const config = configs?.find((c) => c.id === a.name);
         return {
@@ -559,7 +600,7 @@ const agentServer = Bun.serve({
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const { data, error } = await getSupabase()
+      const { data, error } = await requireSupabase()
         .from('automation_configs')
         .upsert({
           id: name,
@@ -569,7 +610,8 @@ const agentServer = Bun.serve({
           enabled: true,
           custom: true,
           updated_at: new Date().toISOString(),
-        })
+          // biome-ignore lint/suspicious/noExplicitAny: Supabase types lag behind schema
+        } as any)
         .select()
         .single();
       if (error) {
@@ -597,7 +639,14 @@ const agentServer = Bun.serve({
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const { error } = await getSupabase()?.from('automation_configs').delete().eq('id', name);
+      const db2 = requireSupabase();
+      if (!db2) {
+        return new Response(JSON.stringify({ error: 'Database not available' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { error } = await db2.from('automation_configs').delete().eq('id', name);
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), {
           status: 500,
@@ -614,14 +663,15 @@ const agentServer = Bun.serve({
 
     if (path === '/automations' && method === 'PUT') {
       const body = (await req.json()) as Record<string, unknown>;
-      const { data, error } = await getSupabase()
+      const { data, error } = await requireSupabase()
         .from('automation_configs')
         .upsert({
           id: body.id as string,
           enabled: body.enabled as boolean,
           cron_expression: body.cron_expression as string,
           updated_at: new Date().toISOString(),
-        })
+          // biome-ignore lint/suspicious/noExplicitAny: Supabase types lag behind schema
+        } as any)
         .select()
         .single();
       return new Response(JSON.stringify({ automation: data, error }), {
@@ -632,13 +682,13 @@ const agentServer = Bun.serve({
     if (path.startsWith('/automations/') && path.endsWith('/trigger') && method === 'POST') {
       const name = path.split('/')[2] ?? '';
       triggerAutomation(name);
-      const { data } = await getSupabase()
+      const { data } = await requireSupabase()
         .from('automation_configs')
         .select('run_count')
         .eq('id', name)
         .single();
       const newRunCount = (data?.run_count ?? 0) + 1;
-      await getSupabase()
+      await requireSupabase()
         .from('automation_configs')
         .update({
           last_run: new Date().toISOString(),
@@ -679,7 +729,7 @@ const agentServer = Bun.serve({
     }
 
     if (path === '/chat/sessions' && method === 'GET') {
-      const { data: allConversations, error } = await getSupabase()
+      const { data: allConversations, error } = await requireSupabase()
         .from('agent_conversations')
         .select('session_id, template_id, title, last_message_at, channel')
         .order('last_message_at', { ascending: false })
@@ -697,13 +747,13 @@ const agentServer = Bun.serve({
           let agentAvatar: string | undefined;
 
           if (conv.template_id) {
-            const agent = await getSupabase()
+            const agent = await requireSupabase()
               .from('agent_templates')
               .select('name, avatar_seed')
               .eq('id', conv.template_id)
               .single();
             agentName = agent.data?.name;
-            agentAvatar = agent.data?.avatar_seed;
+            agentAvatar = agent.data?.avatar_seed ?? undefined;
           }
 
           return {
@@ -726,7 +776,7 @@ const agentServer = Bun.serve({
 
     if (path.startsWith('/chat/sessions/') && path.endsWith('/messages') && method === 'GET') {
       const sessionId = path.split('/')[3] ?? '';
-      const { data } = await getSupabase()
+      const { data } = await requireSupabase()
         .from('conversation_messages')
         .select('*')
         .eq('session_id', sessionId)
@@ -747,14 +797,17 @@ const agentServer = Bun.serve({
       }
 
       // Always insert into agent_conversations so session appears in list immediately
-      const { error } = await getSupabase()?.from('agent_conversations').upsert({
-        session_id: sessionId,
-        template_id: agentId ?? null,
-        title: 'Nova sessão',
-        channel: 'web',
-        started_at: new Date().toISOString(),
-        last_message_at: new Date().toISOString(),
-      });
+      const db3 = requireSupabase();
+      const { error } = db3
+        ? await db3.from('agent_conversations').upsert({
+            session_id: sessionId,
+            template_id: agentId ?? null,
+            title: 'Nova sessão',
+            channel: 'web',
+            started_at: new Date().toISOString(),
+            last_message_at: new Date().toISOString(),
+          })
+        : { error: { message: 'Database not available' } };
 
       if (error) {
         logActivity('error', `Failed to create session: ${error.message}`, 'agent', {
@@ -773,8 +826,8 @@ const agentServer = Bun.serve({
 
     if (path.startsWith('/chat/sessions/') && path.endsWith('/delete') && method === 'DELETE') {
       const sessionId = path.split('/')[3] ?? '';
-      await getSupabase()?.from('conversation_messages').delete().eq('session_id', sessionId);
-      await getSupabase()?.from('agent_conversations').delete().eq('session_id', sessionId);
+      await requireSupabase().from('conversation_messages').delete().eq('session_id', sessionId);
+      await requireSupabase().from('agent_conversations').delete().eq('session_id', sessionId);
       return new Response(JSON.stringify({ ok: true, deleted: sessionId }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -785,7 +838,7 @@ const agentServer = Bun.serve({
       const body = (await req.json()) as Record<string, unknown>;
       const title = body.title as string;
 
-      await getSupabase()?.from('agent_conversations').upsert({
+      await requireSupabase().from('agent_conversations').upsert({
         session_id: sessionId,
         title,
         last_message_at: new Date().toISOString(),
@@ -805,7 +858,7 @@ const agentServer = Bun.serve({
       const from = url.searchParams.get('from');
       const to = url.searchParams.get('to');
 
-      let query = getSupabase()!
+      let query = requireSupabase()
         .from('activity_log')
         .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
@@ -867,7 +920,7 @@ const agentServer = Bun.serve({
     }
 
     if (path === '/agents' && method === 'GET') {
-      const { data: agents, error: _error } = await getSupabase()
+      const { data: agents, error: _error } = await requireSupabase()
         .from('agent_templates')
         .select('*')
         .order('created_at', { ascending: true });
@@ -877,8 +930,10 @@ const agentServer = Bun.serve({
         name: a.name,
         avatar: a.avatar_seed ?? 'robot',
         tagline: a.description ?? '',
-        traits: a.personality?.traits ?? [],
-        tone: a.personality?.tone ?? '',
+        // biome-ignore lint/suspicious/noExplicitAny: JSONB personality field
+        traits: (a.personality as any)?.traits ?? [],
+        // biome-ignore lint/suspicious/noExplicitAny: JSONB personality field
+        tone: (a.personality as any)?.tone ?? '',
       }));
 
       return new Response(JSON.stringify({ agents: formatted }), {
@@ -905,16 +960,17 @@ const agentServer = Bun.serve({
       const body = (await req.json()) as Record<string, unknown>;
       const { from_agent_id, to_agent_id, session_id, message_type, content, context } = body;
 
-      const { data: message, error } = await getSupabase()
+      const { data: message, error } = await requireSupabase()
         .from('agent_messages')
         .insert({
-          from_agent_id,
-          to_agent_id,
-          session_id: session_id ?? null,
-          message_type: message_type ?? 'message',
-          content,
-          context: context ?? {},
-        })
+          from_agent_id: from_agent_id as string,
+          to_agent_id: to_agent_id as string,
+          session_id: (session_id as string) ?? null,
+          message_type: (message_type as string) ?? 'message',
+          content: content as string,
+          context: (context ?? {}) as Record<string, unknown>,
+          // biome-ignore lint/suspicious/noExplicitAny: Supabase types lag behind schema
+        } as any)
         .select()
         .single();
 
@@ -936,7 +992,7 @@ const agentServer = Bun.serve({
       const sessionId = url.searchParams.get('session_id');
       const status = url.searchParams.get('status');
 
-      let query = getSupabase()!
+      let query = requireSupabase()
         .from('agent_messages')
         .select('*')
         .order('created_at', { ascending: false })
@@ -969,7 +1025,7 @@ const agentServer = Bun.serve({
     if (path.startsWith('/agent-messages/') && path.endsWith('/deliver') && method === 'POST') {
       const messageId = path.split('/')[2] ?? '';
 
-      const { error } = await getSupabase()
+      const { error } = await requireSupabase()
         .from('agent_messages')
         .update({ status: 'delivered', delivered_at: new Date().toISOString() })
         .eq('id', messageId);
@@ -992,10 +1048,10 @@ const agentServer = Bun.serve({
       const { from_agent_id, to_agent_id, query, session_id, context } = body;
 
       // Get target agent info
-      const { data: targetAgent } = await getSupabase()
+      const { data: targetAgent } = await requireSupabase()
         .from('agent_templates')
         .select('*')
-        .eq('id', to_agent_id)
+        .eq('id', to_agent_id as string)
         .single();
 
       if (!targetAgent) {
@@ -1006,16 +1062,17 @@ const agentServer = Bun.serve({
       }
 
       // Create message record
-      const { data: message } = await getSupabase()
+      const { data: message } = await requireSupabase()
         .from('agent_messages')
         .insert({
-          from_agent_id,
-          to_agent_id,
-          session_id: session_id ?? null,
+          from_agent_id: from_agent_id as string,
+          to_agent_id: to_agent_id as string,
+          session_id: (session_id as string) ?? null,
           message_type: 'query',
-          content: query,
-          context: context ?? {},
-        })
+          content: query as string,
+          context: (context ?? {}) as Record<string, unknown>,
+          // biome-ignore lint/suspicious/noExplicitAny: Supabase types lag behind schema
+        } as any)
         .select()
         .single();
 

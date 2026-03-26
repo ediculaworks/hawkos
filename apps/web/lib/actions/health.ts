@@ -39,7 +39,9 @@ import {
   updateTemplateSet,
   updateWorkoutTemplate,
 } from '@hawk/module-health/queries';
-import { withTenant } from '../supabase/with-tenant';
+import { unstable_cache } from 'next/cache';
+import { revalidateTag } from 'next/cache';
+import { getTenantSlug, withTenant } from '../supabase/with-tenant';
 
 import type {
   AddTemplateSetInput,
@@ -75,11 +77,23 @@ import {
 } from '../schemas';
 
 export async function fetchDailySummary(): Promise<DailyHealthSummary | null> {
-  return withTenant(async () => getDailyHealthSummary());
+  const slug = await getTenantSlug();
+  return withTenant(() =>
+    unstable_cache(() => getDailyHealthSummary(), [`health-daily-summary-${slug}`], {
+      revalidate: 300,
+      tags: ['health'],
+    })(),
+  );
 }
 
 export async function fetchWeekStats(): Promise<WeekHealthStats> {
-  return withTenant(async () => getWeekHealthStats());
+  const slug = await getTenantSlug();
+  return withTenant(() =>
+    unstable_cache(() => getWeekHealthStats(), [`health-week-stats-${slug}`], {
+      revalidate: 300,
+      tags: ['health'],
+    })(),
+  );
 }
 
 export async function fetchTodaySleep(): Promise<SleepSession | null> {
@@ -99,7 +113,13 @@ export async function fetchRecentWorkouts(limit = 20): Promise<WorkoutSession[]>
 }
 
 export async function fetchLatestWeight(): Promise<BodyMeasurement | null> {
-  return withTenant(async () => getLatestWeight());
+  const slug = await getTenantSlug();
+  return withTenant(() =>
+    unstable_cache(() => getLatestWeight(), [`health-latest-weight-${slug}`], {
+      revalidate: 600,
+      tags: ['health', 'health-weight'],
+    })(),
+  );
 }
 
 export async function fetchWeightHistory(limit = 30): Promise<BodyMeasurement[]> {
@@ -107,7 +127,13 @@ export async function fetchWeightHistory(limit = 30): Promise<BodyMeasurement[]>
 }
 
 export async function fetchActiveMedications(): Promise<Medication[]> {
-  return withTenant(async () => listActiveMedications());
+  const slug = await getTenantSlug();
+  return withTenant(() =>
+    unstable_cache(() => listActiveMedications(), [`health-medications-${slug}`], {
+      revalidate: 600,
+      tags: ['health'],
+    })(),
+  );
 }
 
 export async function fetchMedicationAdherence(): Promise<unknown> {
@@ -115,11 +141,23 @@ export async function fetchMedicationAdherence(): Promise<unknown> {
 }
 
 export async function fetchConditions(): Promise<Condition[]> {
-  return withTenant(async () => listConditions());
+  const slug = await getTenantSlug();
+  return withTenant(() =>
+    unstable_cache(() => listConditions(), [`health-conditions-${slug}`], {
+      revalidate: 1800,
+      tags: ['health'],
+    })(),
+  );
 }
 
 export async function fetchLabResults(limit = 10): Promise<LabResult[]> {
-  return withTenant(async () => listLabResults(limit));
+  const slug = await getTenantSlug();
+  return withTenant(() =>
+    unstable_cache(() => listLabResults(limit), [`health-labs-${slug}-${limit}`], {
+      revalidate: 1800,
+      tags: ['health'],
+    })(),
+  );
 }
 
 export async function fetchRecentSubstanceLogs(limit = 20): Promise<SubstanceLog[]> {
@@ -143,12 +181,14 @@ export async function fetchTodayNutrition(): Promise<unknown> {
 }
 
 export async function addSleepLog(input: unknown): Promise<SleepSession> {
-  return withTenant(async () => {
+  const res = await withTenant(async () => {
     const result = LogSleepSchema.safeParse(input);
     if (!result.success)
       throw new Error(`addSleepLog: ${result.error.issues.map((e) => e.message).join('; ')}`);
     return logSleep(result.data);
   });
+  revalidateTag('health', 'default');
+  return res;
 }
 
 export async function addWorkoutLog(input: unknown): Promise<WorkoutSession> {
@@ -161,21 +201,25 @@ export async function addWorkoutLog(input: unknown): Promise<WorkoutSession> {
 }
 
 export async function addWeightLog(input: unknown): Promise<BodyMeasurement> {
-  return withTenant(async () => {
+  const res = await withTenant(async () => {
     const result = LogWeightSchema.safeParse(input);
     if (!result.success)
       throw new Error(`addWeightLog: ${result.error.issues.map((e) => e.message).join('; ')}`);
     return logWeight(result.data);
   });
+  revalidateTag('health', 'default');
+  revalidateTag('health-weight', 'default');
+  return res;
 }
 
 export async function addSubstanceLog(input: unknown): Promise<void> {
-  return withTenant(async () => {
+  await withTenant(async () => {
     const result = LogSubstanceSchema.safeParse(input);
     if (!result.success)
       throw new Error(`addSubstanceLog: ${result.error.issues.map((e) => e.message).join('; ')}`);
     await logSubstance(result.data);
   });
+  revalidateTag('health', 'default');
 }
 
 export async function addMealLog(input: unknown): Promise<NutritionLog> {
@@ -188,7 +232,7 @@ export async function addMealLog(input: unknown): Promise<NutritionLog> {
 }
 
 export async function takeMedication(input: unknown): Promise<void> {
-  return withTenant(async () => {
+  await withTenant(async () => {
     const result = TakeMedicationSchema.safeParse(input);
     if (!result.success)
       throw new Error(`takeMedication: ${result.error.issues.map((e) => e.message).join('; ')}`);
@@ -197,6 +241,7 @@ export async function takeMedication(input: unknown): Promise<void> {
       taken: result.data.taken,
     });
   });
+  revalidateTag('health', 'default');
 }
 
 export async function skipMedication(input: unknown): Promise<void> {
@@ -280,21 +325,25 @@ export async function removeWorkout(id: string): Promise<void> {
 }
 
 export async function removeSleepSession(id: string): Promise<void> {
-  return withTenant(async () => {
+  await withTenant(async () => {
     await deleteSleepSession(id);
   });
+  revalidateTag('health', 'default');
 }
 
 export async function removeBodyMeasurement(id: string): Promise<void> {
-  return withTenant(async () => {
+  await withTenant(async () => {
     await deleteBodyMeasurement(id);
   });
+  revalidateTag('health', 'default');
+  revalidateTag('health-weight', 'default');
 }
 
 export async function removeSubstanceLog(id: string): Promise<void> {
-  return withTenant(async () => {
+  await withTenant(async () => {
     await deleteSubstanceLog(id);
   });
+  revalidateTag('health', 'default');
 }
 
 export async function removeWorkoutTemplate(id: string): Promise<void> {
