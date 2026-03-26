@@ -19,7 +19,11 @@ async function proxyToAgent(
   }
 
   const { path } = await params;
-  const agentUrl = `http://localhost:${tenant.agentApiPort}/${path.join('/')}`;
+  // In Docker: use service name (agent-ten1:3001). Locally: use localhost:port.
+  const isDocker = process.env.DOCKER === '1' || process.env.HOSTNAME;
+  const agentHost = isDocker ? `agent-${slug}` : 'localhost';
+  const agentPort = isDocker ? 3001 : tenant.agentApiPort;
+  const agentUrl = `http://${agentHost}:${agentPort}/${path.join('/')}`;
 
   // Forward query string
   const url = new URL(request.url);
