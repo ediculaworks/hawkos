@@ -1,3 +1,4 @@
+import { TenantRepairActions } from '@/components/admin/tenant-repair-actions';
 import { createClient } from '@supabase/supabase-js';
 import { redirect } from 'next/navigation';
 
@@ -170,6 +171,7 @@ export default async function AdminPage() {
                     <th className="pb-3">Status</th>
                     <th className="pb-3">Supabase</th>
                     <th className="pb-3">Created</th>
+                    <th className="pb-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -193,6 +195,9 @@ export default async function AdminPage() {
                       </td>
                       <td className="py-3 text-[var(--color-text-muted)]">
                         {new Date(tenant.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="py-3">
+                        <TenantRepairActions tenantSlug={tenant.slug} />
                       </td>
                     </tr>
                   ))}
