@@ -208,7 +208,7 @@ async function handleReMigrate(
     }
 
     // Return streaming response (NDJSON)
-    return new Response(migrateRes.body, {
+    return new NextResponse(migrateRes.body, {
       status: 200,
       headers: {
         'Content-Type': 'application/x-ndjson',
