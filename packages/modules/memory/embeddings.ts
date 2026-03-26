@@ -1,3 +1,5 @@
+'use server';
+
 import { db } from '@hawk/db';
 import OpenAI from 'openai';
 
