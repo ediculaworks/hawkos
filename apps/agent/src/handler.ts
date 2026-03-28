@@ -1,27 +1,22 @@
 import { assembleContext } from '@hawk/context-engine';
-import { db } from '@hawk/db';
-import { embedMemory } from '@hawk/module-memory/embeddings';
-import { createMemory, getSessionMessages, saveMessage } from '@hawk/module-memory/queries';
+import { getSessionMessages, saveMessage } from '@hawk/module-memory/queries';
 import { retrieveMemories, trackMemoryAccess } from '@hawk/module-memory/retrieval';
 import { getLastSessionArchive } from '@hawk/module-memory/session-commit';
-import type { MemoryType } from '@hawk/module-memory/types';
-import { createClient } from '@supabase/supabase-js';
+import { createLogger, HawkError } from '@hawk/shared';
 import OpenAI from 'openai';
+import { activityDb, logActivity } from './activity-logger.js';
 import type { ResolvedAgent } from './agent-resolver.js';
 import { buildSystemPrompt, resolveAgent } from './agent-resolver.js';
 import { addSession, updateSession } from './api/server.js';
 import { createSessionCost, trackLLMCall, trackToolCall } from './cost-tracker.js';
 import { compressHistory, needsCompression } from './history-compressor.js';
 import { hookRegistry } from './hooks/index.js';
-import { type TOOLS, getToolsForModules } from './tools/index.js';
-import { createLogger, HawkError } from '@hawk/shared';
 import { classifyComplexity, selectModel } from './model-router.js';
+import { checkRateLimit, getOrCreateSession, touchWebSession } from './session-manager.js';
+import { executeToolCall } from './tool-executor.js';
+import { getToolsForModules } from './tools/index.js';
 
 const logger = createLogger('handler');
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const activityDb = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 let _client: OpenAI | null = null;
 function getClient(): OpenAI {
@@ -36,69 +31,6 @@ function getClient(): OpenAI {
     });
   }
   return _client;
-}
-
-// ── Session Management (NanoClaw-inspired) ─────────────────
-const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
-const SESSION_GC_INTERVAL_MS = 5 * 60 * 1000; // cleanup every 5 min
-
-const activeSessions = new Map<string, { sessionId: string; lastActivity: number }>();
-const webSessions = new Map<string, { lastActivity: number }>();
-
-// ── Rate Limiting ──────────────────────────────────────────
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX = 20; // max 20 messages per minute per channel
-const rateLimiter = new Map<string, { count: number; windowStart: number }>();
-
-function checkRateLimit(channelId: string): boolean {
-  const now = Date.now();
-  const entry = rateLimiter.get(channelId);
-  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-    rateLimiter.set(channelId, { count: 1, windowStart: now });
-    return true;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) return false;
-  entry.count++;
-  return true;
-}
-
-// ── Session GC ─────────────────────────────────────────────
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, session] of activeSessions) {
-    if (now - session.lastActivity > SESSION_TTL_MS) {
-      activeSessions.delete(key);
-    }
-  }
-  for (const [key, session] of webSessions) {
-    if (now - session.lastActivity > SESSION_TTL_MS) {
-      webSessions.delete(key);
-    }
-  }
-  // Cleanup stale rate limiter entries
-  for (const [key, entry] of rateLimiter) {
-    if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-      rateLimiter.delete(key);
-    }
-  }
-}, SESSION_GC_INTERVAL_MS);
-
-function getOrCreateSession(channelId: string): { sessionId: string; isNew: boolean } {
-  const existing = activeSessions.get(channelId);
-  const now = Date.now();
-
-  if (existing && now - existing.lastActivity < SESSION_TTL_MS) {
-    existing.lastActivity = now;
-    return { sessionId: existing.sessionId, isNew: false };
-  }
-
-  const sessionId = crypto.randomUUID();
-  activeSessions.set(channelId, { sessionId, lastActivity: now });
-  return { sessionId, isNew: true };
-}
-
-function touchWebSession(sessionId: string): void {
-  webSessions.set(sessionId, { lastActivity: Date.now() });
 }
 
 // ── Core LLM Session ──────────────────────────────────────
@@ -683,166 +615,3 @@ export async function handleAutomationMessage(prompt: string): Promise<string> {
   });
 }
 
-// ── Activity Logging ───────────────────────────────────────
-
-async function logActivity(
-  eventType: string,
-  summary: string,
-  moduleName?: string,
-  metadata?: Record<string, unknown>,
-): Promise<void> {
-  // Always log to console as fallback
-  const logLine = `[activity] ${eventType} ${moduleName ?? '-'}: ${summary}`;
-  if (eventType === 'error') {
-    console.error(logLine);
-  }
-
-  if (!activityDb) return;
-
-  const mod = moduleName ?? undefined;
-  try {
-    await (
-      activityDb as unknown as {
-        from: (table: string) => {
-          insert: (data: Record<string, unknown>) => Promise<{ error: Error | null }>;
-        };
-      }
-    )
-      .from('activity_log')
-      .insert({
-        event_type: eventType,
-        module: mod,
-        summary,
-        metadata: metadata ?? {},
-      });
-  } catch (err) {
-    console.error('[handler] Failed to write activity log:', err);
-  }
-}
-
-// ── Tool execution ─────────────────────────────────────────
-
-async function executeToolCall(
-  toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
-  toolMap: Map<string, (typeof TOOLS)[string]>,
-  sessionId: string,
-): Promise<string> {
-  const { name } = toolCall.function;
-  let args: Record<string, unknown>;
-  try {
-    args = JSON.parse(toolCall.function.arguments);
-  } catch {
-    return `Erro: argumentos inválidos para "${name}" (JSON malformado)`;
-  }
-
-  // Handle save_memory specially — uses V2 memory system
-  if (name === 'save_memory') {
-    return handleSaveMemory(
-      args as { content: string; memory_type: string; module?: string; importance?: number },
-      sessionId,
-    );
-  }
-
-  const toolDef = toolMap.get(name);
-  if (!toolDef) {
-    return `Erro: Ferramenta "${name}" não encontrada no contexto atual.`;
-  }
-
-  try {
-    // Emit tool:before hook
-    await hookRegistry
-      .emit('tool:before', { sessionId, toolName: name, toolArgs: args })
-      .catch(() => {});
-
-    const startMs = Date.now();
-    const result = await toolDef.handler(args);
-    const durationMs = Date.now() - startMs;
-
-    // Emit tool:after hook
-    hookRegistry
-      .emit('tool:after', {
-        sessionId,
-        toolName: name,
-        toolArgs: args,
-        toolResult: result,
-        durationMs,
-      })
-      .catch(() => {});
-
-    // Log activity
-    const module = toolDef.modules[0];
-    logActivity('tool_call', `${name}: ${result.slice(0, 100)}`, module, {
-      tool: name,
-      args,
-    }).catch((err) => console.error('[handler] Failed to log tool activity:', err));
-
-    return result;
-  } catch (err) {
-    const errorMsg = `Erro ao executar ${name}: ${err}`;
-    logActivity('error', errorMsg, toolDef.modules[0]).catch((err) =>
-      console.error('[handler] Failed to log error:', err),
-    );
-    return errorMsg;
-  }
-}
-
-async function handleSaveMemory(
-  args: { content: string; memory_type: string; module?: string; importance?: number },
-  sessionId: string,
-): Promise<string> {
-  try {
-    // Map memory_type to legacy category for backward compat
-    const categoryMap: Record<string, string> = {
-      profile: 'fact',
-      preference: 'preference',
-      entity: 'relationship',
-      event: 'fact',
-      case: 'correction',
-      pattern: 'pattern',
-    };
-
-    const memory = await createMemory({
-      category: (categoryMap[args.memory_type] ?? 'fact') as
-        | 'preference'
-        | 'fact'
-        | 'pattern'
-        | 'insight'
-        | 'correction'
-        | 'goal'
-        | 'relationship',
-      content: args.content,
-      ...(args.module !== undefined ? { module: args.module } : {}),
-      importance: args.importance ?? 5,
-      status: 'active',
-    });
-
-    // Generate embedding async (don't block response)
-    embedMemory(memory.id, args.content).catch((err) =>
-      console.error('[handler] Failed to embed memory:', err),
-    );
-
-    // Update memory_type field directly
-    await db
-      .from('agent_memories')
-      .update({
-        memory_type: args.memory_type as MemoryType,
-        origin_session_id: sessionId,
-        mergeable: ['profile', 'preference', 'entity', 'pattern'].includes(args.memory_type),
-      } as Record<string, unknown>)
-      .eq('id', memory.id);
-
-    logActivity(
-      'memory_created',
-      `Memória salva: [${args.memory_type}] ${args.content.slice(0, 80)}`,
-      args.module,
-      {
-        memory_id: memory.id,
-        memory_type: args.memory_type,
-      },
-    ).catch((err) => console.error('[handler] Failed to log memory creation:', err));
-
-    return `Memória salva: [${args.memory_type}] ${args.content.slice(0, 50)}...`;
-  } catch (err) {
-    return `Erro ao salvar memória: ${err}`;
-  }
-}
