@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Database } from '@hawk/db';
 import { createClient } from '@supabase/supabase-js';
+import { AUTOMATIONS, handleAutomationsRoute } from './routes/automations.js';
+import { handleChatRoute } from './routes/chat.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WORKSPACE_DIR = join(__dirname, '../../../workspace');
@@ -111,62 +113,7 @@ export function sendToolCallToClient(
   }
 }
 
-const AUTOMATIONS = [
-  {
-    name: 'heartbeat',
-    description: 'Heartbeat batched (2h, 7am-11pm BRT)',
-    cron: '0 7,9,11,13,15,17,19,21,23 * * *',
-    category: 'system',
-  },
-  {
-    name: 'daily-checkin-morning',
-    description: 'Check-in matinal (09:00)',
-    cron: '0 9 * * *',
-    category: 'checkin',
-  },
-  {
-    name: 'daily-checkin-evening',
-    description: 'Check-in noturno (22:00)',
-    cron: '0 22 * * *',
-    category: 'checkin',
-  },
-  {
-    name: 'weekly-review',
-    description: 'Weekly Review (Domingo 20:00)',
-    cron: '0 20 * * 0',
-    category: 'review',
-  },
-  {
-    name: 'alerts-daily',
-    description: 'Alertas diários (08:00)',
-    cron: '0 8 * * *',
-    category: 'alerts',
-  },
-  {
-    name: 'alerts-monthly',
-    description: 'Security Review (1º dia, 10:00)',
-    cron: '0 10 1 * *',
-    category: 'alerts',
-  },
-  {
-    name: 'health-insights',
-    description: 'Health Insights (09:00)',
-    cron: '0 9 * * *',
-    category: 'health',
-  },
-  {
-    name: 'content-pipeline',
-    description: 'Content Pipeline (Sexta 17:00)',
-    cron: '0 17 * * 5',
-    category: 'content',
-  },
-  {
-    name: 'session-compactor',
-    description: 'Session Compactor (a cada hora)',
-    cron: '0 * * * *',
-    category: 'system',
-  },
-];
+// AUTOMATIONS constant imported from ./routes/automations.ts
 
 function broadcast(type: string, data: unknown) {
   const msg = JSON.stringify({ type, timestamp: new Date().toISOString(), ...(data as object) });
@@ -550,6 +497,16 @@ const agentServer = Bun.serve({
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // ── Automations (delegated to routes/automations.ts) ──────
+    const automationResponse = await handleAutomationsRoute(
+      path, method, req, state, corsHeaders, requireSupabase, triggerAutomation, logActivity,
+    );
+    if (automationResponse) return automationResponse;
+
+    // Chat routes (delegated to routes/chat.ts)
+    const chatResponse = await handleChatRoute(path, method, req, url, corsHeaders, requireSupabase);
+    if (chatResponse) return chatResponse;
 
     if (path === '/automations' && method === 'GET') {
       const db = requireSupabase();
