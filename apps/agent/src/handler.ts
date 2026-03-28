@@ -15,6 +15,7 @@ import { compressHistory, needsCompression } from './history-compressor.js';
 import { hookRegistry } from './hooks/index.js';
 import { type TOOLS, getToolsForModules } from './tools/index.js';
 import { createLogger, HawkError } from '@hawk/shared';
+import { classifyComplexity, selectModel } from './model-router.js';
 
 const logger = createLogger('handler');
 
@@ -297,10 +298,16 @@ For simple greetings, quick facts, or single-module queries, respond directly.`;
     relevance_scores: context.relevanceScores,
     message_preview: userMessage.slice(0, 120),
     tools_offered: filteredTools.map((t) => (t as { function: { name: string } }).function.name),
+    complexity,
+    selected_model: selectModel(complexity, agent.model),
+    base_model: agent.model,
   }).catch(() => {});
 
-  // 8. Call LLM with agent's model + fallback chain for 429/rate limits
+  // 8. Smart model routing — select model based on query complexity
   const hasTools = filteredTools.length > 0;
+  const complexity = classifyComplexity(userMessage, context.relevanceScores.length);
+  const selectedModel = selectModel(complexity, agent.model);
+
   const FALLBACK_MODELS = [
     'stepfun/step-3.5-flash:free',
     'meta-llama/llama-3.3-70b-instruct:free',
@@ -316,7 +323,7 @@ For simple greetings, quick facts, or single-module queries, respond directly.`;
     finishReason: string | null;
     usage?: { total_tokens?: number };
   }> {
-    const modelsToTry = [agent.model, ...FALLBACK_MODELS.filter((m) => m !== agent.model)];
+    const modelsToTry = [selectedModel, ...FALLBACK_MODELS.filter((m) => m !== selectedModel)];
 
     for (let i = 0; i < modelsToTry.length; i++) {
       const model = modelsToTry[i];

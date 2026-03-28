@@ -1,5 +1,6 @@
 'use client';
 
+import { setupGlobalErrorReporting } from '@/lib/error-reporter';
 import { useLayoutStore } from '@/lib/stores/layout-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useEffect, useState } from 'react';
@@ -30,6 +31,9 @@ export function HydrationGate({ children }: { children: React.ReactNode }) {
     const theme = useUIStore.getState().theme;
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
+
+    // Setup global error reporting
+    setupGlobalErrorReporting();
 
     setMounted(true);
   }, []);

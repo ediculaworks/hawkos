@@ -445,3 +445,82 @@ export async function getMemoryDistributions(): Promise<{
 
   return { byType, byModule };
 }
+
+// ── Knowledge Graph Links ───────────────────────────────────
+
+export type MemoryRelationType =
+  | 'related_to'
+  | 'caused_by'
+  | 'part_of'
+  | 'contradicts'
+  | 'supersedes'
+  | 'references';
+
+export async function linkMemories(
+  sourceId: string,
+  targetId: string,
+  relationType: MemoryRelationType,
+  strength = 0.5,
+): Promise<void> {
+  // biome-ignore lint/suspicious/noExplicitAny: memory_links not yet in generated types
+  const { error } = await (db as any).from('memory_links').upsert(
+    {
+      source_id: sourceId,
+      target_id: targetId,
+      relation_type: relationType,
+      strength,
+    },
+    { onConflict: 'source_id,target_id,relation_type' },
+  );
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to link memories');
+    throw new HawkError(`Failed to link memories: ${error.message}`, 'DB_INSERT_FAILED');
+  }
+}
+
+export async function getLinkedMemories(
+  memoryId: string,
+  maxHops = 1,
+): Promise<Array<{ memory: AgentMemory; relation: MemoryRelationType; strength: number }>> {
+  // First hop: direct links from this memory
+  // biome-ignore lint/suspicious/noExplicitAny: memory_links not yet in generated types
+  const { data: links, error } = await (db as any)
+    .from('memory_links')
+    .select('target_id, relation_type, strength')
+    .eq('source_id', memoryId)
+    .order('strength', { ascending: false })
+    .limit(10);
+
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get linked memories');
+    throw new HawkError(`Failed to get linked memories: ${error.message}`, 'DB_QUERY_FAILED');
+  }
+
+  if (!links || links.length === 0) return [];
+
+  const targetIds = links.map((l: { target_id: string }) => l.target_id as string);
+  const { data: memories, error: memErr } = await db
+    .from('agent_memories')
+    .select('id, content, category, memory_type, module, importance, created_at')
+    .in('id', targetIds)
+    .eq('status', 'active');
+
+  if (memErr) {
+    logger.error({ error: memErr.message }, 'Failed to fetch linked memory details');
+    throw new HawkError(`Failed to fetch linked memories: ${memErr.message}`, 'DB_QUERY_FAILED');
+  }
+
+  const memoryMap = new Map((memories ?? []).map((m) => [m.id, m]));
+
+  return links
+    .map((link: { target_id: string; relation_type: string; strength: number }) => {
+      const mem = memoryMap.get(link.target_id as string);
+      if (!mem) return null;
+      return {
+        memory: mem as unknown as AgentMemory,
+        relation: link.relation_type as MemoryRelationType,
+        strength: link.strength as number,
+      };
+    })
+    .filter((x: unknown): x is NonNullable<typeof x> => x !== null);
+}
