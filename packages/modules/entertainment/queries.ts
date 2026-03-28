@@ -1,4 +1,5 @@
 import { db } from '@hawk/db';
+import { createLogger, HawkError } from '@hawk/shared';
 import type {
   CreateHobbyLogInput,
   CreateMediaInput,
@@ -7,6 +8,8 @@ import type {
   MediaStatus,
   MediaType,
 } from './types';
+
+const logger = createLogger('entertainment');
 
 export async function createMedia(input: CreateMediaInput): Promise<MediaItem> {
   const { data, error } = await db
@@ -20,7 +23,10 @@ export async function createMedia(input: CreateMediaInput): Promise<MediaItem> {
     })
     .select()
     .single();
-  if (error) throw new Error(`Failed to create media: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create media');
+    throw new HawkError(`Failed to create media: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as MediaItem;
 }
 
@@ -29,7 +35,10 @@ export async function listMedia(type?: MediaType, status?: MediaStatus): Promise
   if (type) query = query.eq('type', type);
   if (status) query = query.eq('status', status);
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list media: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list media');
+    throw new HawkError(`Failed to list media: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as MediaItem[];
 }
 
@@ -51,7 +60,10 @@ export async function updateMediaStatus(
     .eq('id', id)
     .select()
     .single();
-  if (error) throw new Error(`Failed to update media: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update media');
+    throw new HawkError(`Failed to update media: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as MediaItem;
 }
 
@@ -82,18 +94,27 @@ export async function updateMedia(
     .eq('id', id)
     .select()
     .single();
-  if (error) throw new Error(`Failed to update media: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update media');
+    throw new HawkError(`Failed to update media: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as MediaItem;
 }
 
 export async function deleteMedia(id: string): Promise<void> {
   const { error } = await db.from('media_items').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete media: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete media');
+    throw new HawkError(`Failed to delete media: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 export async function deleteHobbyLog(id: string): Promise<void> {
   const { error } = await db.from('hobby_logs').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete hobby log: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete hobby log');
+    throw new HawkError(`Failed to delete hobby log: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 export async function findMediaByTitle(title: string): Promise<MediaItem | null> {
@@ -103,7 +124,10 @@ export async function findMediaByTitle(title: string): Promise<MediaItem | null>
     .ilike('title', `%${title}%`)
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`Failed to find media: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to find media');
+    throw new HawkError(`Failed to find media: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as MediaItem | null;
 }
 
@@ -118,7 +142,10 @@ export async function createHobbyLog(input: CreateHobbyLogInput): Promise<HobbyL
     })
     .select()
     .single();
-  if (error) throw new Error(`Failed to create hobby log: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create hobby log');
+    throw new HawkError(`Failed to create hobby log: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as HobbyLog;
 }
 
@@ -130,7 +157,10 @@ export async function listHobbyLogs(activity?: string, limit = 10): Promise<Hobb
     .limit(limit);
   if (activity) query = query.ilike('activity', `%${activity}%`);
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list hobby logs: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list hobby logs');
+    throw new HawkError(`Failed to list hobby logs: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as HobbyLog[];
 }
 
@@ -144,7 +174,10 @@ export async function getHobbyStats(): Promise<
     .from('hobby_logs')
     .select('activity, duration_min')
     .gte('logged_at', thirtyDaysAgo.toISOString().split('T')[0]);
-  if (error) throw new Error(`Failed to get hobby stats: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get hobby stats');
+    throw new HawkError(`Failed to get hobby stats: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const map = new Map<string, { sessions: number; total_min: number }>();
   for (const row of data ?? []) {

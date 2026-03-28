@@ -1,4 +1,8 @@
 import { db } from '@hawk/db';
+import { createLogger, HawkError } from '@hawk/shared';
+
+const logger = createLogger('objectives');
+
 import type {
   CreateObjectiveInput,
   CreateTaskInput,
@@ -26,7 +30,10 @@ export async function listObjectivesByTimeframe(): Promise<
     .eq('status', 'active')
     .order('priority', { ascending: false });
 
-  if (error) throw new Error(`Failed to list objectives: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list objectives');
+    throw new HawkError(`Failed to list objectives: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const result: Record<ObjectiveTimeframe, Objective[]> = {
     short: [],
@@ -47,7 +54,10 @@ export async function listObjectivesByTimeframe(): Promise<
 export async function getObjective(id: string): Promise<Objective> {
   const { data, error } = await db.from('objectives').select('*').eq('id', id).single();
 
-  if (error) throw new Error(`Failed to get objective: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get objective');
+    throw new HawkError(`Failed to get objective: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as Objective;
 }
 
@@ -63,7 +73,10 @@ export async function getObjectiveWithTasks(id: string): Promise<ObjectiveWithTa
     .eq('objective_id', id)
     .order('created_at', { ascending: false });
 
-  if (error) throw new Error(`Failed to get tasks: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get tasks');
+    throw new HawkError(`Failed to get tasks: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const taskList = (tasks ?? []) as Task[];
   const openTasks = taskList.filter((t) => t.status !== 'done' && t.status !== 'cancelled').length;
@@ -95,7 +108,10 @@ export async function createObjective(input: CreateObjectiveInput): Promise<Obje
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create objective: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create objective');
+    throw new HawkError(`Failed to create objective: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as Objective;
 }
 
@@ -118,7 +134,10 @@ export async function updateObjective(id: string, input: UpdateObjectiveInput): 
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to update objective: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update objective');
+    throw new HawkError(`Failed to update objective: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as Objective;
 }
 
@@ -127,7 +146,10 @@ export async function updateObjective(id: string, input: UpdateObjectiveInput): 
  */
 export async function deleteObjective(id: string): Promise<void> {
   const { error } = await db.from('objectives').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete objective: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete objective');
+    throw new HawkError(`Failed to delete objective: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 /**
@@ -135,7 +157,10 @@ export async function deleteObjective(id: string): Promise<void> {
  */
 export async function deleteTask(id: string): Promise<void> {
   const { error } = await db.from('tasks').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete task: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete task');
+    throw new HawkError(`Failed to delete task: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 /**
@@ -149,7 +174,10 @@ export async function listActiveTasks(limit = 20): Promise<Task[]> {
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to list tasks: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list tasks');
+    throw new HawkError(`Failed to list tasks: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Task[];
 }
 
@@ -167,7 +195,10 @@ export async function listOverdueTasks(): Promise<Task[]> {
     .not('due_date', 'is', null)
     .order('due_date', { ascending: true });
 
-  if (error) throw new Error(`Failed to list overdue tasks: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list overdue tasks');
+    throw new HawkError(`Failed to list overdue tasks: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Task[];
 }
 
@@ -189,7 +220,10 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create task: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create task');
+    throw new HawkError(`Failed to create task: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as Task;
 }
 
@@ -213,7 +247,10 @@ export async function updateTask(id: string, input: UpdateTaskInput): Promise<Ta
 
   const { data, error } = await db.from('tasks').update(updates).eq('id', id).select().single();
 
-  if (error) throw new Error(`Failed to update task: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update task');
+    throw new HawkError(`Failed to update task: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as Task;
 }
 
@@ -228,7 +265,10 @@ export async function findTaskByTitle(title: string, activeOnly = true): Promise
   }
 
   const { data, error } = await query.maybeSingle();
-  if (error) throw new Error(`Failed to find task: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to find task');
+    throw new HawkError(`Failed to find task: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as Task | null;
 }
 
@@ -244,7 +284,10 @@ export async function findObjectiveByTitle(title: string): Promise<Objective | n
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to find objective: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to find objective');
+    throw new HawkError(`Failed to find objective: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as Objective | null;
 }
 
@@ -260,7 +303,10 @@ export async function listRecentlyCompletedTasks(limit = 5): Promise<Task[]> {
     .order('completed_at', { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to list completed tasks: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list completed tasks');
+    throw new HawkError(`Failed to list completed tasks: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return (data ?? []) as Task[];
 }
 
@@ -277,7 +323,10 @@ export async function linkTaskToObjectives(taskId: string, objectiveIds: string[
     .from('task_objectives')
     .upsert(rows, { onConflict: 'task_id,objective_id' });
 
-  if (error) throw new Error(`Failed to link task to objectives: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to link task to objectives');
+    throw new HawkError(`Failed to link task to objectives: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 }
 
 /**
@@ -290,7 +339,10 @@ export async function unlinkTaskFromObjective(taskId: string, objectiveId: strin
     .eq('task_id', taskId)
     .eq('objective_id', objectiveId);
 
-  if (error) throw new Error(`Failed to unlink task from objective: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to unlink task from objective');
+    throw new HawkError(`Failed to unlink task from objective: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 }
 
 /**
@@ -302,14 +354,17 @@ export async function getObjectivesForTask(taskId: string): Promise<Objective[]>
     .select('objective_id')
     .eq('task_id', taskId);
 
-  if (error) throw new Error(`Failed to get objectives for task: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get objectives for task');
+    throw new HawkError(`Failed to get objectives for task: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const ids = (data ?? []).map((r) => r.objective_id).filter((id): id is string => Boolean(id));
   if (ids.length === 0) return [];
 
   const { data: objectives, error: objErr } = await db.from('objectives').select('*').in('id', ids);
 
-  if (objErr) throw new Error(`Failed to get objectives: ${objErr.message}`);
+  if (objErr) { logger.error({ error: objErr.message }, 'Failed to get objectives'); throw new HawkError(`Failed to get objectives: ${objErr.message}`, 'DB_QUERY_FAILED'); }
   return (objectives ?? []) as Objective[];
 }
 
@@ -324,7 +379,10 @@ export async function searchTasks(query: string, limit = 5): Promise<Task[]> {
     .in('status', ['todo', 'in_progress', 'blocked'] as TaskStatus[])
     .limit(limit);
 
-  if (error) throw new Error(`Failed to search tasks: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to search tasks');
+    throw new HawkError(`Failed to search tasks: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Task[];
 }
 
@@ -339,7 +397,10 @@ export async function searchObjectives(query: string, limit = 5): Promise<Object
     .eq('status', 'active')
     .limit(limit);
 
-  if (error) throw new Error(`Failed to search objectives: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to search objectives');
+    throw new HawkError(`Failed to search objectives: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Objective[];
 }
 
@@ -364,7 +425,10 @@ export async function listIssueStates(objectiveId?: string): Promise<IssueState[
   }
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list issue states: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list issue states');
+    throw new HawkError(`Failed to list issue states: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as unknown as IssueState[];
 }
 
@@ -381,7 +445,10 @@ export async function getTasksByState(
     taskQuery = taskQuery.eq('objective_id', objectiveId);
   }
   const { data: tasks, error } = await taskQuery;
-  if (error) throw new Error(`Failed to get tasks: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get tasks');
+    throw new HawkError(`Failed to get tasks: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const tasksByStateId = new Map<string | null, Task[]>();
   for (const task of tasks ?? []) {
@@ -416,7 +483,10 @@ export async function createSubTask(parentId: string, input: CreateTaskInput): P
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create sub-task: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create sub-task');
+    throw new HawkError(`Failed to create sub-task: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as Task;
 }
 
@@ -439,7 +509,10 @@ export async function getActiveCycle(objectiveId?: string): Promise<Cycle | null
   if (objectiveId) query = query.eq('objective_id', objectiveId);
 
   const { data, error } = await query.maybeSingle();
-  if (error) throw new Error(`Failed to get active cycle: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get active cycle');
+    throw new HawkError(`Failed to get active cycle: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as Cycle | null;
 }
 
@@ -453,14 +526,14 @@ export async function getCycleWithTasks(cycleId: string): Promise<CycleWithTasks
     .select('*')
     .eq('id', cycleId)
     .single();
-  if (cErr) throw new Error(`Failed to get cycle: ${cErr.message}`);
+  if (cErr) { logger.error({ error: cErr.message }, 'Failed to get cycle'); throw new HawkError(`Failed to get cycle: ${cErr.message}`, 'DB_QUERY_FAILED'); }
 
   // biome-ignore lint/suspicious/noExplicitAny: cycle_tasks not in generated types
   const { data: cycleTasks, error: ctErr } = await (db as any)
     .from('cycle_tasks')
     .select('task_id')
     .eq('cycle_id', cycleId);
-  if (ctErr) throw new Error(`Failed to get cycle tasks: ${ctErr.message}`);
+  if (ctErr) { logger.error({ error: ctErr.message }, 'Failed to get cycle tasks'); throw new HawkError(`Failed to get cycle tasks: ${ctErr.message}`, 'DB_QUERY_FAILED'); }
 
   // biome-ignore lint/suspicious/noExplicitAny: cycle_tasks not in generated types
   const taskIds = (cycleTasks ?? []).map((ct: any) => ct.task_id);
@@ -468,7 +541,7 @@ export async function getCycleWithTasks(cycleId: string): Promise<CycleWithTasks
 
   if (taskIds.length > 0) {
     const { data: taskData, error: tErr } = await db.from('tasks').select('*').in('id', taskIds);
-    if (tErr) throw new Error(`Failed to get tasks: ${tErr.message}`);
+    if (tErr) { logger.error({ error: tErr.message }, 'Failed to get tasks'); throw new HawkError(`Failed to get tasks: ${tErr.message}`, 'DB_QUERY_FAILED'); }
     tasks = (taskData ?? []) as Task[];
   }
 
@@ -496,7 +569,10 @@ export async function calculateVelocity(
     .order('start_date', { ascending: false })
     .limit(n);
 
-  if (error) throw new Error(`Failed to get cycles: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get cycles');
+    throw new HawkError(`Failed to get cycles: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   if (!cycles?.length) return [];
 
   const results = await Promise.all(

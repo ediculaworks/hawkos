@@ -1,5 +1,8 @@
 import { db } from '@hawk/db';
+import { createLogger, HawkError } from '@hawk/shared';
 import type { CreateReflectionInput, PersonalValue, Reflection, ReflectionType } from './types';
+
+const logger = createLogger('spirituality');
 
 export type UnifiedTimelineEntry = {
   date: string;
@@ -24,7 +27,10 @@ export async function createReflection(input: CreateReflectionInput): Promise<Re
     })
     .select()
     .single();
-  if (error) throw new Error(`Failed to create reflection: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create reflection');
+    throw new HawkError(`Failed to create reflection: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as Reflection;
 }
 
@@ -36,7 +42,10 @@ export async function listReflections(type?: ReflectionType, limit = 10): Promis
     .limit(limit);
   if (type) query = query.eq('type', type);
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list reflections: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list reflections');
+    throw new HawkError(`Failed to list reflections: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Reflection[];
 }
 
@@ -47,7 +56,10 @@ export async function searchReflections(query: string, limit = 5): Promise<Refle
     .textSearch('search_vector', query, { type: 'plain', config: 'portuguese' })
     .order('logged_at', { ascending: false })
     .limit(limit);
-  if (error) throw new Error(`Failed to search reflections: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to search reflections');
+    throw new HawkError(`Failed to search reflections: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Reflection[];
 }
 
@@ -58,7 +70,10 @@ export async function getTodayReflections(): Promise<Reflection[]> {
     .select('*')
     .eq('logged_at', today)
     .order('created_at', { ascending: true });
-  if (error) throw new Error(`Failed to get today reflections: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get today reflections');
+    throw new HawkError(`Failed to get today reflections: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Reflection[];
 }
 
@@ -67,7 +82,10 @@ export async function listPersonalValues(): Promise<PersonalValue[]> {
     .from('personal_values')
     .select('*')
     .order('priority', { ascending: false });
-  if (error) throw new Error(`Failed to list values: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list values');
+    throw new HawkError(`Failed to list values: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as PersonalValue[];
 }
 
@@ -80,7 +98,10 @@ export async function getWeeklyMoodAverage(): Promise<number | null> {
     .select('mood')
     .not('mood', 'is', null)
     .gte('logged_at', sevenDaysAgo.toISOString().split('T')[0]);
-  if (error) throw new Error(`Failed to get mood average: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get mood average');
+    throw new HawkError(`Failed to get mood average: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const moods = (data ?? []).map((r) => r.mood as number).filter((m) => m > 0);
   if (moods.length === 0) return null;
@@ -171,7 +192,10 @@ export async function getObjectivesByValue(valueName: string): Promise<Objective
     .eq('status', 'active')
     .order('priority', { ascending: false });
 
-  if (error) throw new Error(`Failed to get objectives: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get objectives');
+    throw new HawkError(`Failed to get objectives: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const { data: tasksWithTag } = await db
     .from('tasks')

@@ -12,6 +12,7 @@ import { listOverdueContacts, listUpcomingBirthdays } from '@hawk/module-people'
 import { getDueForReview, getPendingItems, getSecuritySummary } from '@hawk/module-security';
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
+import { isAutomationEnabled, markAutomationRun } from './config.js';
 
 const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
 
@@ -46,6 +47,9 @@ async function getAlertSettings(): Promise<AlertSettings> {
  */
 export async function runDailyAlerts(): Promise<void> {
   if (!CHANNEL_ID) return;
+
+  // Check web UI toggle (automation_configs) + agent_settings
+  if (!(await isAutomationEnabled('alerts-daily'))) return;
 
   const settings = await getAlertSettings();
   if (!settings.alerts_enabled) return;
@@ -156,7 +160,12 @@ export function startAlertsCron(): void {
     const [sHours, sMinutes] = settings.security_review_time.split(':').map(Number);
 
     if (settings.alerts_enabled && now.getHours() === aHours && now.getMinutes() === aMinutes) {
-      runDailyAlerts().catch((err) => console.error('[alerts] Daily alerts failed:', err));
+      runDailyAlerts()
+        .then(() => markAutomationRun('alerts-daily', 'success'))
+        .catch((err) => {
+          console.error('[alerts] Daily alerts failed:', err);
+          markAutomationRun('alerts-daily', 'failure', String(err));
+        });
     }
 
     if (
@@ -164,9 +173,12 @@ export function startAlertsCron(): void {
       now.getHours() === sHours &&
       now.getMinutes() === sMinutes
     ) {
-      runMonthlySecurityReview().catch((err) =>
-        console.error('[alerts] Security review failed:', err),
-      );
+      runMonthlySecurityReview()
+        .then(() => markAutomationRun('alerts-monthly', 'success'))
+        .catch((err) => {
+          console.error('[alerts] Security review failed:', err);
+          markAutomationRun('alerts-monthly', 'failure', String(err));
+        });
     }
   });
 }

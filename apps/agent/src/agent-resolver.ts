@@ -19,6 +19,10 @@ export interface ResolvedAgent {
   toolsEnabled: string[];
   isUserFacing: boolean;
   spriteFolder: string | null;
+  // Feature flags from agent_settings
+  reactMode: 'auto' | 'always' | 'never';
+  costTrackingEnabled: boolean;
+  historyCompressionEnabled: boolean;
 }
 
 /**
@@ -58,6 +62,19 @@ export async function resolveAgent(sessionId: string, _channel: string): Promise
         .single()
     : { data: null };
 
+  // Load feature flags from agent_settings (shared across all agents)
+  const { data: agentSettings } = await db
+    .from('agent_settings')
+    .select('react_mode, cost_tracking_enabled, history_compression_enabled')
+    .limit(1)
+    .maybeSingle();
+
+  const featureFlags = {
+    reactMode: (agentSettings?.react_mode as ResolvedAgent['reactMode']) ?? 'auto',
+    costTrackingEnabled: agentSettings?.cost_tracking_enabled ?? true,
+    historyCompressionEnabled: agentSettings?.history_compression_enabled ?? true,
+  };
+
   if (!template) {
     const { data: settings } = await db.from('agent_settings').select('*').limit(1).maybeSingle();
     return {
@@ -77,6 +94,7 @@ export async function resolveAgent(sessionId: string, _channel: string): Promise
       toolsEnabled: [],
       isUserFacing: true,
       spriteFolder: settings?.tenant_name?.toLowerCase().replace(/\s+/g, '-') ?? 'hawk',
+      ...featureFlags,
     };
   }
 
@@ -104,6 +122,7 @@ export async function resolveAgent(sessionId: string, _channel: string): Promise
     toolsEnabled: (template.tools_enabled as string[]) ?? [],
     isUserFacing: template.is_user_facing ?? true,
     spriteFolder: template.sprite_folder ?? null,
+    ...featureFlags,
   };
 }
 

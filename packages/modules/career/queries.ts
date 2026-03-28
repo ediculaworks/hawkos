@@ -1,4 +1,6 @@
 import { db } from '@hawk/db';
+import { HawkError, createLogger } from '@hawk/shared';
+const logger = createLogger('career');
 import type {
   CreateProjectInput,
   CreateWorkspaceInput,
@@ -19,7 +21,10 @@ export async function listWorkspaces(): Promise<Workspace[]> {
     .eq('active', true)
     .order('name');
 
-  if (error) throw new Error(`Failed to list workspaces: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list workspaces');
+    throw new HawkError(`Failed to list workspaces: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Workspace[];
 }
 
@@ -35,7 +40,10 @@ export async function findWorkspaceByName(name: string): Promise<Workspace | nul
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to find workspace: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to find workspace');
+    throw new HawkError(`Failed to find workspace: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as Workspace | null;
 }
 
@@ -51,7 +59,10 @@ export async function listActiveProjects(): Promise<Project[]> {
     .eq('status', 'active')
     .order('priority', { ascending: false });
 
-  if (error) throw new Error(`Failed to list projects: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list projects');
+    throw new HawkError(`Failed to list projects: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Project[];
 }
 
@@ -69,7 +80,10 @@ export async function findProjectByName(name: string): Promise<Project | null> {
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to find project: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to find project');
+    throw new HawkError(`Failed to find project: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as Project | null;
 }
 
@@ -78,7 +92,10 @@ export async function findProjectByName(name: string): Promise<Project | null> {
  */
 export async function logWork(input: LogWorkInput): Promise<WorkLog> {
   const workspace = await findWorkspaceByName(input.workspace_name);
-  if (!workspace) throw new Error(`Workspace "${input.workspace_name}" not found`);
+  if (!workspace) {
+    logger.error({ error: `Workspace "${input.workspace_name}" not found` }, 'Failed to log work');
+    throw new HawkError(`Workspace "${input.workspace_name}" not found`, 'DB_QUERY_FAILED');
+  }
 
   let projectId: string | null = null;
   if (input.project_name) {
@@ -99,7 +116,10 @@ export async function logWork(input: LogWorkInput): Promise<WorkLog> {
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to log work: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to log work');
+    throw new HawkError(`Failed to log work: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as WorkLog;
 }
 
@@ -126,7 +146,10 @@ export async function getWorkSummary(): Promise<WorkSummary[]> {
     .gte('date', monthStr)
     .order('date', { ascending: false });
 
-  if (error) throw new Error(`Failed to get work logs: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get work logs');
+    throw new HawkError(`Failed to get work logs: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   const allLogs = (logs ?? []) as WorkLog[];
 
   return workspaces.map((ws) => {
@@ -158,7 +181,10 @@ export async function listRecentWorkLogs(limit = 10): Promise<WorkLog[]> {
     .order('date', { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to list work logs: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list work logs');
+    throw new HawkError(`Failed to list work logs: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as WorkLog[];
 }
 
@@ -175,7 +201,10 @@ export async function createWorkspace(input: CreateWorkspaceInput): Promise<Work
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create workspace: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create workspace');
+    throw new HawkError(`Failed to create workspace: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as Workspace;
 }
 
@@ -193,7 +222,10 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create project: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create project');
+    throw new HawkError(`Failed to create project: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as Project;
 }
 
@@ -218,6 +250,9 @@ export async function logWorkDirect(input: {
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to log work: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to log work');
+    throw new HawkError(`Failed to log work: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as WorkLog;
 }

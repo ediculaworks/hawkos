@@ -1,3 +1,4 @@
+import { createLogger, HawkError } from '@hawk/shared';
 import { db } from '@hawk/db';
 import type {
   Book,
@@ -10,6 +11,8 @@ import type {
   NoteRelation,
   UpdateNoteInput,
 } from './types';
+
+const logger = createLogger('knowledge');
 
 export async function createNote(input: CreateNoteInput): Promise<KnowledgeNote> {
   // Se tem URL, extrair tags do conteúdo automaticamente
@@ -30,7 +33,10 @@ export async function createNote(input: CreateNoteInput): Promise<KnowledgeNote>
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create note: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create note');
+    throw new HawkError(`Failed to create note: ${error.message}`, 'DB_INSERT_FAILED');
+  }
 
   // Enfileirar para processamento assíncrono se for bookmark com auto_tag
   if (input.url && input.auto_tag !== false) {
@@ -88,7 +94,10 @@ export async function searchKnowledge(
   if (opts?.unread) q = q.eq('is_read', false);
 
   const { data, error } = await q;
-  if (error) throw new Error(`Failed to search knowledge: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to search knowledge');
+    throw new HawkError(`Failed to search knowledge: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as unknown as KnowledgeNote[];
 }
 
@@ -123,7 +132,10 @@ export async function listUnreadNotes(limit = 20): Promise<KnowledgeNote[]> {
     .eq('is_archived', false)
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (error) throw new Error(`Failed to list unread notes: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list unread notes');
+    throw new HawkError(`Failed to list unread notes: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as unknown as KnowledgeNote[];
 }
 
@@ -145,7 +157,10 @@ export async function listCollections(parentId?: string | null): Promise<Knowled
   }
 
   const { data, error } = await q;
-  if (error) throw new Error(`Failed to list collections: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list collections');
+    throw new HawkError(`Failed to list collections: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as unknown as KnowledgeCollection[];
 }
 
@@ -167,7 +182,10 @@ export async function listNotesInCollection(
     .select('knowledge_notes(*)')
     .eq('collection_id', collectionId)
     .limit(limit);
-  if (error) throw new Error(`Failed to list notes in collection: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list notes in collection');
+    throw new HawkError(`Failed to list notes in collection: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   // biome-ignore lint/suspicious/noExplicitAny: knowledge_note_collections returns untyped join
   return (data ?? []).map((r: any) => r.knowledge_notes) as KnowledgeNote[];
 }
@@ -186,7 +204,10 @@ export async function getBacklinks(
     .select('*')
     .eq('target_id', targetId)
     .eq('target_type', targetType);
-  if (error) throw new Error(`Failed to get backlinks: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get backlinks');
+    throw new HawkError(`Failed to get backlinks: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as unknown as NoteRelation[];
 }
 
@@ -221,7 +242,10 @@ export async function searchNotes(query: string, limit = 10): Promise<KnowledgeN
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to search notes: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to search notes');
+    throw new HawkError(`Failed to search notes: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as KnowledgeNote[];
 }
 
@@ -235,7 +259,10 @@ export async function listRecentNotes(limit = 10, type?: string): Promise<Knowle
   if (type) query = query.eq('type', type);
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list notes: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list notes');
+    throw new HawkError(`Failed to list notes: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as KnowledgeNote[];
 }
 
@@ -250,7 +277,10 @@ export async function createBook(input: CreateBookInput): Promise<Book> {
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create book: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create book');
+    throw new HawkError(`Failed to create book: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as Book;
 }
 
@@ -262,7 +292,10 @@ export async function findBookByTitle(title: string): Promise<Book | null> {
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to find book: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to find book');
+    throw new HawkError(`Failed to find book: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as Book | null;
 }
 
@@ -278,7 +311,10 @@ export async function updateBookStatus(
 
   const { data, error } = await db.from('books').update(updates).eq('id', id).select().single();
 
-  if (error) throw new Error(`Failed to update book: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update book');
+    throw new HawkError(`Failed to update book: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as Book;
 }
 
@@ -286,7 +322,10 @@ export async function listBooks(status?: BookStatus): Promise<Book[]> {
   let query = db.from('books').select('*').order('created_at', { ascending: false });
   if (status) query = query.eq('status', status);
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list books: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list books');
+    throw new HawkError(`Failed to list books: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Book[];
 }
 
@@ -297,7 +336,10 @@ export async function searchBooks(query: string, limit = 5): Promise<Book[]> {
     .or(`title.ilike.%${query}%,author.ilike.%${query}%`)
     .limit(limit);
 
-  if (error) throw new Error(`Failed to search books: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to search books');
+    throw new HawkError(`Failed to search books: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Book[];
 }
 
@@ -309,7 +351,10 @@ export async function listNotesByModule(module: string, limit = 20): Promise<Kno
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to list notes by module: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list notes by module');
+    throw new HawkError(`Failed to list notes by module: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as KnowledgeNote[];
 }
 
@@ -360,7 +405,10 @@ export async function getKnowledgeStats(): Promise<KnowledgeStats> {
 export async function updateBookRating(id: string, rating: number): Promise<Book> {
   const { data, error } = await db.from('books').update({ rating }).eq('id', id).select().single();
 
-  if (error) throw new Error(`Failed to update book rating: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update book rating');
+    throw new HawkError(`Failed to update book rating: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as Book;
 }
 
@@ -377,16 +425,25 @@ export async function updateNote(id: string, input: UpdateNoteInput): Promise<Kn
     .eq('id', id)
     .select()
     .single();
-  if (error) throw new Error(`Failed to update note: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update note');
+    throw new HawkError(`Failed to update note: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as KnowledgeNote;
 }
 
 export async function deleteNote(id: string): Promise<void> {
   const { error } = await db.from('knowledge_notes').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete note: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete note');
+    throw new HawkError(`Failed to delete note: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 export async function deleteBook(id: string): Promise<void> {
   const { error } = await db.from('books').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete book: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete book');
+    throw new HawkError(`Failed to delete book: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }

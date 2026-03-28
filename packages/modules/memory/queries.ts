@@ -1,3 +1,4 @@
+import { createLogger, HawkError } from '@hawk/shared';
 import { db } from '@hawk/db';
 import type {
   AgentMemory,
@@ -12,6 +13,8 @@ import type {
   SessionArchive,
   UpdateMemoryInput,
 } from './types.js';
+
+const logger = createLogger('memory');
 
 // ── Memories CRUD ──────────────────────────────────────────
 
@@ -32,7 +35,10 @@ export async function createMemory(input: CreateMemoryInput): Promise<AgentMemor
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create memory: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create memory');
+    throw new HawkError(`Failed to create memory: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as unknown as AgentMemory;
 }
 
@@ -55,7 +61,10 @@ export async function listMemories(filters: MemoryFilters = {}): Promise<AgentMe
   query = query.range(offset, offset + limit - 1);
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list memories: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list memories');
+    throw new HawkError(`Failed to list memories: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as unknown as AgentMemory[];
 }
 
@@ -70,7 +79,10 @@ export async function searchMemories(searchQuery: string, limit = 20): Promise<A
     .order('importance', { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to search memories: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to search memories');
+    throw new HawkError(`Failed to search memories: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as AgentMemory[];
 }
 
@@ -93,14 +105,20 @@ export async function updateMemory(id: string, input: UpdateMemoryInput): Promis
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to update memory: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update memory');
+    throw new HawkError(`Failed to update memory: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as unknown as AgentMemory;
 }
 
 export async function deleteMemory(id: string): Promise<void> {
   const { error } = await db.from('agent_memories').update({ status: 'archived' }).eq('id', id);
 
-  if (error) throw new Error(`Failed to archive memory: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to archive memory');
+    throw new HawkError(`Failed to archive memory: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
 }
 
 /**
@@ -137,7 +155,10 @@ export async function getTopMemories(limit = 10, module?: string): Promise<Agent
   if (module) query = query.or(`module.eq.${module},related_modules.cs.{${module}}`);
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to get top memories: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get top memories');
+    throw new HawkError(`Failed to get top memories: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as AgentMemory[];
 }
 
@@ -220,7 +241,10 @@ export async function getMemoryGraph(): Promise<MemoryGraph> {
     .order('importance', { ascending: false })
     .limit(200);
 
-  if (error) throw new Error(`Failed to get memory graph: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get memory graph');
+    throw new HawkError(`Failed to get memory graph: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const memories = (data ?? []) as MemoryGraphNode[];
   const edges: MemoryGraphEdge[] = [];
@@ -274,7 +298,10 @@ export async function saveMessage(input: SaveMessageInput): Promise<Conversation
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to save message: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to save message');
+    throw new HawkError(`Failed to save message: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as ConversationMessage;
 }
 
@@ -289,7 +316,10 @@ export async function getSessionMessages(
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to get session messages: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get session messages');
+    throw new HawkError(`Failed to get session messages: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return ((data ?? []) as ConversationMessage[]).reverse();
 }
 
@@ -316,7 +346,10 @@ export async function createSummary(input: {
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create summary: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create summary');
+    throw new HawkError(`Failed to create summary: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as ConversationSummary;
 }
 
@@ -334,7 +367,10 @@ export async function listSessionArchives(limit = 20, channel?: string): Promise
   if (channel) query = query.eq('channel', channel);
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list session archives: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list session archives');
+    throw new HawkError(`Failed to list session archives: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as unknown as SessionArchive[];
 }
 
@@ -348,7 +384,10 @@ export async function getSessionArchive(sessionId: string): Promise<SessionArchi
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to get session archive: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get session archive');
+    throw new HawkError(`Failed to get session archive: ${error.message}`, 'DB_DELETE_FAILED');
+  }
   return data as unknown as SessionArchive | null;
 }
 
@@ -366,7 +405,10 @@ export async function getMemoryTimeline(
     .order('created_at', { ascending: true })
     .limit(10000);
 
-  if (error) throw new Error(`Failed to get memory timeline: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get memory timeline');
+    throw new HawkError(`Failed to get memory timeline: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const counts: Record<string, number> = {};
   for (const m of data ?? []) {
@@ -387,7 +429,10 @@ export async function getMemoryDistributions(): Promise<{
     .eq('status', 'active')
     .limit(10000);
 
-  if (error) throw new Error(`Failed to get memory distributions: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get memory distributions');
+    throw new HawkError(`Failed to get memory distributions: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const byType: Record<string, number> = {};
   const byModule: Record<string, number> = {};

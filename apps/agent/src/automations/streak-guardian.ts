@@ -5,11 +5,15 @@
 import { getHabitsAtRisk, getWeeklyRoutineScore } from '@hawk/module-routine';
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
+import { isAutomationEnabled, markAutomationRun } from './config.js';
 
 const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
 
 export async function runStreakGuardian(): Promise<void> {
   if (!CHANNEL_ID) return;
+
+  // Check web UI toggle (automation_configs)
+  if (!(await isAutomationEnabled('streak-guardian'))) return;
 
   const [atRisk, weeklyScore] = await Promise.all([getHabitsAtRisk(), getWeeklyRoutineScore()]);
 
@@ -36,6 +40,11 @@ export async function runStreakGuardian(): Promise<void> {
 export function startStreakGuardianCron(): void {
   // Todos os dias às 20:00
   cron.schedule('0 20 * * *', () => {
-    runStreakGuardian().catch(console.error);
+    runStreakGuardian()
+      .then(() => markAutomationRun('streak-guardian', 'success'))
+      .catch((err) => {
+        console.error('[streak-guardian] Failed:', err);
+        markAutomationRun('streak-guardian', 'failure', String(err));
+      });
   });
 }

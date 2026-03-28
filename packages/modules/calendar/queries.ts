@@ -7,6 +7,8 @@ import type {
   EventListOptions,
   FreeSlot,
 } from './types';
+import { createLogger, HawkError } from '@hawk/shared';
+const logger = createLogger('calendar');
 
 /**
  * Criar um novo evento no calendário
@@ -28,7 +30,10 @@ export async function createEvent(input: CreateEventInput): Promise<CalendarEven
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create event: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create event');
+    throw new HawkError(`Failed to create event: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as CalendarEvent;
 }
 
@@ -57,7 +62,10 @@ export async function listEvents(options?: EventListOptions): Promise<CalendarEv
   }
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list events: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list events');
+    throw new HawkError(`Failed to list events: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data || []) as CalendarEvent[];
 }
 
@@ -73,7 +81,10 @@ export async function getEvent(eventId: string): Promise<CalendarEvent> {
     .eq('id', eventId)
     .single();
 
-  if (error) throw new Error(`Failed to get event: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get event');
+    throw new HawkError(`Failed to get event: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as CalendarEvent;
 }
 
@@ -91,7 +102,10 @@ export async function updateEvent(
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to update event: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update event');
+    throw new HawkError(`Failed to update event: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as CalendarEvent;
 }
 
@@ -100,7 +114,10 @@ export async function updateEvent(
  */
 export async function deleteEvent(eventId: string): Promise<void> {
   const { error } = await db.from('calendar_events').delete().eq('id', eventId);
-  if (error) throw new Error(`Failed to delete event: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete event');
+    throw new HawkError(`Failed to delete event: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 /**
@@ -112,7 +129,10 @@ export async function getEventAttendees(eventId: string): Promise<CalendarAttend
     .select('id, event_id, email, display_name, response_status, is_organizer')
     .eq('event_id', eventId);
 
-  if (error) throw new Error(`Failed to get attendees: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get attendees');
+    throw new HawkError(`Failed to get attendees: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data || []) as CalendarAttendee[];
 }
 
@@ -136,7 +156,10 @@ export async function addAttendee(
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to add attendee: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to add attendee');
+    throw new HawkError(`Failed to add attendee: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as CalendarAttendee;
 }
 

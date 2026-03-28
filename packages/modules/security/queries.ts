@@ -5,6 +5,8 @@ import type {
   SecurityStatus,
   UpdateSecurityItemInput,
 } from './types';
+import { createLogger, HawkError } from '@hawk/shared';
+const logger = createLogger('security');
 
 export async function listSecurityItems(category?: SecurityCategory): Promise<SecurityItem[]> {
   let query = db
@@ -14,7 +16,10 @@ export async function listSecurityItems(category?: SecurityCategory): Promise<Se
     .order('type', { ascending: true });
   if (category) query = query.eq('type', category);
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list security items: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list security items');
+    throw new HawkError(`Failed to list security items: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as SecurityItem[];
 }
 
@@ -24,7 +29,10 @@ export async function getPendingItems(): Promise<SecurityItem[]> {
     .select('*')
     .in('status', ['needs_attention', 'critical'])
     .order('status', { ascending: true });
-  if (error) throw new Error(`Failed to get pending items: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get pending items');
+    throw new HawkError(`Failed to get pending items: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as SecurityItem[];
 }
 
@@ -46,7 +54,10 @@ export async function updateSecurityItem(
     .eq('id', id)
     .select()
     .single();
-  if (error) throw new Error(`Failed to update security item: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update security item');
+    throw new HawkError(`Failed to update security item: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as SecurityItem;
 }
 
@@ -56,7 +67,10 @@ export async function getSecuritySummary(): Promise<{
   critico: number;
 }> {
   const { data, error } = await db.from('security_items').select('status');
-  if (error) throw new Error(`Failed to get security summary: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get security summary');
+    throw new HawkError(`Failed to get security summary: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   const counts = { ok: 0, pendente: 0, critico: 0 };
   for (const row of data ?? []) {
     const s = row.status as SecurityStatus;
@@ -75,6 +89,9 @@ export async function getDueForReview(): Promise<SecurityItem[]> {
     .not('next_review', 'is', null)
     .lte('next_review', today)
     .order('next_review', { ascending: true });
-  if (error) throw new Error(`Failed to get items due for review: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get items due for review');
+    throw new HawkError(`Failed to get items due for review: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as SecurityItem[];
 }

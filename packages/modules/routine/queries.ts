@@ -1,4 +1,13 @@
 import { db } from '@hawk/db';
+import { HawkError, NotFoundError, createLogger, ValidationError, HabitFrequencySchema } from '@hawk/shared';
+import { z } from 'zod';
+
+const logger = createLogger('routine');
+
+const CreateHabitSchema = z.object({
+  name: z.string().min(1).max(100),
+  frequency: HabitFrequencySchema,
+});
 import type {
   CreateHabitInput,
   Habit,
@@ -27,7 +36,10 @@ export async function listHabitsWithTodayStatus(): Promise<HabitWithLog[]> {
     .eq('habit_logs.date', today)
     .order('name');
 
-  if (error) throw new Error(`Failed to list habits: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list habits');
+    throw new HawkError(`Failed to list habits: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   return (habits ?? []).map((habit) => {
     const logs = habit.habit_logs as unknown as HabitLog[] | null;
@@ -54,7 +66,10 @@ export async function findHabitByName(name: string): Promise<Habit | null> {
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to find habit: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to find habit');
+    throw new HawkError(`Failed to find habit: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as Habit | null;
 }
 
@@ -78,7 +93,10 @@ export async function logHabit(input: LogHabitInput): Promise<HabitLog> {
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to log habit: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to log habit');
+    throw new HawkError(`Failed to log habit: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as HabitLog;
 }
 
@@ -95,13 +113,21 @@ export async function unlogHabit(habitId: string, date?: string): Promise<void> 
       { onConflict: 'habit_id,date' },
     );
 
-  if (error) throw new Error(`Failed to unlog habit: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to unlog habit');
+    throw new HawkError(`Failed to unlog habit: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
 }
 
 /**
  * Criar novo hábito
  */
 export async function createHabit(input: CreateHabitInput): Promise<Habit> {
+  const parsed = CreateHabitSchema.safeParse(input);
+  if (!parsed.success) {
+    logger.warn({ errors: parsed.error.flatten() }, 'Invalid habit input');
+    throw new ValidationError(`Invalid habit: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const { data, error } = await db
     .from('habits')
     .insert({
@@ -115,7 +141,10 @@ export async function createHabit(input: CreateHabitInput): Promise<Habit> {
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create habit: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create habit');
+    throw new HawkError(`Failed to create habit: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as Habit;
 }
 
@@ -131,7 +160,10 @@ export async function updateHabit(id: string, input: UpdateHabitInput): Promise<
   if (input.icon !== undefined) updates.icon = input.icon;
 
   const { data, error } = await db.from('habits').update(updates).eq('id', id).select().single();
-  if (error) throw new Error(`Failed to update habit: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update habit');
+    throw new HawkError(`Failed to update habit: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as Habit;
 }
 
@@ -140,7 +172,10 @@ export async function updateHabit(id: string, input: UpdateHabitInput): Promise<
  */
 export async function deleteHabit(id: string): Promise<void> {
   const { error } = await db.from('habits').update({ active: false }).eq('id', id);
-  if (error) throw new Error(`Failed to delete habit: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete habit');
+    throw new HawkError(`Failed to delete habit: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 /**
@@ -160,7 +195,10 @@ export async function getWeekSummary(): Promise<HabitWeekSummary[]> {
     .eq('active', true)
     .order('name');
 
-  if (error) throw new Error(`Failed to get habits: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get habits');
+    throw new HawkError(`Failed to get habits: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   if (!habits || habits.length === 0) return [];
 
   const habitIds = habits.map((h) => h.id);
@@ -173,7 +211,10 @@ export async function getWeekSummary(): Promise<HabitWeekSummary[]> {
     .lte('date', endDate)
     .eq('completed', true);
 
-  if (logError) throw new Error(`Failed to get week logs: ${logError.message}`);
+  if (logError) {
+    logger.error({ error: logError.message }, 'Failed to get week logs');
+    throw new HawkError(`Failed to get week logs: ${logError.message}`, 'DB_QUERY_FAILED');
+  }
 
   return habits.map((habit) => {
     const habitLogs = (logs ?? []).filter((l) => l.habit_id === habit.id);
@@ -212,7 +253,10 @@ export async function getHabitLogs(
     .lte('date', endDate)
     .order('date', { ascending: false });
 
-  if (error) throw new Error(`Failed to get habit logs: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get habit logs');
+    throw new HawkError(`Failed to get habit logs: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as HabitLog[];
 }
 
@@ -226,7 +270,10 @@ export async function getHabitLogs(
 export async function completeHabit(habitId: string): Promise<{ action: string; streak: number }> {
   // biome-ignore lint/suspicious/noExplicitAny: update_habit_streak RPC not in generated types
   const { data, error } = await (db as any).rpc('update_habit_streak', { p_habit_id: habitId });
-  if (error) throw new Error(`Failed to update streak: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update streak');
+    throw new HawkError(`Failed to update streak: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as { action: string; streak: number };
 }
 
@@ -236,7 +283,10 @@ export async function completeHabit(habitId: string): Promise<{ action: string; 
 export async function getHabitScore(habitId: string): Promise<HabitScore> {
   // biome-ignore lint/suspicious/noExplicitAny: get_habit_score RPC not in generated types
   const { data, error } = await (db as any).rpc('get_habit_score', { p_habit_id: habitId });
-  if (error) throw new Error(`Failed to get habit score: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get habit score');
+    throw new HawkError(`Failed to get habit score: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as HabitScore;
 }
 
@@ -246,7 +296,10 @@ export async function getHabitScore(habitId: string): Promise<HabitScore> {
 export async function getHabitsAtRisk(): Promise<HabitAtRisk[]> {
   // biome-ignore lint/suspicious/noExplicitAny: get_habits_at_risk RPC not in generated types
   const { data, error } = await (db as any).rpc('get_habits_at_risk');
-  if (error) throw new Error(`Failed to get habits at risk: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get habits at risk');
+    throw new HawkError(`Failed to get habits at risk: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as HabitAtRisk[];
 }
 

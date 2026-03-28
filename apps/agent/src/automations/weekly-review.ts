@@ -7,6 +7,7 @@ import { type Objective, listObjectivesByTimeframe } from '@hawk/module-objectiv
 import { type HabitWeekSummary, getWeekSummary } from '@hawk/module-routine';
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
+import { isAutomationEnabled, markAutomationRun } from './config.js';
 
 const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
 
@@ -34,6 +35,9 @@ export async function sendWeeklyReview(): Promise<void> {
   if (!CHANNEL_ID) {
     return;
   }
+
+  // Check web UI toggle (automation_configs) + agent_settings
+  if (!(await isAutomationEnabled('weekly-review'))) return;
 
   const settings = await getWeeklyReviewSettings();
   if (!settings.weekly_review_enabled) return;
@@ -150,7 +154,12 @@ export function startWeeklyReviewCron(): void {
     const [hours, minutes] = settings.weekly_review_time.split(':').map(Number);
 
     if (now.getDay() === 0 && now.getHours() === hours && now.getMinutes() === minutes) {
-      sendWeeklyReview().catch((err) => console.error('[weekly-review] Failed:', err));
+      sendWeeklyReview()
+        .then(() => markAutomationRun('weekly-review', 'success'))
+        .catch((err) => {
+          console.error('[weekly-review] Failed:', err);
+          markAutomationRun('weekly-review', 'failure', String(err));
+        });
     }
   });
 }

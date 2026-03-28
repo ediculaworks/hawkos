@@ -1,5 +1,14 @@
 import { db } from '@hawk/db';
+import { createLogger, HawkError, ValidationError } from '@hawk/shared';
 import type { PaginatedResult } from '@hawk/shared';
+import { z } from 'zod';
+
+const logger = createLogger('people');
+
+const CreatePersonSchema = z.object({
+  name: z.string().min(1).max(200),
+  email: z.string().email().optional().nullable(),
+});
 import type {
   ActivityLogEntry,
   ContactReminder,
@@ -33,7 +42,10 @@ export async function findPersonByName(name: string): Promise<Person | null> {
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to find person: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to find person');
+    throw new HawkError('Failed to find person: ' + error.message, 'DB_QUERY_FAILED');
+  }
   return data as Person | null;
 }
 
@@ -43,7 +55,10 @@ export async function findPersonByName(name: string): Promise<Person | null> {
 export async function getPersonWithInteractions(id: string): Promise<PersonWithLastInteraction> {
   const { data: person, error } = await db.from('people').select('*').eq('id', id).single();
 
-  if (error) throw new Error(`Failed to get person: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get person');
+    throw new HawkError('Failed to get person: ' + error.message, 'DB_QUERY_FAILED');
+  }
 
   const { data: interactions, error: intError } = await db
     .from('interactions')
@@ -52,7 +67,10 @@ export async function getPersonWithInteractions(id: string): Promise<PersonWithL
     .order('date', { ascending: false })
     .limit(10);
 
-  if (intError) throw new Error(`Failed to get interactions: ${intError.message}`);
+  if (intError) {
+    logger.error({ error: intError.message }, 'Failed to get interactions');
+    throw new HawkError('Failed to get interactions: ' + intError.message, 'DB_QUERY_FAILED');
+  }
 
   const p = person as Person;
   const daysSince = p.last_interaction
@@ -85,7 +103,10 @@ export async function listOverdueContacts(): Promise<Person[]> {
     .not('next_contact_reminder', 'is', null)
     .order('next_contact_reminder', { ascending: true });
 
-  if (error) throw new Error(`Failed to list overdue contacts: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list overdue contacts');
+    throw new HawkError('Failed to list overdue contacts: ' + error.message, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Person[];
 }
 
@@ -101,7 +122,10 @@ export async function listUpcomingBirthdays(
     .eq('active', true)
     .not('birthday', 'is', null);
 
-  if (error) throw new Error(`Failed to get birthdays: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get birthdays');
+    throw new HawkError('Failed to get birthdays: ' + error.message, 'DB_QUERY_FAILED');
+  }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -140,7 +164,10 @@ export async function logInteraction(input: LogInteractionInput): Promise<Intera
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to log interaction: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to log interaction');
+    throw new HawkError('Failed to log interaction: ' + error.message, 'DB_INSERT_FAILED');
+  }
   return data as Interaction;
 }
 
@@ -148,6 +175,11 @@ export async function logInteraction(input: LogInteractionInput): Promise<Intera
  * Criar contato
  */
 export async function createPerson(input: CreatePersonInput): Promise<Person> {
+  const parsed = CreatePersonSchema.safeParse(input);
+  if (!parsed.success) {
+    logger.warn({ errors: parsed.error.flatten() }, 'Invalid person input');
+    throw new ValidationError(`Invalid person: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const { data, error } = await db
     .from('people')
     .insert({
@@ -165,7 +197,10 @@ export async function createPerson(input: CreatePersonInput): Promise<Person> {
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create person: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create person');
+    throw new HawkError('Failed to create person: ' + error.message, 'DB_INSERT_FAILED');
+  }
   return data as Person;
 }
 
@@ -186,7 +221,10 @@ export async function updatePerson(id: string, input: UpdatePersonInput): Promis
   if (input.role !== undefined) updates.role = input.role;
 
   const { data, error } = await db.from('people').update(updates).eq('id', id).select().single();
-  if (error) throw new Error(`Failed to update person: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update person');
+    throw new HawkError('Failed to update person: ' + error.message, 'DB_UPDATE_FAILED');
+  }
   return data as Person;
 }
 
@@ -195,7 +233,10 @@ export async function updatePerson(id: string, input: UpdatePersonInput): Promis
  */
 export async function deletePerson(id: string): Promise<void> {
   const { error } = await db.from('people').update({ active: false }).eq('id', id);
-  if (error) throw new Error(`Failed to delete person: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete person');
+    throw new HawkError('Failed to delete person: ' + error.message, 'DB_DELETE_FAILED');
+  }
 }
 
 /**
@@ -209,7 +250,10 @@ export async function listPeople(limit = 20, offset = 0): Promise<PaginatedResul
     .order('importance', { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (error) throw new Error(`Failed to list people: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list people');
+    throw new HawkError('Failed to list people: ' + error.message, 'DB_QUERY_FAILED');
+  }
   const total = count ?? 0;
   return { data: (data ?? []) as Person[], total, hasMore: offset + limit < total };
 }
@@ -224,7 +268,10 @@ export async function listRecentInteractions(limit = 20): Promise<InteractionWit
     .order('date', { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to list recent interactions: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list recent interactions');
+    throw new HawkError('Failed to list recent interactions: ' + error.message, 'DB_QUERY_FAILED');
+  }
 
   return (data ?? []).map((row) => {
     const person = (row as Record<string, unknown>).people as {
@@ -310,7 +357,10 @@ export async function searchPeople(query: string, limit = 5): Promise<Person[]> 
     .ilike('name', `%${query}%`)
     .limit(limit);
 
-  if (error) throw new Error(`Failed to search people: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to search people');
+    throw new HawkError('Failed to search people: ' + error.message, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Person[];
 }
 
@@ -331,7 +381,10 @@ export async function getDormantContacts(days = 30): Promise<Person[]> {
     .or(`last_interaction.lt.${cutoffStr},last_interaction.is.null`)
     .order('last_interaction', { ascending: true, nullsFirst: true });
 
-  if (error) throw new Error(`Failed to get dormant contacts: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get dormant contacts');
+    throw new HawkError(`Failed to get dormant contacts: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Person[];
 }
 
@@ -351,7 +404,10 @@ export async function updateHowWeMet(input: UpdateHowWeMetInput): Promise<Person
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to update how_we_met: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update how_we_met');
+    throw new HawkError(`Failed to update how_we_met: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as Person;
 }
 
@@ -366,7 +422,10 @@ export async function getSpecialDates(personId: string): Promise<SpecialDate[]> 
     .eq('person_id', personId)
     .order('date', { ascending: true });
 
-  if (error) throw new Error(`Failed to get special dates: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get special dates');
+    throw new HawkError(`Failed to get special dates: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as unknown as SpecialDate[];
 }
 
@@ -387,7 +446,10 @@ export async function createSpecialDate(input: CreateSpecialDateInput): Promise<
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create special date: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create special date');
+    throw new HawkError(`Failed to create special date: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as SpecialDate;
 }
 
@@ -407,7 +469,10 @@ export async function listPendingReminders(): Promise<
     .lte('next_expected_date', today)
     .order('next_expected_date', { ascending: true });
 
-  if (error) throw new Error(`Failed to list pending reminders: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list pending reminders');
+    throw new HawkError(`Failed to list pending reminders: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   // biome-ignore lint/suspicious/noExplicitAny: contact_reminders join result not typed
   return (data ?? []).map((row: any) => {
@@ -445,7 +510,10 @@ export async function createContactReminder(
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create contact reminder: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create contact reminder');
+    throw new HawkError(`Failed to create contact reminder: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as ContactReminder;
 }
 
@@ -480,7 +548,10 @@ export async function deactivateReminder(reminderId: string): Promise<void> {
     .update({ active: false })
     .eq('id', reminderId);
 
-  if (error) throw new Error(`Failed to deactivate reminder: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to deactivate reminder');
+    throw new HawkError(`Failed to deactivate reminder: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
 }
 
 // ============================================================
@@ -505,7 +576,10 @@ export async function logActivity(input: LogActivityInput): Promise<ActivityLogE
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to log activity: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to log activity');
+    throw new HawkError(`Failed to log activity: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as unknown as ActivityLogEntry;
 }
 
@@ -526,7 +600,10 @@ export async function getActivityTimeline(
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to get activity timeline: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get activity timeline');
+    throw new HawkError(`Failed to get activity timeline: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as unknown as ActivityLogEntry[];
 }
 
@@ -548,7 +625,10 @@ export async function getRelationships(personId: string): Promise<PersonRelation
     .or(`person_a.eq.${personId},person_b.eq.${personId}`)
     .order('strength', { ascending: false });
 
-  if (error) throw new Error(`Failed to get relationships: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get relationships');
+    throw new HawkError(`Failed to get relationships: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   // biome-ignore lint/suspicious/noExplicitAny: people_relationships join result not typed
   return (data ?? []).map((r: any) => ({
@@ -588,7 +668,10 @@ export async function createRelationship(
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create relationship: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create relationship');
+    throw new HawkError(`Failed to create relationship: ${error.message}`, 'DB_INSERT_FAILED');
+  }
 
   // biome-ignore lint/suspicious/noExplicitAny: people_relationships not in generated types
   const rel = data as any;

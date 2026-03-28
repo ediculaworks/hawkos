@@ -1,4 +1,5 @@
 import { db } from '@hawk/db';
+import { createLogger, HawkError } from '@hawk/shared';
 import type {
   CreateJournalEntryInput,
   JournalEntry,
@@ -6,6 +7,8 @@ import type {
   JournalStats,
   UpdateJournalEntryInput,
 } from './types';
+
+const logger = createLogger('journal');
 
 /**
  * Criar ou atualizar entry do dia (upsert por date + type)
@@ -31,7 +34,10 @@ export async function upsertJournalEntry(input: CreateJournalEntryInput): Promis
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to upsert journal entry: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to upsert journal entry');
+    throw new HawkError(`Failed to upsert journal entry: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as JournalEntry;
 }
 
@@ -50,7 +56,10 @@ export async function getTodayEntry(
     .eq('type', type)
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to get today entry: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get today entry');
+    throw new HawkError(`Failed to get today entry: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as JournalEntry | null;
 }
 
@@ -68,7 +77,10 @@ export async function getEntryByDate(
     .eq('type', type)
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to get entry by date: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get entry by date');
+    throw new HawkError(`Failed to get entry by date: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as JournalEntry | null;
 }
 
@@ -88,7 +100,10 @@ export async function listRecentEntries(
   if (type) query = query.eq('type', type);
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list entries: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list entries');
+    throw new HawkError(`Failed to list entries: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as JournalEntry[];
 }
 
@@ -106,7 +121,10 @@ export async function listEntriesByPeriod(
     .lte('date', endDate)
     .order('date', { ascending: false });
 
-  if (error) throw new Error(`Failed to list entries by period: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list entries by period');
+    throw new HawkError(`Failed to list entries by period: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as JournalEntry[];
 }
 
@@ -130,7 +148,10 @@ export async function updateJournalEntry(
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to update entry: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update entry');
+    throw new HawkError(`Failed to update entry: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as JournalEntry;
 }
 
@@ -153,7 +174,10 @@ export async function getJournalStats(): Promise<JournalStats> {
     .select('date, mood, energy')
     .order('date', { ascending: false });
 
-  if (error) throw new Error(`Failed to get stats: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get stats');
+    throw new HawkError(`Failed to get stats: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const entries = data ?? [];
   const total = entries.length;

@@ -1,4 +1,5 @@
 import { db } from '@hawk/db';
+import { createLogger, HawkError } from '@hawk/shared';
 import type {
   Contract,
   CreateContractInput,
@@ -12,6 +13,8 @@ import type {
   UpdateObligationInput,
 } from './types';
 
+const logger = createLogger('legal');
+
 /**
  * Listar obrigações pendentes ordenadas por data
  */
@@ -22,7 +25,10 @@ export async function listPendingObligations(): Promise<ObligationWithDaysLeft[]
     .in('status', ['pending', 'late'])
     .order('due_date', { ascending: true });
 
-  if (error) throw new Error(`Failed to list obligations: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list obligations');
+    throw new HawkError(`Failed to list obligations: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -55,7 +61,10 @@ export async function completeObligation(id: string): Promise<LegalObligation> {
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to complete obligation: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to complete obligation');
+    throw new HawkError(`Failed to complete obligation: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as LegalObligation;
 }
 
@@ -69,7 +78,10 @@ export async function listActiveContracts(): Promise<Contract[]> {
     .eq('status', 'active')
     .order('end_date', { ascending: true });
 
-  if (error) throw new Error(`Failed to list contracts: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list contracts');
+    throw new HawkError(`Failed to list contracts: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Contract[];
 }
 
@@ -82,7 +94,10 @@ export async function listAllContracts(): Promise<Contract[]> {
     .select('*')
     .order('end_date', { ascending: true });
 
-  if (error) throw new Error(`Failed to list contracts: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list contracts');
+    throw new HawkError(`Failed to list contracts: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Contract[];
 }
 
@@ -96,7 +111,10 @@ export async function listLegalEntities(): Promise<LegalEntity[]> {
     .eq('active', true)
     .order('name');
 
-  if (error) throw new Error(`Failed to list entities: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list entities');
+    throw new HawkError(`Failed to list entities: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as LegalEntity[];
 }
 
@@ -131,7 +149,10 @@ export async function getExpiringContracts(
     .gte('end_date', now.toISOString().split('T')[0])
     .order('end_date', { ascending: true });
 
-  if (error) throw new Error(`Failed to get expiring contracts: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get expiring contracts');
+    throw new HawkError(`Failed to get expiring contracts: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -149,7 +170,10 @@ export async function getExpiringContracts(
  */
 export async function deleteObligation(id: string): Promise<void> {
   const { error } = await db.from('legal_obligations').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete obligation: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete obligation');
+    throw new HawkError(`Failed to delete obligation: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 /**
@@ -157,7 +181,10 @@ export async function deleteObligation(id: string): Promise<void> {
  */
 export async function deleteContract(id: string): Promise<void> {
   const { error } = await db.from('contracts').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete contract: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete contract');
+    throw new HawkError(`Failed to delete contract: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 /**
@@ -165,7 +192,10 @@ export async function deleteContract(id: string): Promise<void> {
  */
 export async function deleteLegalEntity(id: string): Promise<void> {
   const { error } = await db.from('legal_entities').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete legal entity: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete legal entity');
+    throw new HawkError(`Failed to delete legal entity: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 // ============================================================
@@ -191,7 +221,10 @@ export async function createObligation(input: CreateObligationInput): Promise<Le
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create obligation: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create obligation');
+    throw new HawkError(`Failed to create obligation: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as LegalObligation;
 }
 
@@ -215,7 +248,10 @@ export async function createContract(input: CreateContractInput): Promise<Contra
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create contract: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create contract');
+    throw new HawkError(`Failed to create contract: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as Contract;
 }
 
@@ -236,7 +272,10 @@ export async function createLegalEntity(input: CreateLegalEntityInput): Promise<
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create legal entity: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create legal entity');
+    throw new HawkError(`Failed to create legal entity: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as LegalEntity;
 }
 
@@ -258,7 +297,10 @@ export async function updateObligation(
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to update obligation: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update obligation');
+    throw new HawkError(`Failed to update obligation: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as LegalObligation;
 }
 
@@ -268,7 +310,10 @@ export async function updateObligation(
 export async function updateContract(id: string, input: UpdateContractInput): Promise<Contract> {
   const { data, error } = await db.from('contracts').update(input).eq('id', id).select().single();
 
-  if (error) throw new Error(`Failed to update contract: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update contract');
+    throw new HawkError(`Failed to update contract: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as Contract;
 }
 
@@ -286,7 +331,10 @@ export async function updateLegalEntity(
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to update legal entity: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update legal entity');
+    throw new HawkError(`Failed to update legal entity: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as LegalEntity;
 }
 
@@ -305,5 +353,8 @@ export async function logContractAudit(
     details: details ?? null,
   });
 
-  if (error) throw new Error(`Failed to log contract audit: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to log contract audit');
+    throw new HawkError(`Failed to log contract audit: ${error.message}`, 'DB_INSERT_FAILED');
+  }
 }

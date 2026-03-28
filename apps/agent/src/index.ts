@@ -13,6 +13,10 @@ import { startJobMonitorCron } from './automations/job-monitor.js';
 import { startMonitorCron } from './automations/monitor.js';
 import { startNetWorthSnapshotCron } from './automations/net-worth-snapshot.js';
 import { runSessionCompactor } from './automations/session-compactor.js';
+import { startAlertsCron } from './automations/alerts.js';
+import { startCheckinCrons } from './automations/daily-checkin.js';
+import { startStreakGuardianCron } from './automations/streak-guardian.js';
+import { startWeeklyReviewCron } from './automations/weekly-review.js';
 import { discordChannel } from './channels/discord-adapter.js';
 import { sendToChannel } from './channels/discord.js';
 import { channelRegistry } from './channels/registry.js';
@@ -34,7 +38,11 @@ function validateEnv() {
   const required = ['DISCORD_BOT_TOKEN', 'DISCORD_AUTHORIZED_USER_ID', 'OPENROUTER_API_KEY'];
   const warned = ['DISCORD_CHANNEL_GERAL', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'];
 
-  const missing = required.filter((k) => !process.env[k]);
+  // Fail-fast: reject placeholder values like 'not-set' or empty strings
+  const missing = required.filter((k) => {
+    const val = process.env[k];
+    return !val || val === 'not-set' || val.trim() === '';
+  });
   if (missing.length > 0) {
     throw new Error(`Missing required env vars: ${missing.join(', ')}`);
   }
@@ -109,14 +117,16 @@ async function main() {
   });
   activeTasks.push(compactorTask);
 
-  // ── Still disabled (send Discord messages via handler = OpenRouter) ──
-  // Enable these only when token budget allows:
+  // ── Proactive automations (no LLM — static messages from DB queries) ──
+  // Configurable via web UI at /dashboard/automations (automation_configs table)
+  startCheckinCrons();
+  startWeeklyReviewCron();
+  startAlertsCron();
+  startStreakGuardianCron();
+
+  // ── Still disabled (require LLM calls or specific setup) ──
   // startHealthInsightsCron();
   // startContentPipelineCron();
-  // startStreakGuardianCron();
-  // startAlertsCron();
-  // startCheckinCrons();
-  // startWeeklyReviewCron();
   // startHeartbeatCron();
 
   // Weekly: recompute adaptive memory half-lives from access patterns

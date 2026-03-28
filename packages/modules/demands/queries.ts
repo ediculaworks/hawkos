@@ -14,6 +14,8 @@ import type {
   UpdateDemandInput,
   UpdateStepInput,
 } from './types';
+import { createLogger, HawkError } from '@hawk/shared';
+const logger = createLogger('demands');
 
 // ============================================================
 // DEMANDS
@@ -36,7 +38,10 @@ export async function createDemand(input: CreateDemandInput): Promise<Demand> {
     .select('*')
     .single();
 
-  if (error) throw new Error(`Failed to create demand: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create demand');
+    throw new HawkError(`Failed to create demand: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as Demand;
 }
 
@@ -49,20 +54,29 @@ export async function updateDemand(id: string, input: UpdateDemandInput): Promis
     .select('*')
     .single();
 
-  if (error) throw new Error(`Failed to update demand: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update demand');
+    throw new HawkError(`Failed to update demand: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as Demand;
 }
 
 export async function getDemand(id: string): Promise<Demand> {
   const { data, error } = await db.from('demands').select('*').eq('id', id).single();
 
-  if (error) throw new Error(`Failed to get demand: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get demand');
+    throw new HawkError(`Failed to get demand: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as Demand;
 }
 
 export async function deleteDemand(id: string): Promise<void> {
   const { error } = await db.from('demands').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete demand: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete demand');
+    throw new HawkError(`Failed to delete demand: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 export async function listDemands(filters?: {
@@ -91,7 +105,10 @@ export async function listDemands(filters?: {
     .range(filters?.offset ?? 0, (filters?.offset ?? 0) + (filters?.limit ?? 50) - 1);
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list demands: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list demands');
+    throw new HawkError(`Failed to list demands: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Demand[];
 }
 
@@ -139,7 +156,10 @@ export async function createStep(demandId: string, input: CreateStepInput): Prom
     .select('*')
     .single();
 
-  if (error) throw new Error(`Failed to create step: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create step');
+    throw new HawkError(`Failed to create step: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as DemandStep;
 }
 
@@ -152,7 +172,10 @@ export async function updateStep(id: string, input: UpdateStepInput): Promise<De
     .select('*')
     .single();
 
-  if (error) throw new Error(`Failed to update step: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update step');
+    throw new HawkError(`Failed to update step: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as DemandStep;
 }
 
@@ -163,7 +186,10 @@ export async function listSteps(demandId: string): Promise<DemandStep[]> {
     .eq('demand_id', demandId)
     .order('step_order', { ascending: true });
 
-  if (error) throw new Error(`Failed to list steps: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list steps');
+    throw new HawkError(`Failed to list steps: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as DemandStep[];
 }
 
@@ -175,7 +201,10 @@ export async function getReadySteps(demandId: string): Promise<DemandStep[]> {
     .eq('status', 'ready')
     .order('step_order', { ascending: true });
 
-  if (error) throw new Error(`Failed to get ready steps: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get ready steps');
+    throw new HawkError(`Failed to get ready steps: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as DemandStep[];
 }
 
@@ -192,7 +221,10 @@ export async function getStepsByStatus(
   }
 
   const { data, error } = await query.order('step_order', { ascending: true });
-  if (error) throw new Error(`Failed to get steps by status: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get steps by status');
+    throw new HawkError(`Failed to get steps by status: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as DemandStep[];
 }
 
@@ -219,7 +251,10 @@ export async function createLog(
     .select('*')
     .single();
 
-  if (error) throw new Error(`Failed to create log: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create log');
+    throw new HawkError(`Failed to create log: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as DemandLog;
 }
 
@@ -231,7 +266,10 @@ export async function listLogs(demandId: string, limit = 50): Promise<DemandLog[
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to list logs: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list logs');
+    throw new HawkError(`Failed to list logs: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return (data ?? []) as DemandLog[];
 }
 
@@ -261,7 +299,10 @@ export async function createArtifact(
     .select('*')
     .single();
 
-  if (error) throw new Error(`Failed to create artifact: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create artifact');
+    throw new HawkError(`Failed to create artifact: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as DemandArtifact;
 }
 
@@ -272,7 +313,10 @@ export async function listArtifacts(demandId: string): Promise<DemandArtifact[]>
     .eq('demand_id', demandId)
     .order('created_at', { ascending: true });
 
-  if (error) throw new Error(`Failed to list artifacts: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list artifacts');
+    throw new HawkError(`Failed to list artifacts: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as DemandArtifact[];
 }
 

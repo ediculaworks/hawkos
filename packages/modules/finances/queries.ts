@@ -1,5 +1,18 @@
 import { db } from '@hawk/db';
+import { createLogger, HawkError, ValidationError, TransactionTypeSchema, PositiveNumberSchema, DateStringSchema } from '@hawk/shared';
 import type { PaginatedResult } from '@hawk/shared';
+import { z } from 'zod';
+
+const logger = createLogger('finances');
+
+const CreateTransactionSchema = z.object({
+  amount: PositiveNumberSchema,
+  type: TransactionTypeSchema,
+  date: DateStringSchema,
+  description: z.string().min(1),
+  account_id: z.string().uuid(),
+});
+
 import type {
   BudgetVsActual,
   CategorySpending,
@@ -24,6 +37,11 @@ import type {
 export async function createTransaction(
   input: CreateTransactionInput,
 ): Promise<FinanceTransaction> {
+  const parsed = CreateTransactionSchema.safeParse(input);
+  if (!parsed.success) {
+    logger.warn({ errors: parsed.error.flatten() }, 'Invalid transaction input');
+    throw new ValidationError(`Invalid transaction: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const { data, error } = await db
     .from('finance_transactions')
     .insert([
@@ -40,7 +58,10 @@ export async function createTransaction(
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to create transaction: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create transaction');
+    throw new HawkError(`Failed to create transaction: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as FinanceTransaction;
 }
 
@@ -68,7 +89,10 @@ export async function listTransactions(
   query = query.range(offset, offset + limit - 1);
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list transactions: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list transactions');
+    throw new HawkError(`Failed to list transactions: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data || []) as FinanceTransaction[];
 }
 
@@ -87,7 +111,10 @@ export async function getFinanceSummary(
   if (endDate) query = query.lte('date', endDate);
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to get summary: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get summary');
+    throw new HawkError(`Failed to get summary: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const transactions = (data || []) as Pick<FinanceTransaction, 'amount' | 'type'>[];
 
@@ -118,7 +145,10 @@ export async function getCategories(type?: 'income' | 'expense'): Promise<Financ
   if (type) query = query.eq('type', type);
 
   const { data, error } = await query.order('name');
-  if (error) throw new Error(`Failed to get categories: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get categories');
+    throw new HawkError(`Failed to get categories: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data || []) as FinanceCategory[];
 }
 
@@ -132,7 +162,10 @@ export async function getAccounts(): Promise<FinanceAccount[]> {
     .eq('enabled', true)
     .order('name');
 
-  if (error) throw new Error(`Failed to get accounts: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get accounts');
+    throw new HawkError(`Failed to get accounts: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data || []) as FinanceAccount[];
 }
 
@@ -146,7 +179,10 @@ export async function getAccount(accountId: string): Promise<FinanceAccount> {
     .eq('id', accountId)
     .single();
 
-  if (error) throw new Error(`Failed to get account: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get account');
+    throw new HawkError(`Failed to get account: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as FinanceAccount;
 }
 
@@ -159,7 +195,10 @@ export async function updateAccountBalance(accountId: string, newBalance: number
     .update({ balance: newBalance })
     .eq('id', accountId);
 
-  if (error) throw new Error(`Failed to update account: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update account');
+    throw new HawkError(`Failed to update account: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
 }
 
 /**
@@ -172,7 +211,10 @@ export async function getCategory(categoryId: string): Promise<FinanceCategory> 
     .eq('id', categoryId)
     .single();
 
-  if (error) throw new Error(`Failed to get category: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get category');
+    throw new HawkError(`Failed to get category: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as FinanceCategory;
 }
 
@@ -202,7 +244,10 @@ export async function listTransactionsWithCategory(
   query = query.range(offset, offset + limit - 1);
 
   const { data, error, count } = await query;
-  if (error) throw new Error(`Failed to list transactions with category: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list transactions with category');
+    throw new HawkError(`Failed to list transactions with category: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const total = count ?? 0;
   const items = (data ?? []).map((t) => {
@@ -238,7 +283,10 @@ export async function getTransactionsByCategory(
   if (endDate) query = query.lte('date', endDate);
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to get category breakdown: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get category breakdown');
+    throw new HawkError(`Failed to get category breakdown: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const grouped: Record<
     string,
@@ -298,7 +346,10 @@ export async function listUpcomingRecurring(daysAhead = 7): Promise<FinanceRecur
     .lte('next_due_date', futureStr)
     .order('next_due_date', { ascending: true });
 
-  if (error) throw new Error(`Failed to list upcoming recurring: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list upcoming recurring');
+    throw new HawkError(`Failed to list upcoming recurring: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as FinanceRecurring[];
 }
 
@@ -320,7 +371,10 @@ export async function createAccount(input: CreateAccountInput): Promise<FinanceA
     .select('id, name, type, currency, balance, enabled')
     .single();
 
-  if (error) throw new Error(`Failed to create account: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create account');
+    throw new HawkError(`Failed to create account: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as FinanceAccount;
 }
 
@@ -344,7 +398,10 @@ export async function updateAccount(
     .select('id, name, type, currency, balance, enabled')
     .single();
 
-  if (error) throw new Error(`Failed to update account: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update account');
+    throw new HawkError(`Failed to update account: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as FinanceAccount;
 }
 
@@ -354,7 +411,10 @@ export async function updateAccount(
 export async function disableAccount(id: string): Promise<void> {
   const { error } = await db.from('finance_accounts').update({ enabled: false }).eq('id', id);
 
-  if (error) throw new Error(`Failed to disable account: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to disable account');
+    throw new HawkError(`Failed to disable account: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 }
 
 /**
@@ -368,7 +428,10 @@ export async function searchAccounts(query: string, limit = 5): Promise<FinanceA
     .ilike('name', `%${query}%`)
     .limit(limit);
 
-  if (error) throw new Error(`Failed to search accounts: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to search accounts');
+    throw new HawkError(`Failed to search accounts: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as FinanceAccount[];
 }
 
@@ -377,7 +440,10 @@ export async function searchAccounts(query: string, limit = 5): Promise<FinanceA
  */
 export async function deleteTransaction(id: string): Promise<void> {
   const { error } = await db.from('finance_transactions').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete transaction: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete transaction');
+    throw new HawkError(`Failed to delete transaction: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 /**
@@ -403,7 +469,10 @@ export async function updateTransaction(
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to update transaction: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update transaction');
+    throw new HawkError(`Failed to update transaction: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as FinanceTransaction;
 }
 
@@ -420,7 +489,10 @@ export async function getBudgetVsActual(month: string): Promise<BudgetVsActual[]
     .from('finance_budget_vs_actual')
     .select('*')
     .eq('month', `${month}-01`);
-  if (error) throw new Error(`Failed to get budget vs actual: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get budget vs actual');
+    throw new HawkError(`Failed to get budget vs actual: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as BudgetVsActual[];
 }
 
@@ -521,7 +593,10 @@ export async function getNetWorthHistory(months = 12): Promise<NetWorthSnapshot[
     .select('snapshot_date, total_assets, total_liabilities, net_worth, breakdown')
     .gte('snapshot_date', from.toISOString().split('T')[0])
     .order('snapshot_date', { ascending: true });
-  if (error) throw new Error(`Failed to get net worth history: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get net worth history');
+    throw new HawkError(`Failed to get net worth history: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as NetWorthSnapshot[];
 }
 
@@ -538,7 +613,10 @@ export async function getPortfolioPositions(): Promise<PortfolioPosition[]> {
     .from('portfolio_positions')
     .select('*')
     .order('current_value', { ascending: false });
-  if (error) throw new Error(`Failed to get portfolio positions: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get portfolio positions');
+    throw new HawkError(`Failed to get portfolio positions: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as PortfolioPosition[];
 }
 
@@ -605,6 +683,9 @@ export async function findOrCreateAsset(
     .insert({ ticker: ticker.toUpperCase(), name, asset_class: assetClass })
     .select()
     .single();
-  if (error) throw new Error(`Failed to create asset: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create asset');
+    throw new HawkError(`Failed to create asset: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as PortfolioAsset;
 }

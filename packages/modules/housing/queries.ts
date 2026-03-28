@@ -8,10 +8,15 @@ import type {
   UpdateBillInput,
   UpdateMaintenanceInput,
 } from './types';
+import { createLogger, HawkError } from '@hawk/shared';
+const logger = createLogger('housing');
 
 export async function listResidences(): Promise<Residence[]> {
   const { data, error } = await db.from('residences').select('*').eq('active', true);
-  if (error) throw new Error(`Failed to list residences: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list residences');
+    throw new HawkError(`Failed to list residences: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as Residence[];
 }
 
@@ -23,7 +28,10 @@ export async function getPrimaryResidence(): Promise<Residence | null> {
     .eq('is_primary', true)
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`Failed to get primary residence: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get primary residence');
+    throw new HawkError(`Failed to get primary residence: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as Residence | null;
 }
 
@@ -39,7 +47,10 @@ export async function createBill(input: CreateBillInput): Promise<HousingBill> {
     })
     .select()
     .single();
-  if (error) throw new Error(`Failed to create bill: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create bill');
+    throw new HawkError(`Failed to create bill: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as HousingBill;
 }
 
@@ -51,7 +62,10 @@ export async function listBills(residenceId?: string): Promise<HousingBill[]> {
     .order('due_day', { ascending: true });
   if (residenceId) query = query.eq('residence_id', residenceId);
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list bills: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list bills');
+    throw new HawkError(`Failed to list bills: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as HousingBill[];
 }
 
@@ -65,7 +79,10 @@ export async function markBillPaid(billId: string): Promise<HousingBill> {
     .eq('id', billId)
     .select()
     .single();
-  if (error) throw new Error(`Failed to mark bill as paid: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to mark bill as paid');
+    throw new HawkError(`Failed to mark bill as paid: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as HousingBill;
 }
 
@@ -76,7 +93,10 @@ export async function getPendingBills(): Promise<HousingBill[]> {
     .eq('active', true)
     .eq('status', 'pending')
     .order('due_day', { ascending: true });
-  if (error) throw new Error(`Failed to get pending bills: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get pending bills');
+    throw new HawkError(`Failed to get pending bills: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as HousingBill[];
 }
 
@@ -95,7 +115,10 @@ export async function createMaintenance(input: CreateMaintenanceInput): Promise<
     })
     .select()
     .single();
-  if (error) throw new Error(`Failed to create maintenance log: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create maintenance log');
+    throw new HawkError(`Failed to create maintenance log: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as MaintenanceLog;
 }
 
@@ -103,7 +126,10 @@ export async function listMaintenance(residenceId?: string): Promise<Maintenance
   let query = db.from('maintenance_logs').select('*').order('date', { ascending: false }).limit(10);
   if (residenceId) query = query.eq('residence_id', residenceId);
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list maintenance: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list maintenance');
+    throw new HawkError(`Failed to list maintenance: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as MaintenanceLog[];
 }
 
@@ -113,18 +139,27 @@ export async function getMonthlyBillTotal(): Promise<number> {
     .select('amount')
     .eq('active', true)
     .eq('status', 'pending');
-  if (error) throw new Error(`Failed to get bill total: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get bill total');
+    throw new HawkError(`Failed to get bill total: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []).reduce((sum, row) => sum + (row.amount ?? 0), 0);
 }
 
 export async function deleteBill(id: string): Promise<void> {
   const { error } = await db.from('housing_bills').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete bill: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete bill');
+    throw new HawkError(`Failed to delete bill: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 export async function deleteMaintenanceLog(id: string): Promise<void> {
   const { error } = await db.from('maintenance_logs').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete maintenance log: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete maintenance log');
+    throw new HawkError(`Failed to delete maintenance log: ${error.message}`, 'DB_INSERT_FAILED');
+  }
 }
 
 export async function updateBill(id: string, input: UpdateBillInput): Promise<HousingBill> {
@@ -134,7 +169,10 @@ export async function updateBill(id: string, input: UpdateBillInput): Promise<Ho
     .eq('id', id)
     .select()
     .single();
-  if (error) throw new Error(`Failed to update bill: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update bill');
+    throw new HawkError(`Failed to update bill: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as HousingBill;
 }
 
@@ -148,6 +186,9 @@ export async function updateMaintenanceLog(
     .eq('id', id)
     .select()
     .single();
-  if (error) throw new Error(`Failed to update maintenance log: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update maintenance log');
+    throw new HawkError(`Failed to update maintenance log: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as MaintenanceLog;
 }

@@ -9,6 +9,7 @@ import { listHabitsWithTodayStatus } from '@hawk/module-routine';
 import { fetchHolidays } from '@hawk/shared';
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
+import { isAutomationEnabled, markAutomationRun } from './config.js';
 
 const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
 
@@ -58,6 +59,9 @@ export async function sendMorningCheckin(): Promise<void> {
   if (!CHANNEL_ID) {
     return;
   }
+
+  // Check web UI toggle (automation_configs) + agent_settings
+  if (!(await isAutomationEnabled('daily-checkin-morning'))) return;
 
   const settings = await getAgentSettings();
   if (!settings.checkin_morning_enabled) {
@@ -120,6 +124,9 @@ export async function sendEveningCheckin(): Promise<void> {
     return;
   }
 
+  // Check web UI toggle (automation_configs) + agent_settings
+  if (!(await isAutomationEnabled('daily-checkin-evening'))) return;
+
   const settings = await getAgentSettings();
   if (!settings.checkin_evening_enabled) {
     return;
@@ -170,7 +177,12 @@ export function startCheckinCrons(): void {
       now.getHours() === mHours &&
       now.getMinutes() === mMinutes
     ) {
-      sendMorningCheckin().catch((err) => console.error('[daily-checkin] Morning failed:', err));
+      sendMorningCheckin()
+        .then(() => markAutomationRun('daily-checkin-morning', 'success'))
+        .catch((err) => {
+          console.error('[daily-checkin] Morning failed:', err);
+          markAutomationRun('daily-checkin-morning', 'failure', String(err));
+        });
     }
 
     if (
@@ -178,7 +190,12 @@ export function startCheckinCrons(): void {
       now.getHours() === eHours &&
       now.getMinutes() === eMinutes
     ) {
-      sendEveningCheckin().catch((err) => console.error('[daily-checkin] Evening failed:', err));
+      sendEveningCheckin()
+        .then(() => markAutomationRun('daily-checkin-evening', 'success'))
+        .catch((err) => {
+          console.error('[daily-checkin] Evening failed:', err);
+          markAutomationRun('daily-checkin-evening', 'failure', String(err));
+        });
     }
   });
 }

@@ -10,8 +10,13 @@ import OpenAI from 'openai';
 import type { ResolvedAgent } from './agent-resolver.js';
 import { buildSystemPrompt, resolveAgent } from './agent-resolver.js';
 import { addSession, updateSession } from './api/server.js';
+import { createSessionCost, trackLLMCall, trackToolCall } from './cost-tracker.js';
+import { compressHistory, needsCompression } from './history-compressor.js';
 import { hookRegistry } from './hooks/index.js';
 import { type TOOLS, getToolsForModules } from './tools/index.js';
+import { createLogger, HawkError } from '@hawk/shared';
+
+const logger = createLogger('handler');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -179,7 +184,31 @@ async function runLLMSession(params: {
     .join('\n\n');
 
   // 5. Build system prompt from agent template
-  const systemPrompt = buildSystemPrompt(agent, contextSection);
+  const basePrompt = buildSystemPrompt(agent, contextSection);
+
+  // 5b. ReAct: detect complex queries that benefit from structured reasoning
+  const reactEnabled =
+    agent.reactMode === 'always' ||
+    (agent.reactMode === 'auto' &&
+      (context.relevanceScores.length >= 2 ||
+        /\b(analis|compar|plan[ei]j|revis|resum|organiz|avali|otimiz|prioriz)/i.test(userMessage)));
+  const isComplexQuery = reactEnabled;
+
+  const REACT_INSTRUCTION = `
+When handling complex or multi-step requests, follow this reasoning pattern:
+1. THINK: Analyze what information you need and which tools to use
+2. ACT: Execute the necessary tools
+3. OBSERVE: Check if the results fully answer the question
+4. REFLECT: If incomplete, explain what's missing and plan next steps
+
+For simple greetings, quick facts, or single-module queries, respond directly.`;
+
+  const systemPrompt = isComplexQuery
+    ? `${basePrompt}\n\n${REACT_INSTRUCTION}`
+    : basePrompt;
+
+  // 5c. Initialize cost tracking (respects feature flag)
+  const sessionCost = agent.costTrackingEnabled ? createSessionCost(agent.model) : null;
 
   // 6. Build messages array with conversation history
   const messages: OpenAI.ChatCompletionMessageParam[] = [{ role: 'system', content: systemPrompt }];
@@ -211,13 +240,43 @@ async function runLLMSession(params: {
     messages.push({ role: 'user', content: userMessage });
   }
 
-  // 6b. Context compaction — warn agent to save memories if near token limit
-  const COMPACTION_THRESHOLD = Number(process.env.COMPACTION_THRESHOLD_TOKENS) || 80_000;
+  // 6b. History compression — silently compress old messages at 60k tokens
   const estimatedTokens = messages.reduce(
     (sum, m) => sum + Math.ceil(((m as { content?: string }).content?.length ?? 0) / 4),
     0,
   );
-  if (estimatedTokens > COMPACTION_THRESHOLD) {
+
+  if (agent.historyCompressionEnabled && needsCompression(estimatedTokens) && history.length > 12) {
+    try {
+      const historyMessages = history.map((m) => ({ role: m.role, content: m.content }));
+      const { summary, recentMessages } = await compressHistory(historyMessages);
+      if (summary) {
+        // Rebuild messages: system + summary + recent history + user message
+        const userMsg = messages[messages.length - 1]; // preserve current user message
+        messages.length = 1; // keep system prompt only
+        messages.push({
+          role: 'system',
+          content: `## Resumo da conversa anterior\n${summary}`,
+        });
+        for (const msg of recentMessages) {
+          if (msg.role === 'user' || msg.role === 'assistant') {
+            messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+          }
+        }
+        if (userMsg) messages.push(userMsg);
+      }
+    } catch (err) {
+      console.warn('[handler] History compression failed, continuing with full history:', err);
+    }
+  }
+
+  // 6c. Context compaction — warn agent to save memories if near token limit
+  const COMPACTION_THRESHOLD = Number(process.env.COMPACTION_THRESHOLD_TOKENS) || 80_000;
+  const estimatedTokensAfterCompression = messages.reduce(
+    (sum, m) => sum + Math.ceil(((m as { content?: string }).content?.length ?? 0) / 4),
+    0,
+  );
+  if (estimatedTokensAfterCompression > COMPACTION_THRESHOLD) {
     messages.splice(messages.length - 1, 0, {
       role: 'system',
       content:
@@ -275,7 +334,8 @@ async function runLLMSession(params: {
         throw err;
       }
     }
-    throw new Error('All models exhausted');
+    logger.error({ models: modelsToTry }, 'All models exhausted');
+    throw new HawkError('All models exhausted', 'LLM_CALL_FAILED');
   }
 
   async function _callLLMOnce(
@@ -352,6 +412,7 @@ async function runLLMSession(params: {
 
   // First call — stream if we have onChunk
   let result = await callLLM(messages, !!onChunk);
+  if (sessionCost) trackLLMCall(sessionCost, result.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined);
 
   // Track which tools were actually called (for ML training data)
   const toolsActuallyUsed: string[] = [];
@@ -387,15 +448,29 @@ async function runLLMSession(params: {
       });
     }
 
+    // Track tool calls for cost
+    if (sessionCost) trackToolCall(sessionCost, result.toolCalls.length);
+
+    // ReAct reflect step — ask LLM to evaluate tool results on complex queries
+    if (isComplexQuery && result.toolCalls.length > 1) {
+      toolMessages.push({
+        role: 'system',
+        content:
+          'Reflect briefly on the tool results above. Did they provide what you needed? If something is missing, explain what and use additional tools. Otherwise, synthesize a complete answer.',
+      });
+    }
+
     // After tools, stream the final response
     result = await callLLM(toolMessages, !!onChunk);
+    if (sessionCost) trackLLMCall(sessionCost, result.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined);
   }
 
   const content = result.content;
   if (!content) {
     const errorMsg = `Empty response from AI (${agent.name}/${agent.model}): finish_reason=${result.finishReason}`;
+    logger.error({ agent: agent.name, model: agent.model, finishReason: result.finishReason }, 'Empty LLM response');
     logActivity('error', errorMsg, 'agent', {});
-    throw new Error(errorMsg);
+    throw new HawkError(errorMsg, 'LLM_CALL_FAILED');
   }
 
   // 10. Save assistant response
@@ -418,6 +493,15 @@ async function runLLMSession(params: {
     }).catch(() => {});
   }
 
+  // 11. Log session cost (if tracking enabled)
+  if (sessionCost) {
+    logActivity('session_cost', `tokens=${sessionCost.totalTokens} calls=${sessionCost.llmCalls} tools=${sessionCost.toolCalls}`, undefined, {
+      ...sessionCost,
+      session_id: sessionId,
+      is_complex: isComplexQuery,
+    }).catch(() => {});
+  }
+
   // Emit message:sent hook
   hookRegistry.emit('message:sent', { sessionId, channel, message: content }).catch(() => {});
 
@@ -433,7 +517,7 @@ export async function handleWebMessage(
 ): Promise<string> {
   // Rate limit both per-session AND globally for web (prevent session-ID spoofing bypass)
   if (!checkRateLimit(`web:${sessionId}`) || !checkRateLimit('web:global')) {
-    throw new Error('Rate limit exceeded. Aguarde um momento antes de enviar mais mensagens.');
+    throw new HawkError('Rate limit exceeded. Aguarde um momento antes de enviar mais mensagens.', 'RATE_LIMITED');
   }
   touchWebSession(sessionId);
   const agent = await resolveAgent(sessionId, 'web');

@@ -1,4 +1,8 @@
 import { db } from '@hawk/db';
+import { createLogger, HawkError } from '@hawk/shared';
+
+const logger = createLogger('social');
+
 import type {
   CreatePostInput,
   LinkPostInput,
@@ -22,7 +26,10 @@ export async function createPost(input: CreatePostInput): Promise<SocialPost> {
     })
     .select()
     .single();
-  if (error) throw new Error(`Failed to create post: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create post');
+    throw new HawkError(`Failed to create post: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as SocialPost;
 }
 
@@ -40,7 +47,10 @@ export async function listPosts(
   if (platform) query = query.eq('platform', platform);
   if (status) query = query.eq('status', status);
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to list posts: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list posts');
+    throw new HawkError(`Failed to list posts: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as SocialPost[];
 }
 
@@ -56,7 +66,10 @@ export async function publishPost(id: string, url?: string): Promise<SocialPost>
     .eq('id', id)
     .select()
     .single();
-  if (error) throw new Error(`Failed to publish post: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to publish post');
+    throw new HawkError(`Failed to publish post: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as SocialPost;
 }
 
@@ -65,7 +78,10 @@ export async function listGoals(): Promise<SocialGoal[]> {
     .from('social_goals')
     .select('*')
     .order('platform', { ascending: true });
-  if (error) throw new Error(`Failed to list goals: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list goals');
+    throw new HawkError(`Failed to list goals: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as SocialGoal[];
 }
 
@@ -73,7 +89,10 @@ export async function getPostStats(): Promise<
   { platform: string; ideas: number; drafts: number; published: number }[]
 > {
   const { data, error } = await db.from('social_posts').select('platform, status');
-  if (error) throw new Error(`Failed to get post stats: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get post stats');
+    throw new HawkError(`Failed to get post stats: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   const map = new Map<string, { ideas: number; drafts: number; published: number }>();
   for (const row of data ?? []) {
@@ -148,7 +167,10 @@ export async function getPostsWithContext(
   if (objectiveId) query = query.eq('objective_id', objectiveId);
 
   const { data: posts, error } = await query;
-  if (error) throw new Error(`Failed to list posts: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list posts');
+    throw new HawkError(`Failed to list posts: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   // Fetch related data
   const objectiveIds = [...new Set(posts?.map((p) => p.objective_id).filter(Boolean))] as string[];
@@ -224,7 +246,10 @@ export async function updatePostStatus(input: UpdatePostStatusInput): Promise<So
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to update post status: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to update post status');
+    throw new HawkError(`Failed to update post status: ${error.message}`, 'DB_UPDATE_FAILED');
+  }
   return data as SocialPost;
 }
 
@@ -245,7 +270,10 @@ export async function linkPostToEntity(input: LinkPostInput): Promise<SocialPost
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to link post: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to link post');
+    throw new HawkError(`Failed to link post: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as SocialPost;
 }
 
