@@ -12,7 +12,8 @@ import { ProjectsView } from '@/components/objectives/projects-view';
 import { RecentlyCompleted } from '@/components/objectives/recently-completed';
 import { TaskSection } from '@/components/objectives/task-section';
 import { EmptyState } from '@/components/ui/empty-state';
-import { ListSkeleton } from '@/components/ui/skeleton';
+import { ListSkeleton, PageSkeleton } from '@/components/ui/skeleton';
+import { Suspense } from 'react';
 import {
   fetchActiveTasks,
   fetchGoals,
@@ -144,6 +145,7 @@ export default function ObjectivesPage() {
   const pageLoading = goalsLoading && tasksLoading;
 
   return (
+    <Suspense fallback={<PageSkeleton />}>
     <AnimatedPage className="space-y-[var(--space-5)]">
       <ObjectivesHeader
         view={view}
@@ -255,5 +257,6 @@ export default function ObjectivesPage() {
         />
       )}
     </AnimatedPage>
+    </Suspense>
   );
 }

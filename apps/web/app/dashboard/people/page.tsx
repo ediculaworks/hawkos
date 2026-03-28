@@ -9,7 +9,8 @@ import { ReachOutQueue } from '@/components/people/reach-out-queue';
 import { RelationshipPulse } from '@/components/people/relationship-pulse';
 import { Badge } from '@/components/ui/badge';
 import { EditSheet } from '@/components/ui/edit-sheet';
-import { CardSkeleton, ListSkeleton } from '@/components/ui/skeleton';
+import { CardSkeleton, ListSkeleton, PageSkeleton } from '@/components/ui/skeleton';
+import { Suspense } from 'react';
 import {
   fetchNetworkStats,
   fetchOverdueContacts,
@@ -81,29 +82,34 @@ export default function PeoplePage() {
   // Person drill-down replaces main content
   if (selectedPersonId) {
     return (
-      <AnimatedPage>
-        <PersonProfile personId={selectedPersonId} onBack={() => setSelectedPersonId(null)} />
-      </AnimatedPage>
+      <Suspense fallback={<PageSkeleton />}>
+        <AnimatedPage>
+          <PersonProfile personId={selectedPersonId} onBack={() => setSelectedPersonId(null)} />
+        </AnimatedPage>
+      </Suspense>
     );
   }
 
   if (pageLoading) {
     return (
-      <AnimatedPage className="space-y-[var(--space-5)]">
-        <CrmHeader view={view} onViewChange={setView} onAddPerson={() => setAddOpen(true)} />
-        <div className="flex gap-[var(--space-6)] items-start">
-          <div className="flex-1 min-w-0 space-y-[var(--space-5)]">
-            <ListSkeleton items={6} />
+      <Suspense fallback={<PageSkeleton />}>
+        <AnimatedPage className="space-y-[var(--space-5)]">
+          <CrmHeader view={view} onViewChange={setView} onAddPerson={() => setAddOpen(true)} />
+          <div className="flex gap-[var(--space-6)] items-start">
+            <div className="flex-1 min-w-0 space-y-[var(--space-5)]">
+              <ListSkeleton items={6} />
+            </div>
+            <div className="w-56 flex-shrink-0 hidden lg:block">
+              <CardSkeleton />
+            </div>
           </div>
-          <div className="w-56 flex-shrink-0 hidden lg:block">
-            <CardSkeleton />
-          </div>
-        </div>
-      </AnimatedPage>
+        </AnimatedPage>
+      </Suspense>
     );
   }
 
   return (
+    <Suspense fallback={<PageSkeleton />}>
     <AnimatedPage className="space-y-[var(--space-5)]">
       <CrmHeader view={view} onViewChange={setView} onAddPerson={() => setAddOpen(true)} />
 
@@ -273,5 +279,6 @@ export default function PeoplePage() {
         </div>
       </div>
     </AnimatedPage>
+    </Suspense>
   );
 }

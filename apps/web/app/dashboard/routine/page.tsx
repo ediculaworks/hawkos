@@ -4,8 +4,9 @@ import HabitGrid from '@/components/routine/habit-grid';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
-import { CardSkeleton } from '@/components/ui/skeleton';
+import { CardSkeleton, PageSkeleton } from '@/components/ui/skeleton';
 import { addHabit, fetchWeekSummary } from '@/lib/actions/routine';
+import { Suspense } from 'react';
 import type { HabitFrequency } from '@hawk/module-routine/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, X } from 'lucide-react';
@@ -21,6 +22,7 @@ export default function RoutinePage() {
   });
 
   return (
+    <Suspense fallback={<PageSkeleton />}>
     <div className="space-y-[var(--space-6)]">
       {/* Page header */}
       <div className="flex items-center justify-between">
@@ -79,6 +81,7 @@ export default function RoutinePage() {
         </Card>
       )}
     </div>
+    </Suspense>
   );
 }
 
