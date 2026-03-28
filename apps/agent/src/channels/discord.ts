@@ -92,7 +92,7 @@ import {
   GatewayIntentBits,
   type Message,
 } from 'discord.js';
-import { handleMessage } from '../handler.js';
+import { handleStreamingMessage } from '../handler.js';
 
 const AUTHORIZED_USER_ID = process.env.DISCORD_AUTHORIZED_USER_ID;
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
@@ -297,19 +297,37 @@ client.on(Events.MessageCreate, async (message: Message) => {
     const attachments =
       imageUrls.length > 0 ? imageUrls.map((url) => ({ type: 'image' as const, url })) : undefined;
 
-    const response = await handleMessage(
+    // Stream response: send initial message then edit progressively
+    const streamMsg = await message.reply('...');
+    let accumulated = wasTranscribed ? `*"${textContent}"*\n\n` : '';
+    let lastEdit = Date.now();
+    const EDIT_INTERVAL = 800; // ms between edits (avoid rate limits)
+
+    const response = await handleStreamingMessage(
       textContent || 'Descreva esta imagem',
       message.channelId,
+      (chunk: string) => {
+        accumulated += chunk;
+        const now = Date.now();
+        // Throttle edits to avoid Discord rate limits
+        if (now - lastEdit > EDIT_INTERVAL && accumulated.length <= 2000) {
+          lastEdit = now;
+          streamMsg.edit(accumulated).catch(() => {});
+        }
+      },
       attachments,
     );
 
-    // Prefix transcribed audio with the transcription
+    // Final edit with complete response
     const finalResponse = wasTranscribed ? `*"${textContent}"*\n\n${response}` : response;
 
     if (finalResponse.length <= 2000) {
-      await message.reply(finalResponse);
+      await streamMsg.edit(finalResponse);
     } else {
-      const chunks = finalResponse.match(/.{1,2000}/gs) ?? [finalResponse];
+      // For long responses, edit with first 2000 chars and send rest as new messages
+      await streamMsg.edit(finalResponse.slice(0, 2000));
+      const remaining = finalResponse.slice(2000);
+      const chunks = remaining.match(/.{1,2000}/gs) ?? [];
       const channel = message.channel;
       if (channel && 'send' in channel && typeof channel.send === 'function') {
         for (const chunk of chunks) {

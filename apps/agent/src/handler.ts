@@ -597,6 +597,70 @@ export async function handleMessage(
 }
 
 /**
+ * Handle a Discord message with streaming support.
+ * Same as handleMessage but accepts onChunk callback for progressive responses.
+ */
+export async function handleStreamingMessage(
+  userMessage: string,
+  channelId?: string,
+  onChunk?: (chunk: string) => void,
+  attachments?: Attachment[],
+): Promise<string> {
+  const channel = channelId ?? 'default';
+  if (!checkRateLimit(`discord:${channel}`)) {
+    return 'Rate limit: aguarde um momento antes de enviar mais mensagens.';
+  }
+  const { sessionId, isNew } = getOrCreateSession(channel);
+
+  if (isNew) {
+    addSession(sessionId, channel);
+    Promise.resolve(
+      activityDb?.from('agent_conversations').upsert(
+        {
+          session_id: sessionId,
+          channel: 'discord',
+          started_at: new Date().toISOString(),
+          last_message_at: new Date().toISOString(),
+        },
+        { onConflict: 'session_id' },
+      ),
+    ).catch(() => {});
+  } else {
+    updateSession(sessionId);
+    Promise.resolve(
+      activityDb
+        ?.from('agent_conversations')
+        .update({ last_message_at: new Date().toISOString() })
+        .eq('session_id', sessionId),
+    ).catch(() => {});
+  }
+
+  const agent = await resolveAgent(sessionId, 'discord');
+  const response = await runLLMSession({
+    sessionId,
+    userMessage,
+    channel: 'discord',
+    agent,
+    isNewSession: isNew,
+    onChunk,
+    attachments,
+  });
+
+  if (isNew && activityDb) {
+    const autoTitle = userMessage.length > 50 ? `${userMessage.slice(0, 47)}...` : userMessage;
+    Promise.resolve(
+      activityDb
+        .from('agent_conversations')
+        .update({ title: autoTitle })
+        .eq('session_id', sessionId)
+        .is('title', null),
+    ).catch(() => {});
+  }
+
+  return response;
+}
+
+/**
  * Handle a message from an automation (heartbeat, cron, etc).
  * Runs as Hawk agent without session persistence or rate limiting.
  */

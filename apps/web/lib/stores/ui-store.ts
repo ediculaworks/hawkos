@@ -3,11 +3,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+type Theme = 'dark' | 'light';
+
 type UIState = {
+  theme: Theme;
   sidebarCollapsed: boolean;
   commandPaletteOpen: boolean;
   sectionOrders: Record<string, string[]>;
   collapsedSections: Record<string, string[]>;
+  setTheme: (theme: Theme) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   openCommandPalette: () => void;
@@ -22,10 +26,19 @@ type UIState = {
 export const useUIStore = create<UIState>()(
   persist(
     (set, get) => ({
+      theme: 'dark' as Theme,
       sidebarCollapsed: false,
       commandPaletteOpen: false,
       sectionOrders: {},
       collapsedSections: {},
+      setTheme: (theme) => {
+        set({ theme });
+        // Apply to document immediately for CSS variable switching
+        if (typeof document !== 'undefined') {
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+        }
+      },
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       openCommandPalette: () => set({ commandPaletteOpen: true }),

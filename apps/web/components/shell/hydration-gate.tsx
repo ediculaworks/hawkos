@@ -25,6 +25,12 @@ export function HydrationGate({ children }: { children: React.ReactNode }) {
     // Rehydrate both Zustand stores from localStorage
     useUIStore.persist.rehydrate();
     useLayoutStore.persist.rehydrate();
+
+    // Apply persisted theme to document
+    const theme = useUIStore.getState().theme;
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+
     setMounted(true);
   }, []);
 
