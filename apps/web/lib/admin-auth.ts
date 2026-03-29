@@ -25,9 +25,10 @@ export function requireAdminAuth(request: Request): NextResponse | null {
   }
 
   const hostHeader = request.headers.get('host') || '';
-  const serverHostname = extractHost(
-    hostHeader.includes('://') ? hostHeader : `http://${hostHeader}`,
-  );
+  // Fallback: derive hostname from request URL itself when host header is absent
+  const serverHostname = hostHeader
+    ? extractHost(hostHeader.includes('://') ? hostHeader : `http://${hostHeader}`)
+    : extractHost(request.url);
 
   const referer = request.headers.get('referer');
   if (referer) {
