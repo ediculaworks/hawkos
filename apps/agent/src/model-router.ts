@@ -15,13 +15,30 @@
 export type ComplexityLevel = 'simple' | 'moderate' | 'complex';
 
 const SIMPLE_WORDS = new Set([
-  'ola', 'olá', 'oi', 'hey', 'bom dia', 'boa noite', 'boa tarde',
-  'obrigado', 'obrigada', 'valeu', 'ok', 'sim', 'nao', 'não',
-  'tudo bem', 'tchau', 'bye',
+  'ola',
+  'olá',
+  'oi',
+  'hey',
+  'bom dia',
+  'boa noite',
+  'boa tarde',
+  'obrigado',
+  'obrigada',
+  'valeu',
+  'ok',
+  'sim',
+  'nao',
+  'não',
+  'tudo bem',
+  'tchau',
+  'bye',
 ]);
 
 function isSimpleGreeting(message: string): boolean {
-  const normalized = message.toLowerCase().replace(/[!.,?]/g, '').trim();
+  const normalized = message
+    .toLowerCase()
+    .replace(/[!.,?]/g, '')
+    .trim();
   return SIMPLE_WORDS.has(normalized);
 }
 
@@ -31,10 +48,7 @@ const COMPLEX_PATTERNS =
 /**
  * Classify query complexity based on message content and detected modules.
  */
-export function classifyComplexity(
-  message: string,
-  moduleCount: number,
-): ComplexityLevel {
+export function classifyComplexity(message: string, moduleCount: number): ComplexityLevel {
   // Complex: multi-module takes priority (even if message is short)
   if (moduleCount >= 3 || COMPLEX_PATTERNS.test(message)) {
     return 'complex';
@@ -57,10 +71,7 @@ export function classifyComplexity(
  * Select model based on complexity and agent's base model.
  * Returns the agent's model if no tier-specific model is configured.
  */
-export function selectModel(
-  complexity: ComplexityLevel,
-  agentModel: string,
-): string {
+export function selectModel(complexity: ComplexityLevel, agentModel: string): string {
   switch (complexity) {
     case 'simple':
       return process.env.MODEL_TIER_SIMPLE ?? agentModel;
@@ -74,7 +85,7 @@ export function selectModel(
 // ── Daily budget guard ─────────────────────────────────────────────────────
 
 interface BudgetState {
-  date: string;      // YYYY-MM-DD
+  date: string; // YYYY-MM-DD
   tokens: number;
   cost: number;
 }

@@ -1,14 +1,14 @@
 'use client';
 
+import { WelcomeWizard } from '@/components/dashboard/welcome-wizard';
 import { CommandPalette } from '@/components/shell/command-palette';
 import { FloatingAgentCTA } from '@/components/shell/floating-agent-cta';
 import { HydrationGate } from '@/components/shell/hydration-gate';
 import { Sidebar } from '@/components/shell/sidebar';
 import { TopBar } from '@/components/shell/topbar';
-import { WelcomeWizard } from '@/components/dashboard/welcome-wizard';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
-import { useKeyboardShortcuts } from '@/lib/use-keyboard-shortcuts';
 import { useUIStore } from '@/lib/stores/ui-store';
+import { useKeyboardShortcuts } from '@/lib/use-keyboard-shortcuts';
 import { cn } from '@/lib/utils/cn';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -32,9 +32,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           'pt-[var(--topbar-height)]',
           'transition-[margin-left] duration-[var(--duration-slow)] ease-[var(--ease-out-quart)]',
           // Mobile: no left margin (sidebar is an overlay). Desktop: shift by sidebar width.
-          sidebarCollapsed
-            ? 'md:ml-[var(--sidebar-collapsed)]'
-            : 'md:ml-[var(--sidebar-width)]',
+          sidebarCollapsed ? 'md:ml-[var(--sidebar-collapsed)]' : 'md:ml-[var(--sidebar-width)]',
         )}
       >
         <div className="p-[var(--space-4)] md:p-[var(--space-6)]">

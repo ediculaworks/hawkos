@@ -20,12 +20,30 @@ export default function SocialPage() {
   return (
     <Suspense fallback={<PageSkeleton />}>
       <div className="space-y-[var(--space-6)]">
-      <SocialHeader activeTab={activeTab} onTabChange={setActiveTab} />
+        <SocialHeader activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Posts View */}
-      {activeTab === 'posts' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--space-6)]">
-          <div className="lg:col-span-2 space-y-[var(--space-6)]">
+        {/* Posts View */}
+        {activeTab === 'posts' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--space-6)]">
+            <div className="lg:col-span-2 space-y-[var(--space-6)]">
+              <SocialStats />
+              <FiltersBar
+                platform={platformFilter}
+                status={statusFilter}
+                onPlatformChange={setPlatformFilter}
+                onStatusChange={setStatusFilter}
+              />
+              <PostsList platformFilter={platformFilter} statusFilter={statusFilter} />
+            </div>
+            <div className="space-y-[var(--space-6)]">
+              <ContextSidebar />
+            </div>
+          </div>
+        )}
+
+        {/* Kanban View */}
+        {activeTab === 'kanban' && (
+          <div className="space-y-[var(--space-6)]">
             <SocialStats />
             <FiltersBar
               platform={platformFilter}
@@ -33,60 +51,42 @@ export default function SocialPage() {
               onPlatformChange={setPlatformFilter}
               onStatusChange={setStatusFilter}
             />
-            <PostsList platformFilter={platformFilter} statusFilter={statusFilter} />
+            <KanbanBoard />
           </div>
-          <div className="space-y-[var(--space-6)]">
-            <ContextSidebar />
-          </div>
-        </div>
-      )}
+        )}
 
-      {/* Kanban View */}
-      {activeTab === 'kanban' && (
-        <div className="space-y-[var(--space-6)]">
-          <SocialStats />
-          <FiltersBar
-            platform={platformFilter}
-            status={statusFilter}
-            onPlatformChange={setPlatformFilter}
-            onStatusChange={setStatusFilter}
-          />
-          <KanbanBoard />
-        </div>
-      )}
+        {/* Create View */}
+        {activeTab === 'create' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--space-6)]">
+            <div className="lg:col-span-2 space-y-[var(--space-6)]">
+              <SocialStats />
+              <FiltersBar
+                platform={platformFilter}
+                status={statusFilter}
+                onPlatformChange={setPlatformFilter}
+                onStatusChange={setStatusFilter}
+              />
+              <PostsList platformFilter={platformFilter} statusFilter={statusFilter} />
+            </div>
+            <div className="space-y-[var(--space-6)]">
+              <PostForm />
+              <ContextSidebar />
+            </div>
+          </div>
+        )}
 
-      {/* Create View */}
-      {activeTab === 'create' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--space-6)]">
-          <div className="lg:col-span-2 space-y-[var(--space-6)]">
-            <SocialStats />
-            <FiltersBar
-              platform={platformFilter}
-              status={statusFilter}
-              onPlatformChange={setPlatformFilter}
-              onStatusChange={setStatusFilter}
-            />
-            <PostsList platformFilter={platformFilter} statusFilter={statusFilter} />
+        {/* Goals View */}
+        {activeTab === 'goals' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--space-6)]">
+            <div className="lg:col-span-2 space-y-[var(--space-6)]">
+              <SocialStats />
+              <GoalsList />
+            </div>
+            <div className="space-y-[var(--space-6)]">
+              <ContextSidebar />
+            </div>
           </div>
-          <div className="space-y-[var(--space-6)]">
-            <PostForm />
-            <ContextSidebar />
-          </div>
-        </div>
-      )}
-
-      {/* Goals View */}
-      {activeTab === 'goals' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--space-6)]">
-          <div className="lg:col-span-2 space-y-[var(--space-6)]">
-            <SocialStats />
-            <GoalsList />
-          </div>
-          <div className="space-y-[var(--space-6)]">
-            <ContextSidebar />
-          </div>
-        </div>
-      )}
+        )}
       </div>
     </Suspense>
   );

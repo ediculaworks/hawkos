@@ -116,7 +116,13 @@ export const financeTools: Record<string, ToolDefinition> = {
     handler: async () => {
       const positions = await getPortfolioPositions();
       if (positions.length === 0) return 'Nenhum ativo no portfólio.';
-      type Position = { ticker?: string; asset_class?: string; quantity?: number; current_price?: number; current_value?: number };
+      type Position = {
+        ticker?: string;
+        asset_class?: string;
+        quantity?: number;
+        current_price?: number;
+        current_value?: number;
+      };
       const total = (positions as Position[]).reduce((s, p) => s + (p.current_value ?? 0), 0);
       return [
         `**Portfólio** — Total: R$ ${total.toFixed(2)}`,
@@ -142,7 +148,12 @@ export const financeTools: Record<string, ToolDefinition> = {
       const month = args.month ?? new Date().toISOString().slice(0, 7);
       const budget = await getBudgetVsActual(month);
       if (budget.length === 0) return `Nenhum orçamento configurado para ${month}.`;
-      type BudgetRow = { category_name?: string; spent_amount?: number; budget_amount?: number; remaining_amount?: number };
+      type BudgetRow = {
+        category_name?: string;
+        spent_amount?: number;
+        budget_amount?: number;
+        remaining_amount?: number;
+      };
       const overBudget = (budget as BudgetRow[]).filter((b) => (b.remaining_amount ?? 0) < 0);
       const lines = (budget as BudgetRow[]).map(
         (b) =>

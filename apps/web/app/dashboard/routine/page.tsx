@@ -6,10 +6,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { CardSkeleton, PageSkeleton } from '@/components/ui/skeleton';
 import { addHabit, fetchWeekSummary } from '@/lib/actions/routine';
-import { Suspense } from 'react';
 import type { HabitFrequency } from '@hawk/module-routine/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, X } from 'lucide-react';
+import { Suspense } from 'react';
 import { useState } from 'react';
 
 export default function RoutinePage() {
@@ -23,64 +23,64 @@ export default function RoutinePage() {
 
   return (
     <Suspense fallback={<PageSkeleton />}>
-    <div className="space-y-[var(--space-6)]">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Rotina</h1>
-        <Button size="sm" onClick={() => setShowForm(!showForm)}>
-          {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-          {showForm ? 'Fechar' : 'Novo hábito'}
-        </Button>
-      </div>
+      <div className="space-y-[var(--space-6)]">
+        {/* Page header */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Rotina</h1>
+          <Button size="sm" onClick={() => setShowForm(!showForm)}>
+            {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+            {showForm ? 'Fechar' : 'Novo hábito'}
+          </Button>
+        </div>
 
-      {showForm && (
-        <HabitForm
-          onSuccess={() => {
-            setShowForm(false);
-            queryClient.invalidateQueries({ queryKey: ['routine'] });
-          }}
-        />
-      )}
+        {showForm && (
+          <HabitForm
+            onSuccess={() => {
+              setShowForm(false);
+              queryClient.invalidateQueries({ queryKey: ['routine'] });
+            }}
+          />
+        )}
 
-      {/* Habit grid — centerpiece */}
-      <Card>
-        <CardContent className="pt-[var(--space-5)] pb-[var(--space-4)]">
-          <HabitGrid />
-        </CardContent>
-      </Card>
-
-      {/* Week summary */}
-      {summaryLoading && !weekSummary && <CardSkeleton />}
-      {weekSummary && weekSummary.length > 0 && (
+        {/* Habit grid — centerpiece */}
         <Card>
-          <CardContent className="pt-[var(--space-5)]">
-            <span className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
-              Semana
-            </span>
-            <div className="mt-[var(--space-3)] space-y-[var(--space-3)]">
-              {weekSummary.map((item) => (
-                <div key={item.habit.id} className="flex items-center gap-[var(--space-3)]">
-                  <span className="text-sm text-[var(--color-text-secondary)] flex-1 truncate">
-                    {item.habit.name}
-                  </span>
-                  <div className="w-24 flex-shrink-0">
-                    <div className="h-1.5 rounded-full bg-[var(--color-surface-3)] overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-[var(--color-success)]"
-                        style={{ width: `${item.completion_rate}%` }}
-                      />
-                    </div>
-                  </div>
-                  <span className="text-[11px] text-[var(--color-text-muted)] w-8 text-right">
-                    {item.week_completions}/{item.week_target}
-                  </span>
-                </div>
-              ))}
-            </div>
+          <CardContent className="pt-[var(--space-5)] pb-[var(--space-4)]">
+            <HabitGrid />
           </CardContent>
         </Card>
-      )}
-    </div>
+
+        {/* Week summary */}
+        {summaryLoading && !weekSummary && <CardSkeleton />}
+        {weekSummary && weekSummary.length > 0 && (
+          <Card>
+            <CardContent className="pt-[var(--space-5)]">
+              <span className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
+                Semana
+              </span>
+              <div className="mt-[var(--space-3)] space-y-[var(--space-3)]">
+                {weekSummary.map((item) => (
+                  <div key={item.habit.id} className="flex items-center gap-[var(--space-3)]">
+                    <span className="text-sm text-[var(--color-text-secondary)] flex-1 truncate">
+                      {item.habit.name}
+                    </span>
+                    <div className="w-24 flex-shrink-0">
+                      <div className="h-1.5 rounded-full bg-[var(--color-surface-3)] overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-[var(--color-success)]"
+                          style={{ width: `${item.completion_rate}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-[var(--color-text-muted)] w-8 text-right">
+                      {item.week_completions}/{item.week_target}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </Suspense>
   );
 }

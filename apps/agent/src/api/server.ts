@@ -2,8 +2,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Database } from '@hawk/db';
 import { createClient } from '@supabase/supabase-js';
-import { AUTOMATIONS, handleAutomationsRoute } from './routes/automations.js';
 import { handleAgentsRoute } from './routes/agents.js';
+import { handleAutomationsRoute } from './routes/automations.js';
 import { handleChatRoute } from './routes/chat.js';
 import { handleLogsRoute } from './routes/logs.js';
 import { handleWorkspaceRoute } from './routes/workspace.js';
@@ -502,24 +502,58 @@ const agentServer = Bun.serve({
 
     // ── Automations (delegated to routes/automations.ts) ──────
     const automationResponse = await handleAutomationsRoute(
-      path, method, req, state, corsHeaders, requireSupabase, triggerAutomation, logActivity,
+      path,
+      method,
+      req,
+      state,
+      corsHeaders,
+      requireSupabase,
+      triggerAutomation,
+      logActivity,
     );
     if (automationResponse) return automationResponse;
 
     // Chat routes (delegated to routes/chat.ts)
-    const chatResponse = await handleChatRoute(path, method, req, url, corsHeaders, requireSupabase);
+    const chatResponse = await handleChatRoute(
+      path,
+      method,
+      req,
+      url,
+      corsHeaders,
+      requireSupabase,
+    );
     if (chatResponse) return chatResponse;
 
     // Logs routes (delegated to routes/logs.ts)
-    const logsResponse = await handleLogsRoute(path, method, req, url, corsHeaders, requireSupabase);
+    const logsResponse = await handleLogsRoute(
+      path,
+      method,
+      req,
+      url,
+      corsHeaders,
+      requireSupabase,
+    );
     if (logsResponse) return logsResponse;
 
     // Workspace routes (delegated to routes/workspace.ts)
-    const workspaceResponse = await handleWorkspaceRoute(path, method, req, corsHeaders, WORKSPACE_DIR);
+    const workspaceResponse = await handleWorkspaceRoute(
+      path,
+      method,
+      req,
+      corsHeaders,
+      WORKSPACE_DIR,
+    );
     if (workspaceResponse) return workspaceResponse;
 
     // Agents routes (delegated to routes/agents.ts)
-    const agentsResponse = await handleAgentsRoute(path, method, req, url, corsHeaders, requireSupabase);
+    const agentsResponse = await handleAgentsRoute(
+      path,
+      method,
+      req,
+      url,
+      corsHeaders,
+      requireSupabase,
+    );
     if (agentsResponse) return agentsResponse;
 
     // ── Demands ───────────────────────────────────────────────────────

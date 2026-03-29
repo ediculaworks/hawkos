@@ -32,7 +32,10 @@ const createTransactionSchema = z.object({
 const logSleepSchema = z.object({
   duration_h: z.number().min(0).max(24),
   quality: z.number().int().min(1).max(10).optional(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 const logWorkoutSchema = z.object({
@@ -41,7 +44,10 @@ const logWorkoutSchema = z.object({
   reps: z.number().int().positive().optional(),
   weight_kg: z.number().min(0).optional(),
   duration_min: z.number().positive().optional(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 const createPersonSchema = z.object({

@@ -1,5 +1,5 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError } from '@hawk/shared';
+import { HawkError, createLogger } from '@hawk/shared';
 import type { CreateReflectionInput, PersonalValue, Reflection, ReflectionType } from './types';
 
 const logger = createLogger('spirituality');

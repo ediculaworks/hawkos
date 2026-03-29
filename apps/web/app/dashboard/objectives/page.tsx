@@ -13,7 +13,6 @@ import { RecentlyCompleted } from '@/components/objectives/recently-completed';
 import { TaskSection } from '@/components/objectives/task-section';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ListSkeleton, PageSkeleton } from '@/components/ui/skeleton';
-import { Suspense } from 'react';
 import {
   fetchActiveTasks,
   fetchGoals,
@@ -24,6 +23,7 @@ import { todayDateStr } from '@/lib/utils/format';
 import type { ObjectiveTimeframe, Task } from '@hawk/module-objectives/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Target } from 'lucide-react';
+import { Suspense } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 type View = ObjectivesView;
@@ -146,117 +146,118 @@ export default function ObjectivesPage() {
 
   return (
     <Suspense fallback={<PageSkeleton />}>
-    <AnimatedPage className="space-y-[var(--space-5)]">
-      <ObjectivesHeader
-        view={view}
-        onViewChange={setView}
-        onAddTask={() => {
-          setShowTaskForm(!showTaskForm);
-          setShowGoalForm(false);
-          if (!showTaskForm) setTaskFormKey((k) => k + 1);
-        }}
-        onAddGoal={() => {
-          setShowGoalForm(!showGoalForm);
-          setShowTaskForm(false);
-        }}
-        onAddDemand={() => setShowDemandForm(!showDemandForm)}
-      />
-
-      {!showTaskForm && !showGoalForm && (
-        <p className="text-[10px] text-[var(--color-text-muted)] -mt-[var(--space-2)]">
-          Pressione <kbd className="bg-[var(--color-surface-3)] px-1 rounded text-[9px]">C</kbd>{' '}
-          para adicionar tarefa ·{' '}
-          <kbd className="bg-[var(--color-surface-3)] px-1 rounded text-[9px]">Esc</kbd> para fechar
-        </p>
-      )}
-
-      {showGoalForm && <InlineGoalForm onClose={() => setShowGoalForm(false)} />}
-      {showTaskForm && (
-        <div ref={taskFormRef}>
-          <InlineTaskForm key={taskFormKey} autoFocus />
-        </div>
-      )}
-
-      {view === 'focus' && pageLoading && (
-        <div className="space-y-[var(--space-4)]">
-          <ListSkeleton items={5} />
-        </div>
-      )}
-
-      {view === 'focus' && !pageLoading && (
-        <div className="space-y-[var(--space-5)]">
-          {overdue && <OverdueBanner tasks={overdue} />}
-
-          <TaskSection
-            label="Hoje"
-            tasks={partitioned.today}
-            goalTitles={goalTitles}
-            onComplete={(id) => completeMutation.mutate(id)}
-            emptyMessage="Sem tarefas para hoje. Adicione uma para organizar seu dia."
-          />
-          <TaskSection
-            label="Esta semana"
-            tasks={partitioned.thisWeek}
-            goalTitles={goalTitles}
-            onComplete={(id) => completeMutation.mutate(id)}
-          />
-          <TaskSection
-            label="Sem data"
-            tasks={partitioned.noDate}
-            goalTitles={goalTitles}
-            onComplete={(id) => completeMutation.mutate(id)}
-            defaultCollapsed
-          />
-          <RecentlyCompleted />
-        </div>
-      )}
-
-      {view === 'goals' && (
-        <div className="space-y-[var(--space-6)]">
-          {goals &&
-            (['short', 'medium', 'long'] as ObjectiveTimeframe[]).map((tf) => {
-              const items = goals[tf];
-              if (!items || items.length === 0) return null;
-              return (
-                <div key={tf}>
-                  <span className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-[var(--space-3)] block">
-                    {TIMEFRAME_LABELS[tf]}
-                  </span>
-                  <div className="space-y-[var(--space-2)]">
-                    {items.map((goal) => (
-                      <GoalCard
-                        key={goal.id}
-                        goal={goal}
-                        onTaskComplete={(id) => completeMutation.mutate(id)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          {goals && !goals.short?.length && !goals.medium?.length && !goals.long?.length && (
-            <div className="py-[var(--space-4)]">
-              <EmptyState
-                icon={Target}
-                title="Nenhuma meta definida"
-                description="Metas dão direção ao esforço diário. Crie sua primeira meta."
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {view === 'projects' && <ProjectsView />}
-
-      {view === 'board' && <KanbanBoard />}
-
-      {view === 'demands' && (
-        <DemandsView
-          showCreateForm={showDemandForm}
-          onCloseCreateForm={() => setShowDemandForm(false)}
+      <AnimatedPage className="space-y-[var(--space-5)]">
+        <ObjectivesHeader
+          view={view}
+          onViewChange={setView}
+          onAddTask={() => {
+            setShowTaskForm(!showTaskForm);
+            setShowGoalForm(false);
+            if (!showTaskForm) setTaskFormKey((k) => k + 1);
+          }}
+          onAddGoal={() => {
+            setShowGoalForm(!showGoalForm);
+            setShowTaskForm(false);
+          }}
+          onAddDemand={() => setShowDemandForm(!showDemandForm)}
         />
-      )}
-    </AnimatedPage>
+
+        {!showTaskForm && !showGoalForm && (
+          <p className="text-[10px] text-[var(--color-text-muted)] -mt-[var(--space-2)]">
+            Pressione <kbd className="bg-[var(--color-surface-3)] px-1 rounded text-[9px]">C</kbd>{' '}
+            para adicionar tarefa ·{' '}
+            <kbd className="bg-[var(--color-surface-3)] px-1 rounded text-[9px]">Esc</kbd> para
+            fechar
+          </p>
+        )}
+
+        {showGoalForm && <InlineGoalForm onClose={() => setShowGoalForm(false)} />}
+        {showTaskForm && (
+          <div ref={taskFormRef}>
+            <InlineTaskForm key={taskFormKey} autoFocus />
+          </div>
+        )}
+
+        {view === 'focus' && pageLoading && (
+          <div className="space-y-[var(--space-4)]">
+            <ListSkeleton items={5} />
+          </div>
+        )}
+
+        {view === 'focus' && !pageLoading && (
+          <div className="space-y-[var(--space-5)]">
+            {overdue && <OverdueBanner tasks={overdue} />}
+
+            <TaskSection
+              label="Hoje"
+              tasks={partitioned.today}
+              goalTitles={goalTitles}
+              onComplete={(id) => completeMutation.mutate(id)}
+              emptyMessage="Sem tarefas para hoje. Adicione uma para organizar seu dia."
+            />
+            <TaskSection
+              label="Esta semana"
+              tasks={partitioned.thisWeek}
+              goalTitles={goalTitles}
+              onComplete={(id) => completeMutation.mutate(id)}
+            />
+            <TaskSection
+              label="Sem data"
+              tasks={partitioned.noDate}
+              goalTitles={goalTitles}
+              onComplete={(id) => completeMutation.mutate(id)}
+              defaultCollapsed
+            />
+            <RecentlyCompleted />
+          </div>
+        )}
+
+        {view === 'goals' && (
+          <div className="space-y-[var(--space-6)]">
+            {goals &&
+              (['short', 'medium', 'long'] as ObjectiveTimeframe[]).map((tf) => {
+                const items = goals[tf];
+                if (!items || items.length === 0) return null;
+                return (
+                  <div key={tf}>
+                    <span className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-[var(--space-3)] block">
+                      {TIMEFRAME_LABELS[tf]}
+                    </span>
+                    <div className="space-y-[var(--space-2)]">
+                      {items.map((goal) => (
+                        <GoalCard
+                          key={goal.id}
+                          goal={goal}
+                          onTaskComplete={(id) => completeMutation.mutate(id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            {goals && !goals.short?.length && !goals.medium?.length && !goals.long?.length && (
+              <div className="py-[var(--space-4)]">
+                <EmptyState
+                  icon={Target}
+                  title="Nenhuma meta definida"
+                  description="Metas dão direção ao esforço diário. Crie sua primeira meta."
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {view === 'projects' && <ProjectsView />}
+
+        {view === 'board' && <KanbanBoard />}
+
+        {view === 'demands' && (
+          <DemandsView
+            showCreateForm={showDemandForm}
+            onCloseCreateForm={() => setShowDemandForm(false)}
+          />
+        )}
+      </AnimatedPage>
     </Suspense>
   );
 }

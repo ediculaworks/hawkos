@@ -8,10 +8,21 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
 
 const EXPORT_TABLES = [
-  'profile', 'finance_transactions', 'finance_accounts', 'finance_categories',
-  'health_observations', 'sleep_sessions', 'workout_sessions',
-  'people', 'interactions', 'habits', 'habit_logs',
-  'objectives', 'tasks', 'calendar_events', 'agent_memories',
+  'profile',
+  'finance_transactions',
+  'finance_accounts',
+  'finance_categories',
+  'health_observations',
+  'sleep_sessions',
+  'workout_sessions',
+  'people',
+  'interactions',
+  'habits',
+  'habit_logs',
+  'objectives',
+  'tasks',
+  'calendar_events',
+  'agent_memories',
 ];
 
 const CONFIRMATION_PHRASE = 'APAGAR TUDO';

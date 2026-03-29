@@ -2,7 +2,7 @@ import { assembleContext } from '@hawk/context-engine';
 import { getSessionMessages, saveMessage } from '@hawk/module-memory/queries';
 import { retrieveMemories, trackMemoryAccess } from '@hawk/module-memory/retrieval';
 import { getLastSessionArchive } from '@hawk/module-memory/session-commit';
-import { createLogger, HawkError } from '@hawk/shared';
+import { HawkError, createLogger } from '@hawk/shared';
 import OpenAI from 'openai';
 import { activityDb, logActivity } from './activity-logger.js';
 import type { ResolvedAgent } from './agent-resolver.js';
@@ -138,9 +138,7 @@ For simple greetings, quick facts, or single-module queries, respond directly.
 
 When you are uncertain about information (no tool results, working from memory, or data is older than a week), prefix your statement with "Acredito que..." or "Não tenho certeza, mas..." to signal confidence level. Never state uncertain facts as definitive.`;
 
-  const systemPrompt = isComplexQuery
-    ? `${basePrompt}\n\n${REACT_INSTRUCTION}`
-    : basePrompt;
+  const systemPrompt = isComplexQuery ? `${basePrompt}\n\n${REACT_INSTRUCTION}` : basePrompt;
 
   // 5c. Initialize cost tracking (respects feature flag)
   const sessionCost = agent.costTrackingEnabled ? createSessionCost(agent.model) : null;
@@ -226,6 +224,11 @@ When you are uncertain about information (no tool results, working from memory, 
       : context.modulesLoaded;
   const { tools: filteredTools, toolMap } = getToolsForModules(allowedModules);
 
+  // 8. Smart model routing — select model based on query complexity
+  const hasTools = filteredTools.length > 0;
+  const complexity = classifyComplexity(userMessage, context.relevanceScores.length);
+  const selectedModel = selectModel(complexity, agent.model);
+
   // 7b. Log module detection for ML training data
   logActivity('module_detection', `Detected: ${allowedModules.join(', ') || 'none'}`, undefined, {
     detected_modules: allowedModules,
@@ -233,14 +236,9 @@ When you are uncertain about information (no tool results, working from memory, 
     message_preview: userMessage.slice(0, 120),
     tools_offered: filteredTools.map((t) => (t as { function: { name: string } }).function.name),
     complexity,
-    selected_model: selectModel(complexity, agent.model),
+    selected_model: selectedModel,
     base_model: agent.model,
   }).catch(() => {});
-
-  // 8. Smart model routing — select model based on query complexity
-  const hasTools = filteredTools.length > 0;
-  const complexity = classifyComplexity(userMessage, context.relevanceScores.length);
-  const selectedModel = selectModel(complexity, agent.model);
 
   const FALLBACK_MODELS = [
     'stepfun/step-3.5-flash:free',
@@ -360,7 +358,13 @@ When you are uncertain about information (no tool results, working from memory, 
 
   // First call — stream if we have onChunk
   let result = await callLLM(messages, !!onChunk);
-  if (sessionCost) trackLLMCall(sessionCost, result.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined);
+  if (sessionCost)
+    trackLLMCall(
+      sessionCost,
+      result.usage as
+        | { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+        | undefined,
+    );
   if (result.usage?.total_tokens) {
     trackUsage(result.usage.total_tokens, estimateCostUsd(result.usage.total_tokens));
   }
@@ -413,7 +417,13 @@ When you are uncertain about information (no tool results, working from memory, 
 
     // After tools, stream the final response
     result = await callLLM(toolMessages, !!onChunk);
-    if (sessionCost) trackLLMCall(sessionCost, result.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined);
+    if (sessionCost)
+      trackLLMCall(
+        sessionCost,
+        result.usage as
+          | { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+          | undefined,
+      );
     if (result.usage?.total_tokens) {
       trackUsage(result.usage.total_tokens, estimateCostUsd(result.usage.total_tokens));
     }
@@ -422,7 +432,10 @@ When you are uncertain about information (no tool results, working from memory, 
   const content = result.content;
   if (!content) {
     const errorMsg = `Empty response from AI (${agent.name}/${agent.model}): finish_reason=${result.finishReason}`;
-    logger.error({ agent: agent.name, model: agent.model, finishReason: result.finishReason }, 'Empty LLM response');
+    logger.error(
+      { agent: agent.name, model: agent.model, finishReason: result.finishReason },
+      'Empty LLM response',
+    );
     logActivity('error', errorMsg, 'agent', {});
     throw new HawkError(errorMsg, 'LLM_CALL_FAILED');
   }
@@ -449,11 +462,16 @@ When you are uncertain about information (no tool results, working from memory, 
 
   // 11. Log session cost (if tracking enabled)
   if (sessionCost) {
-    logActivity('session_cost', `tokens=${sessionCost.totalTokens} calls=${sessionCost.llmCalls} tools=${sessionCost.toolCalls}`, undefined, {
-      ...sessionCost,
-      session_id: sessionId,
-      is_complex: isComplexQuery,
-    }).catch(() => {});
+    logActivity(
+      'session_cost',
+      `tokens=${sessionCost.totalTokens} calls=${sessionCost.llmCalls} tools=${sessionCost.toolCalls}`,
+      undefined,
+      {
+        ...sessionCost,
+        session_id: sessionId,
+        is_complex: isComplexQuery,
+      },
+    ).catch(() => {});
   }
 
   // Emit message:sent hook
@@ -471,7 +489,10 @@ export async function handleWebMessage(
 ): Promise<string> {
   // Rate limit both per-session AND globally for web (prevent session-ID spoofing bypass)
   if (!checkRateLimit(`web:${sessionId}`) || !checkRateLimit('web:global')) {
-    throw new HawkError('Rate limit exceeded. Aguarde um momento antes de enviar mais mensagens.', 'RATE_LIMITED');
+    throw new HawkError(
+      'Rate limit exceeded. Aguarde um momento antes de enviar mais mensagens.',
+      'RATE_LIMITED',
+    );
   }
   touchWebSession(sessionId);
   const agent = await resolveAgent(sessionId, 'web');
@@ -629,4 +650,3 @@ export async function handleAutomationMessage(prompt: string): Promise<string> {
     isNewSession: true,
   });
 }
-

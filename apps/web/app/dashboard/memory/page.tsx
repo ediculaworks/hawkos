@@ -3,8 +3,8 @@
 import { MemoryDetailPanel } from '@/components/memory/memory-detail-panel';
 import { MemoryGraph } from '@/components/memory/memory-graph';
 import { Button } from '@/components/ui/button';
-import { TabBar, type TabItem } from '@/components/ui/tab-bar';
 import { PageSkeleton } from '@/components/ui/skeleton';
+import { TabBar, type TabItem } from '@/components/ui/tab-bar';
 import { createMemoryAction, fetchMemoryStats } from '@/lib/actions/memory';
 import type { AgentMemory, MemoryGraphNode } from '@hawk/module-memory/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -77,81 +77,87 @@ export default function MemoryPage() {
   return (
     <Suspense fallback={<PageSkeleton />}>
       <div className="flex flex-col h-[calc(100vh-var(--topbar-height)-var(--space-12))] -mb-[var(--space-6)]">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-[var(--space-4)] flex-shrink-0">
-        <div className="flex items-center gap-[var(--space-4)]">
-          <div className="flex items-center gap-[var(--space-2)]">
-            <Brain className="h-4 w-4 text-[var(--color-mod-knowledge)]" />
-            <span className="text-sm font-medium text-[var(--color-text-primary)]">Memória</span>
-            {stats && (
-              <span className="text-[11px] text-[var(--color-text-muted)]">
-                {stats.total} memórias
-                {stats.pending_count > 0 && (
-                  <span className="ml-1 text-[var(--color-warning)]">
-                    · {stats.pending_count} pendentes
-                  </span>
-                )}
-              </span>
-            )}
+        {/* Header */}
+        <div className="flex items-center justify-between mb-[var(--space-4)] flex-shrink-0">
+          <div className="flex items-center gap-[var(--space-4)]">
+            <div className="flex items-center gap-[var(--space-2)]">
+              <Brain className="h-4 w-4 text-[var(--color-mod-knowledge)]" />
+              <span className="text-sm font-medium text-[var(--color-text-primary)]">Memória</span>
+              {stats && (
+                <span className="text-[11px] text-[var(--color-text-muted)]">
+                  {stats.total} memórias
+                  {stats.pending_count > 0 && (
+                    <span className="ml-1 text-[var(--color-warning)]">
+                      · {stats.pending_count} pendentes
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+            <TabBar tabs={MEMORY_TABS} active={tab} onChange={setTab} size="sm" />
           </div>
-          <TabBar tabs={MEMORY_TABS} active={tab} onChange={setTab} size="sm" />
+          {tab === 'memories' && (
+            <Button size="sm" onClick={() => createMutation.mutate()}>
+              <Plus className="h-3.5 w-3.5" /> Ensinar
+            </Button>
+          )}
         </div>
-        {tab === 'memories' && (
-          <Button size="sm" onClick={() => createMutation.mutate()}>
-            <Plus className="h-3.5 w-3.5" /> Ensinar
-          </Button>
-        )}
-      </div>
 
-      {/* Content */}
-      <div className="flex-1 min-h-0 flex">
-        {/* MEMORIES TAB */}
-        {tab === 'memories' && (
-          <>
+        {/* Content */}
+        <div className="flex-1 min-h-0 flex">
+          {/* MEMORIES TAB */}
+          {tab === 'memories' && (
+            <>
+              <div className="flex-1 min-w-0 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] overflow-hidden">
+                <MemoryExplorer
+                  selectedId={selectedMemory?.id ?? null}
+                  onSelect={setSelectedMemory}
+                />
+              </div>
+              {showDetailPanel && (
+                <MemoryDetailPanel
+                  memory={selectedMemory}
+                  onClose={() => setSelectedMemory(null)}
+                />
+              )}
+            </>
+          )}
+
+          {/* SESSIONS TAB */}
+          {tab === 'sessions' && (
             <div className="flex-1 min-w-0 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] overflow-hidden">
-              <MemoryExplorer
-                selectedId={selectedMemory?.id ?? null}
-                onSelect={setSelectedMemory}
-              />
+              <SessionArchives />
             </div>
-            {showDetailPanel && (
-              <MemoryDetailPanel memory={selectedMemory} onClose={() => setSelectedMemory(null)} />
-            )}
-          </>
-        )}
+          )}
 
-        {/* SESSIONS TAB */}
-        {tab === 'sessions' && (
-          <div className="flex-1 min-w-0 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] overflow-hidden">
-            <SessionArchives />
-          </div>
-        )}
+          {/* NOTES TAB */}
+          {tab === 'notes' && <NotesTab />}
 
-        {/* NOTES TAB */}
-        {tab === 'notes' && <NotesTab />}
+          {/* LIBRARY TAB */}
+          {tab === 'library' && <LibraryTab />}
 
-        {/* LIBRARY TAB */}
-        {tab === 'library' && <LibraryTab />}
+          {/* GRAPH TAB */}
+          {tab === 'graph' && (
+            <>
+              <div className="flex-1 min-w-0 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] overflow-hidden">
+                <MemoryGraph onSelectNode={handleGraphSelect} />
+              </div>
+              {showDetailPanel && (
+                <MemoryDetailPanel
+                  memory={selectedMemory}
+                  onClose={() => setSelectedMemory(null)}
+                />
+              )}
+            </>
+          )}
 
-        {/* GRAPH TAB */}
-        {tab === 'graph' && (
-          <>
-            <div className="flex-1 min-w-0 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] overflow-hidden">
-              <MemoryGraph onSelectNode={handleGraphSelect} />
+          {/* INTELLIGENCE TAB */}
+          {tab === 'intelligence' && (
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <IntelligenceTab />
             </div>
-            {showDetailPanel && (
-              <MemoryDetailPanel memory={selectedMemory} onClose={() => setSelectedMemory(null)} />
-            )}
-          </>
-        )}
-
-        {/* INTELLIGENCE TAB */}
-        {tab === 'intelligence' && (
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <IntelligenceTab />
-          </div>
-        )}
-      </div>
+          )}
+        </div>
       </div>
     </Suspense>
   );

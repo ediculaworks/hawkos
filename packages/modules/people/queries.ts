@@ -1,5 +1,5 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
 import type { PaginatedResult } from '@hawk/shared';
 import { z } from 'zod';
 
@@ -44,7 +44,7 @@ export async function findPersonByName(name: string): Promise<Person | null> {
 
   if (error) {
     logger.error({ error: error.message }, 'Failed to find person');
-    throw new HawkError('Failed to find person: ' + error.message, 'DB_QUERY_FAILED');
+    throw new HawkError(`Failed to find person: ${error.message}`, 'DB_QUERY_FAILED');
   }
   return data as Person | null;
 }
@@ -57,7 +57,7 @@ export async function getPersonWithInteractions(id: string): Promise<PersonWithL
 
   if (error) {
     logger.error({ error: error.message }, 'Failed to get person');
-    throw new HawkError('Failed to get person: ' + error.message, 'DB_QUERY_FAILED');
+    throw new HawkError(`Failed to get person: ${error.message}`, 'DB_QUERY_FAILED');
   }
 
   const { data: interactions, error: intError } = await db
@@ -69,7 +69,7 @@ export async function getPersonWithInteractions(id: string): Promise<PersonWithL
 
   if (intError) {
     logger.error({ error: intError.message }, 'Failed to get interactions');
-    throw new HawkError('Failed to get interactions: ' + intError.message, 'DB_QUERY_FAILED');
+    throw new HawkError(`Failed to get interactions: ${intError.message}`, 'DB_QUERY_FAILED');
   }
 
   const p = person as Person;
@@ -105,7 +105,7 @@ export async function listOverdueContacts(): Promise<Person[]> {
 
   if (error) {
     logger.error({ error: error.message }, 'Failed to list overdue contacts');
-    throw new HawkError('Failed to list overdue contacts: ' + error.message, 'DB_QUERY_FAILED');
+    throw new HawkError(`Failed to list overdue contacts: ${error.message}`, 'DB_QUERY_FAILED');
   }
   return (data ?? []) as Person[];
 }
@@ -124,7 +124,7 @@ export async function listUpcomingBirthdays(
 
   if (error) {
     logger.error({ error: error.message }, 'Failed to get birthdays');
-    throw new HawkError('Failed to get birthdays: ' + error.message, 'DB_QUERY_FAILED');
+    throw new HawkError(`Failed to get birthdays: ${error.message}`, 'DB_QUERY_FAILED');
   }
 
   const today = new Date();
@@ -166,7 +166,7 @@ export async function logInteraction(input: LogInteractionInput): Promise<Intera
 
   if (error) {
     logger.error({ error: error.message }, 'Failed to log interaction');
-    throw new HawkError('Failed to log interaction: ' + error.message, 'DB_INSERT_FAILED');
+    throw new HawkError(`Failed to log interaction: ${error.message}`, 'DB_INSERT_FAILED');
   }
   return data as Interaction;
 }
@@ -178,7 +178,9 @@ export async function createPerson(input: CreatePersonInput): Promise<Person> {
   const parsed = CreatePersonSchema.safeParse(input);
   if (!parsed.success) {
     logger.warn({ errors: parsed.error.flatten() }, 'Invalid person input');
-    throw new ValidationError(`Invalid person: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid person: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const { data, error } = await db
     .from('people')
@@ -199,7 +201,7 @@ export async function createPerson(input: CreatePersonInput): Promise<Person> {
 
   if (error) {
     logger.error({ error: error.message }, 'Failed to create person');
-    throw new HawkError('Failed to create person: ' + error.message, 'DB_INSERT_FAILED');
+    throw new HawkError(`Failed to create person: ${error.message}`, 'DB_INSERT_FAILED');
   }
   return data as Person;
 }
@@ -223,7 +225,7 @@ export async function updatePerson(id: string, input: UpdatePersonInput): Promis
   const { data, error } = await db.from('people').update(updates).eq('id', id).select().single();
   if (error) {
     logger.error({ error: error.message }, 'Failed to update person');
-    throw new HawkError('Failed to update person: ' + error.message, 'DB_UPDATE_FAILED');
+    throw new HawkError(`Failed to update person: ${error.message}`, 'DB_UPDATE_FAILED');
   }
   return data as Person;
 }
@@ -235,7 +237,7 @@ export async function deletePerson(id: string): Promise<void> {
   const { error } = await db.from('people').update({ active: false }).eq('id', id);
   if (error) {
     logger.error({ error: error.message }, 'Failed to delete person');
-    throw new HawkError('Failed to delete person: ' + error.message, 'DB_DELETE_FAILED');
+    throw new HawkError(`Failed to delete person: ${error.message}`, 'DB_DELETE_FAILED');
   }
 }
 
@@ -252,7 +254,7 @@ export async function listPeople(limit = 20, offset = 0): Promise<PaginatedResul
 
   if (error) {
     logger.error({ error: error.message }, 'Failed to list people');
-    throw new HawkError('Failed to list people: ' + error.message, 'DB_QUERY_FAILED');
+    throw new HawkError(`Failed to list people: ${error.message}`, 'DB_QUERY_FAILED');
   }
   const total = count ?? 0;
   return { data: (data ?? []) as Person[], total, hasMore: offset + limit < total };
@@ -270,7 +272,7 @@ export async function listRecentInteractions(limit = 20): Promise<InteractionWit
 
   if (error) {
     logger.error({ error: error.message }, 'Failed to list recent interactions');
-    throw new HawkError('Failed to list recent interactions: ' + error.message, 'DB_QUERY_FAILED');
+    throw new HawkError(`Failed to list recent interactions: ${error.message}`, 'DB_QUERY_FAILED');
   }
 
   return (data ?? []).map((row) => {
@@ -359,7 +361,7 @@ export async function searchPeople(query: string, limit = 5): Promise<Person[]> 
 
   if (error) {
     logger.error({ error: error.message }, 'Failed to search people');
-    throw new HawkError('Failed to search people: ' + error.message, 'DB_QUERY_FAILED');
+    throw new HawkError(`Failed to search people: ${error.message}`, 'DB_QUERY_FAILED');
   }
   return (data ?? []) as Person[];
 }

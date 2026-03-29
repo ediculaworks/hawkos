@@ -30,7 +30,7 @@ describe('Model Router', () => {
     });
 
     it('should classify long questions as complex', () => {
-      const longQuestion = 'a'.repeat(301) + '?';
+      const longQuestion = `${'a'.repeat(301)}?`;
       expect(classifyComplexity(longQuestion, 1)).toBe('complex');
     });
   });

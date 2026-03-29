@@ -9,19 +9,39 @@ function ScoreRing({ score, size = 80 }: { score: number; size?: number }) {
   const filled = (score / 100) * circumference;
 
   const color =
-    score >= 75 ? 'var(--color-success)' :
-    score >= 50 ? 'var(--color-accent)' :
-    score >= 25 ? 'oklch(0.75 0.18 65)' :
-    'var(--color-danger)';
+    score >= 75
+      ? 'var(--color-success)'
+      : score >= 50
+        ? 'var(--color-accent)'
+        : score >= 25
+          ? 'oklch(0.75 0.18 65)'
+          : 'var(--color-danger)';
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`Life Score: ${score}`}>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        role="img"
+        aria-label={`Life Score: ${score}`}
+      >
         <title>Life Score</title>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-surface-3)" strokeWidth="5" />
         <circle
-          cx={size / 2} cy={size / 2} r={r} fill="none"
-          stroke={color} strokeWidth="5"
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="var(--color-surface-3)"
+          strokeWidth="5"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="5"
           strokeDasharray={`${filled} ${circumference}`}
           strokeLinecap="round"
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
@@ -60,7 +80,9 @@ export default function LifeScoreWidget() {
       <div className="w-full space-y-1">
         {data.dimensions.map((d) => (
           <div key={d.id} className="flex items-center gap-[var(--space-2)]">
-            <span className="text-[9px] text-[var(--color-text-muted)] w-14 truncate">{d.label}</span>
+            <span className="text-[9px] text-[var(--color-text-muted)] w-14 truncate">
+              {d.label}
+            </span>
             <div className="flex-1 h-1 rounded-full bg-[var(--color-surface-3)]">
               <div
                 className="h-1 rounded-full transition-all duration-500"

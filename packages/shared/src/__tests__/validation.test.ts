@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { ValidationError } from '../errors';
 import {
-  AccountTypeSchema,
   DateStringSchema,
   NonEmptyStringSchema,
   PositiveNumberSchema,

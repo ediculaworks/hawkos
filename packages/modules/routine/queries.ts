@@ -1,5 +1,5 @@
 import { db } from '@hawk/db';
-import { HawkError, NotFoundError, createLogger, ValidationError, HabitFrequencySchema } from '@hawk/shared';
+import { HabitFrequencySchema, HawkError, ValidationError, createLogger } from '@hawk/shared';
 import { z } from 'zod';
 
 const logger = createLogger('routine');
@@ -126,7 +126,9 @@ export async function createHabit(input: CreateHabitInput): Promise<Habit> {
   const parsed = CreateHabitSchema.safeParse(input);
   if (!parsed.success) {
     logger.warn({ errors: parsed.error.flatten() }, 'Invalid habit input');
-    throw new ValidationError(`Invalid habit: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid habit: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const { data, error } = await db
     .from('habits')

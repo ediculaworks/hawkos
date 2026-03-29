@@ -9,7 +9,7 @@
  */
 
 import { db } from '@hawk/db';
-import { createLogger, HawkError } from '@hawk/shared';
+import { HawkError, createLogger } from '@hawk/shared';
 import cron from 'node-cron';
 import { logActivity } from '../activity-logger.js';
 import { isAutomationEnabled, markAutomationRun } from './config.js';
@@ -39,7 +39,10 @@ export async function runMemoryForgetter(): Promise<void> {
       .select('id');
 
     if (err1) {
-      throw new HawkError(`Failed to archive never-accessed memories: ${err1.message}`, 'DB_UPDATE_FAILED');
+      throw new HawkError(
+        `Failed to archive never-accessed memories: ${err1.message}`,
+        'DB_UPDATE_FAILED',
+      );
     }
 
     const neverAccessedCount = neverAccessed?.length ?? 0;
@@ -63,7 +66,11 @@ export async function runMemoryForgetter(): Promise<void> {
     const totalArchived = neverAccessedCount + staleAccessedCount;
 
     logger.info(
-      { neverAccessed: neverAccessedCount, staleAccessed: staleAccessedCount, total: totalArchived },
+      {
+        neverAccessed: neverAccessedCount,
+        staleAccessed: staleAccessedCount,
+        total: totalArchived,
+      },
       'Memory forgetter completed',
     );
 
@@ -71,7 +78,11 @@ export async function runMemoryForgetter(): Promise<void> {
       'memory_forgetter',
       `Archived ${totalArchived} memories (${neverAccessedCount} never accessed >90d, ${staleAccessedCount} stale >180d)`,
       'memory',
-      { never_accessed_count: neverAccessedCount, stale_accessed_count: staleAccessedCount, total_archived: totalArchived },
+      {
+        never_accessed_count: neverAccessedCount,
+        stale_accessed_count: staleAccessedCount,
+        total_archived: totalArchived,
+      },
     );
 
     await markAutomationRun('memory-forgetter', 'success');

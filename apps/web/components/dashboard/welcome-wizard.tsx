@@ -8,8 +8,7 @@ const WIZARD_KEY = 'hawk-wizard-completed';
 const STEPS = [
   {
     title: 'Bem-vindo ao Hawk OS',
-    description:
-      'Seu sistema operacional de vida pessoal. Vamos configurar o essencial.',
+    description: 'Seu sistema operacional de vida pessoal. Vamos configurar o essencial.',
     icon: '🦅',
   },
   {
@@ -90,13 +89,11 @@ export function WelcomeWizard() {
 
         {/* Step dots */}
         <div className="mb-6 flex items-center justify-center gap-2">
-          {STEPS.map((_, i) => (
+          {STEPS.map((s, i) => (
             <div
-              key={i}
+              key={s.title}
               className={`h-1.5 rounded-full transition-all duration-[var(--duration-base)] ${
-                i === step
-                  ? 'w-6 bg-[var(--color-accent)]'
-                  : 'w-1.5 bg-[var(--color-border)]'
+                i === step ? 'w-6 bg-[var(--color-accent)]' : 'w-1.5 bg-[var(--color-border)]'
               }`}
             />
           ))}

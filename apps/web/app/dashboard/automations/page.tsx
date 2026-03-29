@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ListSkeleton, PageSkeleton } from '@/components/ui/skeleton';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { agentHeaders, getAgentApiUrl } from '@/lib/config';
 import {
@@ -17,7 +17,7 @@ import {
   Trash2,
   Zap,
 } from 'lucide-react';
-import { Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
 interface Automation {

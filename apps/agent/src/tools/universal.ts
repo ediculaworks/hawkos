@@ -1,5 +1,5 @@
-import { getLinkedMemories } from '@hawk/module-memory/queries';
 import { getNextQuestion, markQuestionAnswered, markQuestionAsked } from '@hawk/module-memory';
+import { getLinkedMemories } from '@hawk/module-memory/queries';
 
 import type { ToolDefinition } from './types.js';
 

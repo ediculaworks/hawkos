@@ -1,5 +1,5 @@
 import type { Database } from '@hawk/db';
-import { createClient } from '@supabase/supabase-js';
+import type { createClient } from '@supabase/supabase-js';
 
 export const AUTOMATIONS = [
   {
