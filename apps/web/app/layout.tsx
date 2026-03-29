@@ -1,7 +1,9 @@
 import { ErrorBoundary } from '@/components/ui/error-boundary';
+import { defaultLocale } from '@/lib/i18n';
 import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { NextIntlClientProvider } from 'next-intl';
 import { cookies } from 'next/headers';
 import { Providers } from './providers';
 import './globals.css';
@@ -27,6 +29,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const cookieStore = await cookies();
   const tenantSlug = cookieStore.get('hawk_tenant')?.value;
   const tenant = tenantSlug ? await getTenantPrivateBySlug(tenantSlug) : null;
+
+  // Load i18n messages for client components
+  const messages = (await import(`../messages/${defaultLocale}.json`)).default;
 
   // Inject tenant config + build ID into browser globals
   const buildId = process.env.BUILD_ID ?? Date.now().toString(36);
@@ -54,7 +59,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       {tenantScript ? <script dangerouslySetInnerHTML={{ __html: tenantScript }} /> : null}
       <body>
         <ErrorBoundary>
-          <Providers>{children}</Providers>
+          <NextIntlClientProvider locale={defaultLocale} messages={messages}>
+            <Providers>{children}</Providers>
+          </NextIntlClientProvider>
         </ErrorBoundary>
       </body>
     </html>
