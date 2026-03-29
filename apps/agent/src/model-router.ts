@@ -70,3 +70,48 @@ export function selectModel(
       return process.env.MODEL_TIER_DEFAULT ?? agentModel;
   }
 }
+
+// ── Daily budget guard ─────────────────────────────────────────────────────
+
+interface BudgetState {
+  date: string;      // YYYY-MM-DD
+  tokens: number;
+  cost: number;
+}
+
+let _budget: BudgetState | null = null;
+
+function todayDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getBudget(): BudgetState {
+  const today = todayDate();
+  if (!_budget || _budget.date !== today) {
+    _budget = { date: today, tokens: 0, cost: 0 };
+  }
+  return _budget;
+}
+
+/**
+ * Record token usage and return true if daily budget is exceeded.
+ * Budget limit configured via MODEL_DAILY_BUDGET_USD (default: no limit).
+ */
+export function trackUsage(tokens: number, costUsd: number): { overBudget: boolean } {
+  const budget = getBudget();
+  budget.tokens += tokens;
+  budget.cost += costUsd;
+
+  const limit = Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
+  const overBudget = limit > 0 && budget.cost >= limit;
+
+  return { overBudget };
+}
+
+/**
+ * Get today's cumulative usage.
+ */
+export function getDailyUsage(): { tokens: number; cost: number } {
+  const budget = getBudget();
+  return { tokens: budget.tokens, cost: budget.cost };
+}

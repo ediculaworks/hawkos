@@ -23,6 +23,13 @@ export function createSessionCost(model: string): SessionCost {
   };
 }
 
+// Approximate cost per 1M tokens for OpenRouter/openrouter-auto
+const COST_PER_1M = 3.0; // USD (conservative estimate)
+
+export function estimateCostUsd(tokens: number): number {
+  return (tokens / 1_000_000) * COST_PER_1M;
+}
+
 export function trackLLMCall(
   cost: SessionCost,
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number },

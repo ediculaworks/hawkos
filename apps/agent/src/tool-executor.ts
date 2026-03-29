@@ -8,9 +8,31 @@ import { embedMemory } from '@hawk/module-memory/embeddings';
 import { createMemory } from '@hawk/module-memory/queries';
 import type { MemoryType } from '@hawk/module-memory/types';
 import type OpenAI from 'openai';
+import { z } from 'zod';
 import { logActivity } from './activity-logger.js';
 import { hookRegistry } from './hooks/index.js';
 import type { TOOLS } from './tools/index.js';
+
+// ── Tool arg validation schemas ───────────────────────────────────────────
+const saveMemorySchema = z.object({
+  content: z.string().min(1).max(4000),
+  memory_type: z.enum(['profile', 'preference', 'entity', 'event', 'case', 'pattern']),
+  module: z.string().optional(),
+  importance: z.number().int().min(1).max(10).optional(),
+});
+
+const createTransactionSchema = z.object({
+  amount: z.number().positive(),
+  type: z.enum(['expense', 'income']),
+  category: z.string().min(1),
+  description: z.string().optional(),
+  account: z.string().optional(),
+});
+
+const TOOL_SCHEMAS: Record<string, z.ZodTypeAny> = {
+  save_memory: saveMemorySchema,
+  create_transaction: createTransactionSchema,
+};
 
 export async function executeToolCall(
   toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
@@ -23,6 +45,17 @@ export async function executeToolCall(
     args = JSON.parse(toolCall.function.arguments);
   } catch {
     return `Erro: argumentos inválidos para "${name}" (JSON malformado)`;
+  }
+
+  // Validate args against schema if one exists for this tool
+  const schema = TOOL_SCHEMAS[name];
+  if (schema) {
+    const parsed = schema.safeParse(args);
+    if (!parsed.success) {
+      const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
+      return `Erro: argumentos inválidos para "${name}" — ${issues}`;
+    }
+    args = parsed.data as Record<string, unknown>;
   }
 
   // Handle save_memory specially — uses V2 memory system

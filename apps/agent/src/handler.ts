@@ -8,10 +8,10 @@ import { activityDb, logActivity } from './activity-logger.js';
 import type { ResolvedAgent } from './agent-resolver.js';
 import { buildSystemPrompt, resolveAgent } from './agent-resolver.js';
 import { addSession, updateSession } from './api/server.js';
-import { createSessionCost, trackLLMCall, trackToolCall } from './cost-tracker.js';
+import { createSessionCost, estimateCostUsd, trackLLMCall, trackToolCall } from './cost-tracker.js';
 import { compressHistory, needsCompression } from './history-compressor.js';
 import { hookRegistry } from './hooks/index.js';
-import { classifyComplexity, selectModel } from './model-router.js';
+import { classifyComplexity, getDailyUsage, selectModel, trackUsage } from './model-router.js';
 import { checkRateLimit, getOrCreateSession, touchWebSession } from './session-manager.js';
 import { executeToolCall } from './tool-executor.js';
 import { getToolsForModules } from './tools/index.js';
@@ -349,9 +349,19 @@ For simple greetings, quick facts, or single-module queries, respond directly.`;
     };
   }
 
+  // Check daily budget before first LLM call
+  const { overBudget } = trackUsage(0, 0); // just check without adding
+  if (overBudget) {
+    const usage = getDailyUsage();
+    return `[Hawk OS] Limite diário de custo atingido ($${usage.cost.toFixed(2)}). Tente novamente amanhã.`;
+  }
+
   // First call — stream if we have onChunk
   let result = await callLLM(messages, !!onChunk);
   if (sessionCost) trackLLMCall(sessionCost, result.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined);
+  if (result.usage?.total_tokens) {
+    trackUsage(result.usage.total_tokens, estimateCostUsd(result.usage.total_tokens));
+  }
 
   // Track which tools were actually called (for ML training data)
   const toolsActuallyUsed: string[] = [];
@@ -402,6 +412,9 @@ For simple greetings, quick facts, or single-module queries, respond directly.`;
     // After tools, stream the final response
     result = await callLLM(toolMessages, !!onChunk);
     if (sessionCost) trackLLMCall(sessionCost, result.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined);
+    if (result.usage?.total_tokens) {
+      trackUsage(result.usage.total_tokens, estimateCostUsd(result.usage.total_tokens));
+    }
   }
 
   const content = result.content;
