@@ -583,6 +583,30 @@ const agentServer = Bun.serve({
       });
     }
 
+    // ── Client error reporting (from web dashboard error-reporter.ts) ──
+    if (path === '/errors' && method === 'POST') {
+      try {
+        const body = (await req.json()) as {
+          message: string;
+          stack?: string;
+          component?: string;
+          url?: string;
+        };
+        logActivity('client_error', `[${body.component ?? 'unknown'}] ${body.message}`, undefined, {
+          stack: body.stack?.slice(0, 500),
+          url: body.url,
+        }).catch(() => {});
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch {
+        return new Response(JSON.stringify({ ok: false }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     return new Response('Not Found', { status: 404 });
   },
 });

@@ -29,9 +29,33 @@ const createTransactionSchema = z.object({
   account: z.string().optional(),
 });
 
+const logSleepSchema = z.object({
+  duration_h: z.number().min(0).max(24),
+  quality: z.number().int().min(1).max(10).optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+const logWorkoutSchema = z.object({
+  exercise_name: z.string().min(1),
+  sets: z.number().int().positive().optional(),
+  reps: z.number().int().positive().optional(),
+  weight_kg: z.number().min(0).optional(),
+  duration_min: z.number().positive().optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+const createPersonSchema = z.object({
+  name: z.string().min(1).max(200),
+  relationship_type: z.string().optional(),
+  notes: z.string().optional(),
+});
+
 const TOOL_SCHEMAS: Record<string, z.ZodTypeAny> = {
   save_memory: saveMemorySchema,
   create_transaction: createTransactionSchema,
+  log_sleep: logSleepSchema,
+  log_workout: logWorkoutSchema,
+  create_person: createPersonSchema,
 };
 
 export async function executeToolCall(
