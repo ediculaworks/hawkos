@@ -1,5 +1,6 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError } from '@hawk/shared';
+import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { z } from 'zod';
 import type {
   AddTemplateSetInput,
   AddWorkoutSetInput,
@@ -16,11 +17,21 @@ import type {
 
 const logger = createLogger('health:workout');
 
+const LogWorkoutSchema = z.object({
+  type: z.string().min(1),
+  date: z.string().min(1).optional(),
+});
+
 // ─────────────────────────────────────────────
 // Treinos
 // ─────────────────────────────────────────────
 
 export async function logWorkout(input: LogWorkoutInput): Promise<WorkoutSession> {
+  const parsed = LogWorkoutSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid logWorkout input: ${parsed.error.message}`);
+  }
+
   const date = input.date ?? (new Date().toISOString().split('T')[0] as string);
 
   const { data, error } = await db

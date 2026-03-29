@@ -1,7 +1,17 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError } from '@hawk/shared';
+import { z } from 'zod';
+import { createLogger, HawkError, ValidationError } from '@hawk/shared';
 
 const logger = createLogger('objectives');
+
+const CreateObjectiveSchema = z.object({
+  title: z.string().min(1).max(200),
+  priority: z.number().min(1).max(10),
+});
+
+const CreateTaskSchema = z.object({
+  title: z.string().min(1).max(200),
+});
 
 import type {
   CreateObjectiveInput,
@@ -94,6 +104,10 @@ export async function getObjectiveWithTasks(id: string): Promise<ObjectiveWithTa
  * Criar objetivo
  */
 export async function createObjective(input: CreateObjectiveInput): Promise<Objective> {
+  const parsed = CreateObjectiveSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const { data, error } = await db
     .from('objectives')
     .insert({
@@ -206,6 +220,10 @@ export async function listOverdueTasks(): Promise<Task[]> {
  * Criar tarefa
  */
 export async function createTask(input: CreateTaskInput): Promise<Task> {
+  const parsed = CreateTaskSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const { data, error } = await db
     .from('tasks')
     .insert({

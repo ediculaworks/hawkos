@@ -7,13 +7,24 @@ import type {
   EventListOptions,
   FreeSlot,
 } from './types';
-import { createLogger, HawkError } from '@hawk/shared';
+import { z } from 'zod';
+import { createLogger, HawkError, ValidationError } from '@hawk/shared';
 const logger = createLogger('calendar');
+
+const CreateEventSchema = z.object({
+  title: z.string().min(1),
+  start_at: z.string().min(1),
+  end_at: z.string().min(1),
+});
 
 /**
  * Criar um novo evento no calendário
  */
 export async function createEvent(input: CreateEventInput): Promise<CalendarEvent> {
+  const parsed = CreateEventSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const { data, error } = await db
     .from('calendar_events')
     .insert([

@@ -1,5 +1,6 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError } from '@hawk/shared';
+import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { z } from 'zod';
 import type {
   CreateHobbyLogInput,
   CreateMediaInput,

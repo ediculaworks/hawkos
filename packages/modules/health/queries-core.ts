@@ -1,5 +1,6 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError } from '@hawk/shared';
+import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { z } from 'zod';
 import type {
   AddLabResultInput,
   BodyMeasurement,
@@ -19,6 +20,11 @@ import type {
 } from './types';
 
 const logger = createLogger('health:core');
+
+const LogObservationSchema = z.object({
+  code: z.string().min(1),
+  value: z.union([z.string(), z.number()]),
+});
 
 // ─────────────────────────────────────────────
 // Corpo / Peso
@@ -91,6 +97,11 @@ export async function deleteBodyMeasurement(id: string): Promise<void> {
 // ─────────────────────────────────────────────
 
 export async function logSubstance(input: LogSubstanceInput): Promise<SubstanceLog> {
+  const parsed = LogObservationSchema.safeParse({ code: input.substance, value: input.quantity ?? 0 });
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid logSubstance input: ${parsed.error.message}`);
+  }
+
   const { data, error } = await db
     .from('substance_logs')
     .insert({
