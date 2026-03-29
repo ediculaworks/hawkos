@@ -2,40 +2,35 @@
 
 **Ultima atualizacao:** 2026-03-29
 
-## System Hardening (2026-03-28)
+## Wave 2 Improvements (2026-03-29)
 **Status: [✅ Completo]**
 
-Auditoria completa do sistema resultou em nota 45/100 (benchmarked contra Linear, Vercel, Claude Assistants). Implementacao de melhorias elevou para ~69/100.
+Continuacao do hardening. Score estimado subiu de ~69 para ~78/100.
 
 ### O que foi implementado:
 
 | Area | O que mudou |
 |------|------------|
-| Error Handling | 312 `throw new Error()` -> HawkError com codigos semanticos em 18/18 modulos |
-| Structured Logging | pino logger (`createLogger`) em 18/18 modulos |
-| Zod Validation | Input validation em 15/18 modulos (mutations criticas) |
-| CI/CD | GitHub Actions: lint + test + build em cada push/PR |
-| Security | CSP, HSTS, X-Frame-Options, rate limiting, env validation |
-| Agent Intelligence | ReAct prompting, reflect step, model routing por complexidade |
-| Token Optimization | History compression a 60k tokens, cost tracking por sessao |
-| Memory System | Knowledge graph links (memory_links table), feature flags |
-| Dashboard | Dark/light mode, Suspense em 11+ paginas, error reporter |
-| Discord | Streaming com progressive message.edit() |
-| Code Organization | handler.ts split (848->617), health queries split, server.ts route handlers |
-| Audit Logging | audit_log table + triggers em finance_transactions e health_observations |
-| Automations | 4 reativadas (checkin, review, alerts, streak-guardian) |
-| Testing | 59->84 testes, 7->12 test files |
-| Dead Code | Removed tools.ts (1079 LOC), cleaned server.ts (-313 LOC) |
-| Pre-commit | Biome check hook via .husky/pre-commit |
-
-### Documentacao:
-- `resources/planning/SYSTEM-AUDIT-2026-03-27.md` — auditoria completa (12 dimensoes)
-- `resources/planning/EXECUTION-PLAN-CRITICAL-GAPS.md` — plano de 3 fases
+| Zod Validation | +3 modulos completados: career, entertainment, legal → 18/18 agora |
+| Tool Arg Validation | Zod schemas para save_memory, create_transaction, log_sleep, log_workout, create_person |
+| Budget Control | Daily budget guard: MODEL_DAILY_BUDGET_USD env var, trackUsage() no handler |
+| Memory System | getLinkedMemories com BFS multi-hop real (ate 3 hops), explore_memory_graph tool |
+| Context Engine | Keywords expandidos (~3x mais por modulo), requiresSpecificData patterns adicionados |
+| Agent Intelligence | Confidence signaling: "Acredito que..." / "Nao tenho certeza..." instructions |
+| Mobile | Dashboard layout, sidebar overlay, topbar hamburger, finances/health/people/objectives/calendar/routine |
+| A11y | aria-label em sidebar/topbar, aria-current em nav links, biome ARIA rules enabled |
+| Tests | 84 → 117 testes, 12 → 15 test files (context-engine, shared/validation, agent-resolver) |
+| i18n | next-intl wired: withNextIntl plugin + NextIntlClientProvider em layout |
+| Error Tracking | /errors endpoint no agent server + error-reporter.ts no web |
+| Welcome Wizard | Componente de onboarding para novos usuarios |
+| Web Vitals | initWebVitals() monitorando LCP/FID/CLS |
+| Memory Forgetter | Automation: arquiva memorias nao usadas (>90d sem acesso ou >180d) |
+| Layout Export/Import | Export/import de widget layout como JSON nas settings |
 
 ## P0 Proximas Acoes
 
-1. Testes E2E com Playwright (login, settings, automations)
-2. Split server.ts remaining inline routes (workspace, logs, agents, demands)
-3. Mobile responsiveness nas paginas principais
-4. i18n infrastructure (next-intl)
-5. Agent settings configuravel via web UI
+1. Knowledge graph visualization no memory dashboard
+2. Testes E2E com Playwright (login, settings, automations)
+3. Proactive insights via gap-scanner UI
+4. PWA support (manifest + service worker)
+5. Multi-tenant observability (por-tenant activity_log dashboard)
