@@ -97,7 +97,7 @@ function HabitForm({ onSuccess }: { onSuccess: () => void }) {
   return (
     <Card>
       <CardContent className="pt-[var(--space-5)]">
-        <div className="flex items-center gap-[var(--space-3)]">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-[var(--space-3)]">
           <input
             type="text"
             value={name}

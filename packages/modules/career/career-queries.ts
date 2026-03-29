@@ -1,4 +1,5 @@
 import { db } from '@hawk/db';
+import { HawkError, createLogger } from '@hawk/shared';
 import type {
   CareerCertification,
   CareerEducation,
@@ -12,6 +13,8 @@ import type {
   CreateSkillInput,
   SkillCategory,
 } from './career-types';
+
+const logger = createLogger('career');
 
 let _cachedProfileId: string | null = null;
 
@@ -32,13 +35,19 @@ export async function getCareerProfile(): Promise<CareerProfile | null> {
     .eq('profile_id', profileId)
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to get career profile: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get career profile');
+    throw new HawkError(`Failed to get career profile: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return data as CareerProfile | null;
 }
 
 export async function upsertCareerProfile(input: CreateProfileInput): Promise<CareerProfile> {
   const profileId = await getCareerProfileId();
-  if (!profileId) throw new Error('No authenticated user');
+  if (!profileId) {
+    logger.error({}, 'No authenticated user');
+    throw new HawkError('No authenticated user', 'VALIDATION_ERROR');
+  }
 
   const { data, error } = await db
     .from('career_profiles')
@@ -65,7 +74,10 @@ export async function upsertCareerProfile(input: CreateProfileInput): Promise<Ca
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to upsert career profile: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to upsert career profile');
+    throw new HawkError(`Failed to upsert career profile: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as CareerProfile;
 }
 
@@ -79,7 +91,10 @@ export async function listCareerExperiences(): Promise<CareerExperience[]> {
     .eq('profile_id', profileId)
     .order('start_date', { ascending: false });
 
-  if (error) throw new Error(`Failed to list experiences: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list experiences');
+    throw new HawkError(`Failed to list experiences: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as CareerExperience[];
 }
 
@@ -88,7 +103,10 @@ export async function upsertCareerExperience(
   id?: string,
 ): Promise<CareerExperience> {
   const profileId = await getCareerProfileId();
-  if (!profileId) throw new Error('No authenticated user');
+  if (!profileId) {
+    logger.error({}, 'No authenticated user');
+    throw new HawkError('No authenticated user', 'VALIDATION_ERROR');
+  }
 
   const payload = {
     profile_id: profileId,
@@ -116,7 +134,10 @@ export async function upsertCareerExperience(
       .select()
       .single();
 
-    if (error) throw new Error(`Failed to update experience: ${error.message}`);
+    if (error) {
+      logger.error({ error: error.message }, 'Failed to update experience');
+      throw new HawkError(`Failed to update experience: ${error.message}`, 'DB_UPDATE_FAILED');
+    }
     return data as CareerExperience;
   }
 
@@ -127,13 +148,19 @@ export async function upsertCareerExperience(
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to insert experience: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to insert experience');
+    throw new HawkError(`Failed to insert experience: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as CareerExperience;
 }
 
 export async function deleteCareerExperience(id: string): Promise<void> {
   const profileId = await getCareerProfileId();
-  if (!profileId) throw new Error('No authenticated user');
+  if (!profileId) {
+    logger.error({}, 'No authenticated user');
+    throw new HawkError('No authenticated user', 'VALIDATION_ERROR');
+  }
 
   const { error } = await db
     .from('career_experiences')
@@ -141,7 +168,10 @@ export async function deleteCareerExperience(id: string): Promise<void> {
     .eq('id', id)
     .eq('profile_id', profileId);
 
-  if (error) throw new Error(`Failed to delete experience: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete experience');
+    throw new HawkError(`Failed to delete experience: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 export async function listCareerEducations(): Promise<CareerEducation[]> {
@@ -154,7 +184,10 @@ export async function listCareerEducations(): Promise<CareerEducation[]> {
     .eq('profile_id', profileId)
     .order('start_date', { ascending: false });
 
-  if (error) throw new Error(`Failed to list educations: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list educations');
+    throw new HawkError(`Failed to list educations: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as CareerEducation[];
 }
 
@@ -163,7 +196,10 @@ export async function upsertCareerEducation(
   id?: string,
 ): Promise<CareerEducation> {
   const profileId = await getCareerProfileId();
-  if (!profileId) throw new Error('No authenticated user');
+  if (!profileId) {
+    logger.error({}, 'No authenticated user');
+    throw new HawkError('No authenticated user', 'VALIDATION_ERROR');
+  }
 
   const payload = {
     profile_id: profileId,
@@ -188,19 +224,28 @@ export async function upsertCareerEducation(
       .select()
       .single();
 
-    if (error) throw new Error(`Failed to update education: ${error.message}`);
+    if (error) {
+      logger.error({ error: error.message }, 'Failed to update education');
+      throw new HawkError(`Failed to update education: ${error.message}`, 'DB_UPDATE_FAILED');
+    }
     return data as CareerEducation;
   }
 
   const { data, error } = await db.from('career_educations').insert(payload).select().single();
 
-  if (error) throw new Error(`Failed to insert education: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to insert education');
+    throw new HawkError(`Failed to insert education: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as CareerEducation;
 }
 
 export async function deleteCareerEducation(id: string): Promise<void> {
   const profileId = await getCareerProfileId();
-  if (!profileId) throw new Error('No authenticated user');
+  if (!profileId) {
+    logger.error({}, 'No authenticated user');
+    throw new HawkError('No authenticated user', 'VALIDATION_ERROR');
+  }
 
   const { error } = await db
     .from('career_educations')
@@ -208,7 +253,10 @@ export async function deleteCareerEducation(id: string): Promise<void> {
     .eq('id', id)
     .eq('profile_id', profileId);
 
-  if (error) throw new Error(`Failed to delete education: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete education');
+    throw new HawkError(`Failed to delete education: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 export async function listCareerSkills(category?: SkillCategory): Promise<CareerSkill[]> {
@@ -221,7 +269,10 @@ export async function listCareerSkills(category?: SkillCategory): Promise<Career
   }
   const { data, error } = await q.order('level', { ascending: false });
 
-  if (error) throw new Error(`Failed to list skills: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list skills');
+    throw new HawkError(`Failed to list skills: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as CareerSkill[];
 }
 
@@ -230,7 +281,10 @@ export async function upsertCareerSkill(
   id?: string,
 ): Promise<CareerSkill> {
   const profileId = await getCareerProfileId();
-  if (!profileId) throw new Error('No authenticated user');
+  if (!profileId) {
+    logger.error({}, 'No authenticated user');
+    throw new HawkError('No authenticated user', 'VALIDATION_ERROR');
+  }
 
   const payload = {
     profile_id: profileId,
@@ -250,7 +304,10 @@ export async function upsertCareerSkill(
       .select()
       .single();
 
-    if (error) throw new Error(`Failed to update skill: ${error.message}`);
+    if (error) {
+      logger.error({ error: error.message }, 'Failed to update skill');
+      throw new HawkError(`Failed to update skill: ${error.message}`, 'DB_UPDATE_FAILED');
+    }
     return data as CareerSkill;
   }
 
@@ -260,13 +317,19 @@ export async function upsertCareerSkill(
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to upsert skill: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to upsert skill');
+    throw new HawkError(`Failed to upsert skill: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as CareerSkill;
 }
 
 export async function deleteCareerSkill(id: string): Promise<void> {
   const profileId = await getCareerProfileId();
-  if (!profileId) throw new Error('No authenticated user');
+  if (!profileId) {
+    logger.error({}, 'No authenticated user');
+    throw new HawkError('No authenticated user', 'VALIDATION_ERROR');
+  }
 
   const { error } = await db
     .from('career_skills')
@@ -274,7 +337,10 @@ export async function deleteCareerSkill(id: string): Promise<void> {
     .eq('id', id)
     .eq('profile_id', profileId);
 
-  if (error) throw new Error(`Failed to delete skill: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete skill');
+    throw new HawkError(`Failed to delete skill: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }
 
 export async function listCareerCertifications(): Promise<CareerCertification[]> {
@@ -287,7 +353,10 @@ export async function listCareerCertifications(): Promise<CareerCertification[]>
     .eq('profile_id', profileId)
     .order('issue_date', { ascending: false });
 
-  if (error) throw new Error(`Failed to list certifications: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to list certifications');
+    throw new HawkError(`Failed to list certifications: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as CareerCertification[];
 }
 
@@ -296,7 +365,10 @@ export async function upsertCareerCertification(
   id?: string,
 ): Promise<CareerCertification> {
   const profileId = await getCareerProfileId();
-  if (!profileId) throw new Error('No authenticated user');
+  if (!profileId) {
+    logger.error({}, 'No authenticated user');
+    throw new HawkError('No authenticated user', 'VALIDATION_ERROR');
+  }
 
   const payload = {
     profile_id: profileId,
@@ -318,19 +390,28 @@ export async function upsertCareerCertification(
       .select()
       .single();
 
-    if (error) throw new Error(`Failed to update certification: ${error.message}`);
+    if (error) {
+      logger.error({ error: error.message }, 'Failed to update certification');
+      throw new HawkError(`Failed to update certification: ${error.message}`, 'DB_UPDATE_FAILED');
+    }
     return data as CareerCertification;
   }
 
   const { data, error } = await db.from('career_certifications').insert(payload).select().single();
 
-  if (error) throw new Error(`Failed to insert certification: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to insert certification');
+    throw new HawkError(`Failed to insert certification: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as CareerCertification;
 }
 
 export async function deleteCareerCertification(id: string): Promise<void> {
   const profileId = await getCareerProfileId();
-  if (!profileId) throw new Error('No authenticated user');
+  if (!profileId) {
+    logger.error({}, 'No authenticated user');
+    throw new HawkError('No authenticated user', 'VALIDATION_ERROR');
+  }
 
   const { error } = await db
     .from('career_certifications')
@@ -338,5 +419,8 @@ export async function deleteCareerCertification(id: string): Promise<void> {
     .eq('id', id)
     .eq('profile_id', profileId);
 
-  if (error) throw new Error(`Failed to delete certification: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to delete certification');
+    throw new HawkError(`Failed to delete certification: ${error.message}`, 'DB_DELETE_FAILED');
+  }
 }

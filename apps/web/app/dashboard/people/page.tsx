@@ -95,7 +95,7 @@ export default function PeoplePage() {
       <Suspense fallback={<PageSkeleton />}>
         <AnimatedPage className="space-y-[var(--space-5)]">
           <CrmHeader view={view} onViewChange={setView} onAddPerson={() => setAddOpen(true)} />
-          <div className="flex gap-[var(--space-6)] items-start">
+          <div className="flex flex-col md:flex-row gap-4 md:gap-[var(--space-6)] items-start">
             <div className="flex-1 min-w-0 space-y-[var(--space-5)]">
               <ListSkeleton items={6} />
             </div>
@@ -118,7 +118,7 @@ export default function PeoplePage() {
         <AddPersonForm onToggle={undefined} expanded={true} />
       </EditSheet>
 
-      <div className="flex gap-[var(--space-6)] items-start">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-[var(--space-6)] items-start">
         {/* Main content */}
         <div className="flex-1 min-w-0 space-y-[var(--space-5)]">
           {/* FOCUS VIEW */}
@@ -195,7 +195,7 @@ export default function PeoplePage() {
                   >
                     {REL_LABELS[rel]} ({group.length})
                   </span>
-                  <div className="grid grid-cols-2 gap-[var(--space-2)] lg:grid-cols-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-[var(--space-2)] lg:grid-cols-3">
                     {group.map((p) => (
                       <button
                         key={p.id}

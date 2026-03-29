@@ -175,7 +175,7 @@ function CalendarContent() {
 
   return (
     <AnimatedPage>
-      <div className="flex gap-[var(--space-6)] items-start">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-[var(--space-6)] items-start">
         {/* Main: Calendar grid */}
         <div className="flex-1 min-w-0 space-y-[var(--space-5)]">
           {/* Month nav */}
@@ -481,7 +481,7 @@ function EventForm({ onSuccess }: { onSuccess: () => void }) {
   return (
     <Card>
       <CardContent className="pt-[var(--space-4)]">
-        <div className="grid grid-cols-2 gap-[var(--space-3)] lg:grid-cols-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[var(--space-3)] lg:grid-cols-4">
           <input
             type="text"
             value={title}
@@ -524,7 +524,7 @@ function EventForm({ onSuccess }: { onSuccess: () => void }) {
             />
           </div>
         )}
-        <div className="grid grid-cols-2 gap-[var(--space-3)] mt-[var(--space-3)]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[var(--space-3)] mt-[var(--space-3)]">
           <input
             type="text"
             value={location}
