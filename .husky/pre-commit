@@ -1,0 +1,14 @@
+#!/bin/sh
+# Pre-commit hook: run biome check on staged files
+# Only checks .ts/.tsx files to keep it fast
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$')
+
+if [ -n "$STAGED_FILES" ]; then
+  echo "[pre-commit] Checking staged files with Biome..."
+  npx biome check --no-errors-on-unmatched $STAGED_FILES
+  if [ $? -ne 0 ]; then
+    echo "[pre-commit] Biome check failed. Fix errors before committing."
+    exit 1
+  fi
+fi

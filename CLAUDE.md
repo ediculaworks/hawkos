@@ -10,14 +10,13 @@
 - Supabase (PostgreSQL) como banco de dados
 - **11 módulos activos** na sidebar (16 no código)
 
-## Documentação
+## Documentacao
 
-- **Plano de execução ativo:** `resources/planning/EXECUTION-PLAN.md`
-- **Princípios:** `resources/planning/PRINCIPLES.md`
-- **Roadmap:** `resources/planning/roadmap/INDEX.md`
 - **Estado atual:** `.claude/rules/current-status.md`
-- **Stack técnica:** `.claude/rules/stack.md`
+- **Stack tecnica:** `.claude/rules/stack.md`
 - **Arquitetura:** `.claude/rules/architecture.md`
+- **Auditoria do sistema:** `resources/planning/SYSTEM-AUDIT-2026-03-27.md`
+- **Plano de execucao:** `resources/planning/EXECUTION-PLAN-CRITICAL-GAPS.md`
 
 ## Como rodar
 
@@ -36,7 +35,7 @@ bun dev                  # rodar todos os apps em modo dev
 - Migrations: `packages/db/supabase/migrations/YYYYMMDDHHMMSS_nome.sql`
 - Módulos: `packages/modules/<nome>/{index,types,queries,commands,context}.ts`
 - Commits: `fix(bug): descrição` | `feat(module): descrição` | `migration(módulo): descrição`
-- Ao concluir: atualizar `resources/planning/EXECUTION-PLAN.md` + `CHANGELOG.md`
+- Ao concluir: atualizar `.claude/rules/current-status.md`
 
 ## 11 Módulos Activos
 

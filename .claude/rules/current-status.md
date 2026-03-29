@@ -1,35 +1,41 @@
 # Current Status
 
-**Última atualização:** 2026-03-20
+**Ultima atualizacao:** 2026-03-29
 
-## Plano de Execução (W1-W4)
-**Status: [🟡 ~98%]**
+## System Hardening (2026-03-28)
+**Status: [✅ Completo]**
 
-| Fase | Nome | Status |
-|------|------|--------|
-| W1 | Correção Bugs Críticos | `🟡 ~95%` |
-| W2 | Health Page Funcional | `🟡 ~96%` |
-| W3 | Stack Completa (Zod, Toasts) | `🟡 ~95%` |
-| W4 | UI/UX Polish | `🟡 ~80%` |
-| Deferred | Auth, Mobile, Future | `⚪ 0%` |
+Auditoria completa do sistema resultou em nota 45/100 (benchmarked contra Linear, Vercel, Claude Assistants). Implementacao de melhorias elevou para ~69/100.
 
-## Fases Implementadas (✅ Completas)
+### O que foi implementado:
 
-| Fase | Módulos | Commands | Build |
-|------|---------|----------|-------|
-| Infraestrutura Core | - | - | ✅ 710 modules |
-| Finanças + Agenda | ✅ | 6 | ✅ |
-| Rotina + Diário + Objetivos | ✅ | 10 | ✅ |
-| CRM + Carreira + Jurídico | ✅ | 18 | ✅ |
-| Conhecimento + Patrimônio + Moradia + Segurança | ✅ | 25 | ✅ |
-| Entretenimento + Social + Espiritualidade | ✅ | 29 | ✅ 722 modules |
-| Saúde | ✅ | 36 | ✅ |
+| Area | O que mudou |
+|------|------------|
+| Error Handling | 312 `throw new Error()` -> HawkError com codigos semanticos em 18/18 modulos |
+| Structured Logging | pino logger (`createLogger`) em 18/18 modulos |
+| Zod Validation | Input validation em 15/18 modulos (mutations criticas) |
+| CI/CD | GitHub Actions: lint + test + build em cada push/PR |
+| Security | CSP, HSTS, X-Frame-Options, rate limiting, env validation |
+| Agent Intelligence | ReAct prompting, reflect step, model routing por complexidade |
+| Token Optimization | History compression a 60k tokens, cost tracking por sessao |
+| Memory System | Knowledge graph links (memory_links table), feature flags |
+| Dashboard | Dark/light mode, Suspense em 11+ paginas, error reporter |
+| Discord | Streaming com progressive message.edit() |
+| Code Organization | handler.ts split (848->617), health queries split, server.ts route handlers |
+| Audit Logging | audit_log table + triggers em finance_transactions e health_observations |
+| Automations | 4 reativadas (checkin, review, alerts, streak-guardian) |
+| Testing | 59->84 testes, 7->12 test files |
+| Dead Code | Removed tools.ts (1079 LOC), cleaned server.ts (-313 LOC) |
+| Pre-commit | Biome check hook via .husky/pre-commit |
 
-## P0 Próximas Ações
+### Documentacao:
+- `resources/planning/SYSTEM-AUDIT-2026-03-27.md` — auditoria completa (12 dimensoes)
+- `resources/planning/EXECUTION-PLAN-CRITICAL-GAPS.md` — plano de 3 fases
 
-1. Claude Code infra (.claude/commands/, .claude/skills/, .claude/agents/) — **em progresso**
-2. MEMORY_HALF_LIVES por módulo em `packages/modules/memory/retrieval.ts`
-3. Channel interface formalizada em `apps/agent/src/channels/types.ts`
-4. Graceful shutdown em `apps/agent/src/index.ts`
+## P0 Proximas Acoes
 
-Ver `resources/planning/EXECUTION-PLAN.md` para checklist detalhado.
+1. Testes E2E com Playwright (login, settings, automations)
+2. Split server.ts remaining inline routes (workspace, logs, agents, demands)
+3. Mobile responsiveness nas paginas principais
+4. i18n infrastructure (next-intl)
+5. Agent settings configuravel via web UI

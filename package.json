@@ -18,7 +18,8 @@
     "agent": "bun run --env-file=.env apps/agent/src/index.ts",
     "db:migrate": "bun run --env-file=.env scripts/migrate.ts",
     "db:types": "bun run --env-file=.env scripts/gen-types.ts",
-    "setup": "bun scripts/setup.ts"
+    "setup": "bun scripts/setup.ts",
+    "prepare": "git config core.hooksPath .husky"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
