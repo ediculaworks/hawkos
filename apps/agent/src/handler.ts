@@ -134,7 +134,9 @@ When handling complex or multi-step requests, follow this reasoning pattern:
 3. OBSERVE: Check if the results fully answer the question
 4. REFLECT: If incomplete, explain what's missing and plan next steps
 
-For simple greetings, quick facts, or single-module queries, respond directly.`;
+For simple greetings, quick facts, or single-module queries, respond directly.
+
+When you are uncertain about information (no tool results, working from memory, or data is older than a week), prefix your statement with "Acredito que..." or "Não tenho certeza, mas..." to signal confidence level. Never state uncertain facts as definitive.`;
 
   const systemPrompt = isComplexQuery
     ? `${basePrompt}\n\n${REACT_INSTRUCTION}`
