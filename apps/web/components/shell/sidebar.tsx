@@ -25,14 +25,35 @@ export function Sidebar() {
   const pathname = usePathname();
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const sidebarMobileOpen = useUIStore((s) => s.sidebarMobileOpen);
+  const setSidebarMobileOpen = useUIStore((s) => s.setSidebarMobileOpen);
   const badges = useSidebarBadges();
 
+  // Close mobile sidebar on navigation
+  const handleNavClick = () => {
+    setSidebarMobileOpen(false);
+  };
+
   return (
+    <>
+      {/* Mobile backdrop */}
+      {sidebarMobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={() => setSidebarMobileOpen(false)}
+          onKeyDown={(e) => e.key === 'Escape' && setSidebarMobileOpen(false)}
+        />
+      )}
     <aside
       className={cn(
-        'fixed left-0 top-0 z-30 flex h-screen flex-col border-r border-[var(--color-border-subtle)] bg-[var(--color-surface-0)]',
-        'transition-[width] duration-[var(--duration-slow)] ease-[var(--ease-out-quart)]',
-        sidebarCollapsed ? 'w-[var(--sidebar-collapsed)]' : 'w-[var(--sidebar-width)]',
+        'fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-[var(--color-border-subtle)] bg-[var(--color-surface-0)]',
+        'transition-[width,transform] duration-[var(--duration-slow)] ease-[var(--ease-out-quart)]',
+        // Desktop: collapse/expand by width
+        'md:translate-x-0',
+        sidebarCollapsed ? 'md:w-[var(--sidebar-collapsed)]' : 'md:w-[var(--sidebar-width)]',
+        // Mobile: always full width sidebar, slide in/out
+        'w-[var(--sidebar-width)]',
+        sidebarMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
       )}
     >
       {/* Header */}
@@ -145,6 +166,7 @@ export function Sidebar() {
         </nav>
       </ScrollArea>
     </aside>
+    </>
   );
 }
 
@@ -156,6 +178,7 @@ function SidebarLink({
   isActive,
   collapsed,
   badge,
+  onNavigate,
 }: {
   href: string;
   label: string;
@@ -164,11 +187,13 @@ function SidebarLink({
   isActive: boolean;
   collapsed: boolean;
   badge?: number;
+  onNavigate?: () => void;
 }) {
   return (
     <Link
       href={href}
       prefetch={false}
+      onClick={onNavigate}
       className={cn(
         'group flex items-center gap-[var(--space-3)] rounded-[var(--radius-md)] px-[var(--space-3)] min-h-[36px]',
         'transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out-quart)]',

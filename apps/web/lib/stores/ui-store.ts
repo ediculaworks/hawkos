@@ -7,13 +7,18 @@ type Theme = 'dark' | 'light';
 
 type UIState = {
   theme: Theme;
+  timezone: string;
   sidebarCollapsed: boolean;
+  sidebarMobileOpen: boolean;
   commandPaletteOpen: boolean;
   sectionOrders: Record<string, string[]>;
   collapsedSections: Record<string, string[]>;
   setTheme: (theme: Theme) => void;
+  setTimezone: (timezone: string) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  setSidebarMobileOpen: (open: boolean) => void;
+  toggleSidebarMobile: () => void;
   openCommandPalette: () => void;
   closeCommandPalette: () => void;
   toggleCommandPalette: () => void;
@@ -27,7 +32,9 @@ export const useUIStore = create<UIState>()(
   persist(
     (set, get) => ({
       theme: 'dark' as Theme,
+      timezone: 'America/Sao_Paulo',
       sidebarCollapsed: false,
+      sidebarMobileOpen: false,
       commandPaletteOpen: false,
       sectionOrders: {},
       collapsedSections: {},
@@ -39,8 +46,16 @@ export const useUIStore = create<UIState>()(
           document.documentElement.style.colorScheme = theme;
         }
       },
+      setTimezone: (timezone) => {
+        set({ timezone });
+        if (typeof document !== 'undefined') {
+          document.documentElement.dataset.timezone = timezone;
+        }
+      },
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+      setSidebarMobileOpen: (open) => set({ sidebarMobileOpen: open }),
+      toggleSidebarMobile: () => set((s) => ({ sidebarMobileOpen: !s.sidebarMobileOpen })),
       openCommandPalette: () => set({ commandPaletteOpen: true }),
       closeCommandPalette: () => set({ commandPaletteOpen: false }),
       toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),

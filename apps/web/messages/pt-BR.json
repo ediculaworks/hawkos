@@ -1,0 +1,59 @@
+{
+  "common": {
+    "loading": "Carregando...",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "create": "Criar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "export": "Exportar",
+    "import": "Importar",
+    "back": "Voltar",
+    "next": "Proximo",
+    "confirm": "Confirmar",
+    "yes": "Sim",
+    "no": "Nao",
+    "error": "Erro",
+    "success": "Sucesso",
+    "noData": "Nenhum dado encontrado",
+    "retry": "Tentar novamente"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "finances": "Financas",
+    "health": "Saude",
+    "people": "Pessoas",
+    "career": "Carreira",
+    "objectives": "Objetivos",
+    "routine": "Rotina",
+    "calendar": "Agenda",
+    "assets": "Patrimonio",
+    "entertainment": "Entretenimento",
+    "legal": "Juridico",
+    "housing": "Moradia",
+    "settings": "Configuracoes",
+    "memory": "Memoria",
+    "automations": "Automacoes"
+  },
+  "settings": {
+    "title": "Configuracoes",
+    "appearance": "Aparencia",
+    "theme": "Tema",
+    "dark": "Escuro",
+    "light": "Claro",
+    "auto": "Automatico",
+    "timezone": "Fuso horario",
+    "language": "Idioma",
+    "sidebar": "Sidebar",
+    "sidebarCollapsed": "Sidebar colapsada",
+    "sidebarCollapsedDesc": "Manter a sidebar recolhida por padrao"
+  },
+  "auth": {
+    "login": "Entrar",
+    "logout": "Sair",
+    "unauthorized": "Nao autorizado",
+    "sessionExpired": "Sessao expirada"
+  }
+}

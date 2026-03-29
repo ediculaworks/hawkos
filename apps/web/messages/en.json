@@ -1,0 +1,59 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "back": "Back",
+    "next": "Next",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No",
+    "error": "Error",
+    "success": "Success",
+    "noData": "No data found",
+    "retry": "Try again"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "finances": "Finances",
+    "health": "Health",
+    "people": "People",
+    "career": "Career",
+    "objectives": "Objectives",
+    "routine": "Routine",
+    "calendar": "Calendar",
+    "assets": "Assets",
+    "entertainment": "Entertainment",
+    "legal": "Legal",
+    "housing": "Housing",
+    "settings": "Settings",
+    "memory": "Memory",
+    "automations": "Automations"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "dark": "Dark",
+    "light": "Light",
+    "auto": "Auto",
+    "timezone": "Timezone",
+    "language": "Language",
+    "sidebar": "Sidebar",
+    "sidebarCollapsed": "Collapsed sidebar",
+    "sidebarCollapsedDesc": "Keep sidebar collapsed by default"
+  },
+  "auth": {
+    "login": "Sign in",
+    "logout": "Sign out",
+    "unauthorized": "Unauthorized",
+    "sessionExpired": "Session expired"
+  }
+}
