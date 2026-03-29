@@ -50,32 +50,53 @@ const KEYWORD_WEIGHT = 0.4;
 const EMBEDDING_WEIGHT = 0.6;
 
 const moduleKeywords: Record<ModuleId, string[]> = {
-  finances: ['gasto', 'receita', 'dinheiro', 'saldo', 'dívida', 'pagar', 'comprar', 'custo', 'r$'],
-  health: [
-    'saúde',
-    'treino',
-    'academia',
-    'humor',
-    'sono',
-    'remédio',
-    'peso',
-    'cannabis',
-    'cigarro',
+  finances: [
+    'gasto', 'receita', 'dinheiro', 'saldo', 'dívida', 'pagar', 'comprar', 'custo', 'r$',
+    'fatura', 'conta', 'investimento', 'cartão', 'transferência', 'orçamento', 'budget',
+    'despesa', 'salário', 'renda', 'extrato', 'banco', 'pix', 'boleto',
   ],
-  people: ['pessoa', 'contato', 'ligou', 'mensagem', 'encontrei', 'aniversário'],
-  career: ['trabalho', 'empresa', 'emprego', 'projeto', 'horas', 'freelance'],
-  objectives: ['objetivo', 'meta', 'tarefa', 'progresso'],
-  knowledge: ['nota', 'insight', 'referência', 'livro', 'aprendi'],
-  routine: ['hábito', 'streak', 'rotina'],
-  assets: ['bem', 'documento', 'patrimônio'],
-  entertainment: ['filme', 'série', 'música', 'skate', 'lazer'],
-  legal: ['imposto', 'cnpj', 'das', 'irpf', 'contrato', 'prazo'],
-  social: ['post', 'instagram', 'linkedin'],
-  spirituality: ['reflexão', 'gratidão', 'valores'],
-  housing: ['aluguel', 'casa', 'conta de'],
-  security: ['senha', 'backup', '2fa', 'segurança'],
-  calendar: ['agenda', 'evento', 'amanhã', 'semana', 'compromisso', 'consulta'],
-  journal: ['diário', 'hoje foi', 'dia foi', 'registrar'],
+  health: [
+    'saúde', 'treino', 'academia', 'humor', 'sono', 'remédio', 'peso',
+    'cannabis', 'cigarro', 'corrida', 'exercício', 'médico', 'consulta médica',
+    'calorias', 'dieta', 'alimentação', 'dor', 'cansado', 'energia', 'musculação',
+  ],
+  people: [
+    'pessoa', 'contato', 'ligou', 'mensagem', 'encontrei', 'aniversário',
+    'amigo', 'família', 'colega', 'namorada', 'namorado', 'reunião com',
+    'falei com', 'conversei', 'relacionamento',
+  ],
+  career: [
+    'trabalho', 'empresa', 'emprego', 'projeto', 'horas', 'freelance',
+    'cliente', 'reunião', 'sprint', 'deadline', 'entrega', 'produtividade',
+    'promoção', 'carreira', 'currículo',
+  ],
+  objectives: [
+    'objetivo', 'meta', 'tarefa', 'progresso', 'concluir', 'completar',
+    'prazo', 'milestone', 'okr', 'kpi', 'resultado',
+  ],
+  knowledge: ['nota', 'insight', 'referência', 'livro', 'aprendi', 'wiki', 'artigo', 'documentação'],
+  routine: ['hábito', 'streak', 'rotina', 'todos os dias', 'diariamente', 'meditação', 'checklist'],
+  assets: ['bem', 'documento', 'patrimônio', 'ativo', 'carro', 'imóvel', 'garantia'],
+  entertainment: [
+    'filme', 'série', 'música', 'skate', 'lazer', 'jogo', 'podcast',
+    'netflix', 'spotify', 'assistir', 'ouvir', 'jogar',
+  ],
+  legal: [
+    'imposto', 'cnpj', 'das', 'irpf', 'contrato', 'prazo',
+    'obrigação', 'declaração', 'receita federal', 'mei', 'nota fiscal',
+  ],
+  social: ['post', 'instagram', 'linkedin', 'twitter', 'rede social', 'publicar'],
+  spirituality: ['reflexão', 'gratidão', 'valores', 'meditação', 'propósito', 'mindfulness'],
+  housing: [
+    'aluguel', 'casa', 'conta de', 'moradia', 'apartamento', 'condomínio',
+    'luz', 'água', 'internet', 'reforma',
+  ],
+  security: ['senha', 'backup', '2fa', 'segurança', 'autenticação', 'vazamento', 'vpn'],
+  calendar: [
+    'agenda', 'evento', 'amanhã', 'semana', 'compromisso', 'consulta',
+    'reunião', 'lembrar', 'lembrete', 'horário', 'data', 'próxima semana',
+  ],
+  journal: ['diário', 'hoje foi', 'dia foi', 'registrar', 'anotação do dia', 'reflexão do dia'],
 };
 
 /**
@@ -151,6 +172,18 @@ function requiresSpecificData(message: string): boolean {
     /relatório/i,
     /\d{1,2}\/\d{1,2}/, // data específica
     /janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro/i,
+    // Extended patterns for other modules
+    /última.*vez/i,
+    /resumo/i,
+    /quando foi/i,
+    /próximo.*compromisso/i,
+    /meu.*objetivo/i,
+    /minha.*meta/i,
+    /status.*projeto/i,
+    /progresso/i,
+    /dormi.*quantas/i,
+    /minhas.*memórias/i,
+    /lista.*de/i,
   ];
   return specificPatterns.some((pattern) => pattern.test(message));
 }
