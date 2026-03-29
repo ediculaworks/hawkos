@@ -1,10 +1,12 @@
-import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Database } from '@hawk/db';
 import { createClient } from '@supabase/supabase-js';
 import { AUTOMATIONS, handleAutomationsRoute } from './routes/automations.js';
+import { handleAgentsRoute } from './routes/agents.js';
 import { handleChatRoute } from './routes/chat.js';
+import { handleLogsRoute } from './routes/logs.js';
+import { handleWorkspaceRoute } from './routes/workspace.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WORKSPACE_DIR = join(__dirname, '../../../workspace');
@@ -508,6 +510,18 @@ const agentServer = Bun.serve({
     const chatResponse = await handleChatRoute(path, method, req, url, corsHeaders, requireSupabase);
     if (chatResponse) return chatResponse;
 
+    // Logs routes (delegated to routes/logs.ts)
+    const logsResponse = await handleLogsRoute(path, method, req, url, corsHeaders, requireSupabase);
+    if (logsResponse) return logsResponse;
+
+    // Workspace routes (delegated to routes/workspace.ts)
+    const workspaceResponse = await handleWorkspaceRoute(path, method, req, corsHeaders, WORKSPACE_DIR);
+    if (workspaceResponse) return workspaceResponse;
+
+    // Agents routes (delegated to routes/agents.ts)
+    const agentsResponse = await handleAgentsRoute(path, method, req, url, corsHeaders, requireSupabase);
+    if (agentsResponse) return agentsResponse;
+
     // ── Demands ───────────────────────────────────────────────────────
     if (path.startsWith('/demands/') && path.endsWith('/triage') && method === 'POST') {
       const demandId = path.split('/')[2];
@@ -535,98 +549,6 @@ const agentServer = Bun.serve({
       }
     }
 
-    if (path === '/logs' && method === 'GET') {
-      const limit = Math.min(Number.parseInt(url.searchParams.get('limit') ?? '50', 10), 200);
-      const offset = Number.parseInt(url.searchParams.get('offset') ?? '0', 10);
-      const type = url.searchParams.get('type');
-      const mod = url.searchParams.get('module');
-      const search = url.searchParams.get('search');
-      const from = url.searchParams.get('from');
-      const to = url.searchParams.get('to');
-
-      let query = requireSupabase()
-        .from('activity_log')
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (type) query = query.eq('event_type', type);
-      if (mod) query = query.eq('module', mod);
-      if (search) query = query.ilike('summary', `%${search}%`);
-      if (from) query = query.gte('created_at', from);
-      if (to) query = query.lte('created_at', to);
-
-      const { data, error, count } = await query;
-      return new Response(JSON.stringify({ logs: data ?? [], total: count ?? 0, error }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // ── Workspace file endpoints (standing orders, heartbeat) ──
-    if (path === '/workspace/standing-orders' && method === 'GET') {
-      try {
-        const content = readFileSync(join(WORKSPACE_DIR, 'STANDING_ORDERS.md'), 'utf-8');
-        return new Response(JSON.stringify({ content }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } catch {
-        return new Response(JSON.stringify({ content: '' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
-
-    if (path === '/workspace/standing-orders' && method === 'PUT') {
-      const body = (await req.json()) as { content: string };
-      writeFileSync(join(WORKSPACE_DIR, 'STANDING_ORDERS.md'), body.content, 'utf-8');
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (path === '/workspace/heartbeat' && method === 'GET') {
-      try {
-        const content = readFileSync(join(WORKSPACE_DIR, 'HEARTBEAT.md'), 'utf-8');
-        return new Response(JSON.stringify({ content }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } catch {
-        return new Response(JSON.stringify({ content: '' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
-
-    if (path === '/workspace/heartbeat' && method === 'PUT') {
-      const body = (await req.json()) as { content: string };
-      writeFileSync(join(WORKSPACE_DIR, 'HEARTBEAT.md'), body.content, 'utf-8');
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (path === '/agents' && method === 'GET') {
-      const { data: agents, error: _error } = await requireSupabase()
-        .from('agent_templates')
-        .select('*')
-        .order('created_at', { ascending: true });
-
-      const formatted = (agents ?? []).map((a) => ({
-        id: a.id,
-        name: a.name,
-        avatar: a.avatar_seed ?? 'robot',
-        tagline: a.description ?? '',
-        // biome-ignore lint/suspicious/noExplicitAny: JSONB personality field
-        traits: (a.personality as any)?.traits ?? [],
-        // biome-ignore lint/suspicious/noExplicitAny: JSONB personality field
-        tone: (a.personality as any)?.tone ?? '',
-      }));
-
-      return new Response(JSON.stringify({ agents: formatted }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     if (path.startsWith('/sessions/') && path.endsWith('/kill') && method === 'POST') {
       const sessionId = path.split('/')[2] ?? '';
       if (state.sessions.has(sessionId)) {
@@ -637,73 +559,6 @@ const agentServer = Bun.serve({
       }
       return new Response(JSON.stringify({ ok: false, error: 'Session not found' }), {
         status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Agent-to-Agent Messaging
-    if (path === '/agent-messages' && method === 'POST') {
-      const body = (await req.json()) as Record<string, unknown>;
-      const { from_agent_id, to_agent_id, session_id, message_type, content, context } = body;
-
-      const { data: message, error } = await requireSupabase()
-        .from('agent_messages')
-        .insert({
-          from_agent_id: from_agent_id as string,
-          to_agent_id: to_agent_id as string,
-          session_id: (session_id as string) ?? null,
-          message_type: (message_type as string) ?? 'message',
-          content: content as string,
-          context: (context ?? {}) as Record<string, unknown>,
-          // biome-ignore lint/suspicious/noExplicitAny: Supabase types lag behind schema
-        } as any)
-        .select()
-        .single();
-
-      if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      return new Response(JSON.stringify({ message }), {
-        status: 201,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (path === '/agent-messages' && method === 'GET') {
-      const agentId = url.searchParams.get('agent_id');
-      const sessionId = url.searchParams.get('session_id');
-      const status = url.searchParams.get('status');
-
-      let query = requireSupabase()
-        .from('agent_messages')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (agentId) {
-        query = query.eq('to_agent_id', agentId);
-      }
-      if (sessionId) {
-        query = query.eq('session_id', sessionId);
-      }
-      if (status) {
-        query = query.eq('status', status);
-      }
-
-      const { data: messages, error } = await query;
-
-      if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      return new Response(JSON.stringify({ messages: messages ?? [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -726,59 +581,6 @@ const agentServer = Bun.serve({
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
-    }
-
-    // Query another agent (synchronous request-response)
-    if (path === '/agent/query' && method === 'POST') {
-      const body = (await req.json()) as Record<string, unknown>;
-      const { from_agent_id, to_agent_id, query, session_id, context } = body;
-
-      // Get target agent info
-      const { data: targetAgent } = await requireSupabase()
-        .from('agent_templates')
-        .select('*')
-        .eq('id', to_agent_id as string)
-        .single();
-
-      if (!targetAgent) {
-        return new Response(JSON.stringify({ error: 'Agent not found' }), {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Create message record
-      const { data: message } = await requireSupabase()
-        .from('agent_messages')
-        .insert({
-          from_agent_id: from_agent_id as string,
-          to_agent_id: to_agent_id as string,
-          session_id: (session_id as string) ?? null,
-          message_type: 'query',
-          content: query as string,
-          context: (context ?? {}) as Record<string, unknown>,
-          // biome-ignore lint/suspicious/noExplicitAny: Supabase types lag behind schema
-        } as any)
-        .select()
-        .single();
-
-      // Return agent info for the caller to process the query
-      return new Response(
-        JSON.stringify({
-          message_id: message?.id,
-          agent: {
-            id: targetAgent.id,
-            name: targetAgent.name,
-            avatar: targetAgent.avatar_seed,
-            personality: targetAgent.personality,
-            knowledge: targetAgent.knowledge,
-            philosophy: targetAgent.philosophy,
-          },
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        },
-      );
     }
 
     return new Response('Not Found', { status: 404 });
