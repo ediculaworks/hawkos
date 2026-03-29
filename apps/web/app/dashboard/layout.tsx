@@ -6,6 +6,7 @@ import { HydrationGate } from '@/components/shell/hydration-gate';
 import { Sidebar } from '@/components/shell/sidebar';
 import { TopBar } from '@/components/shell/topbar';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
+import { useKeyboardShortcuts } from '@/lib/use-keyboard-shortcuts';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { cn } from '@/lib/utils/cn';
 
@@ -19,6 +20,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
+  useKeyboardShortcuts();
 
   return (
     <div className="min-h-screen">

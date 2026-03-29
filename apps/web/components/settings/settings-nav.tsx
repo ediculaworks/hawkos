@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils/cn';
 import {
+  Bell,
   Bot,
   Boxes,
   Clock,
@@ -19,6 +20,7 @@ export type SettingsSection =
   | 'agent'
   | 'modules'
   | 'appearance'
+  | 'notifications'
   | 'automations'
   | 'integrations'
   | 'data';
@@ -35,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'agent', label: 'Agente', icon: Bot },
   { id: 'modules', label: 'Módulos', icon: Boxes },
   { id: 'appearance', label: 'Aparência', icon: Palette },
+  { id: 'notifications', label: 'Notificações', icon: Bell },
   { id: 'automations', label: 'Automações', icon: Clock },
   { id: 'integrations', label: 'Integrações', icon: Plug },
   { id: 'data', label: 'Dados', icon: Database },

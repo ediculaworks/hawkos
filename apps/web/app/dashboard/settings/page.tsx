@@ -4,6 +4,7 @@ import { SectionAgent } from '@/components/settings/section-agent';
 import { SectionAppearance } from '@/components/settings/section-appearance';
 import { SectionAutomations } from '@/components/settings/section-automations';
 import { SectionData } from '@/components/settings/section-data';
+import { SectionNotifications } from '@/components/settings/section-notifications';
 import { SectionGeneral } from '@/components/settings/section-general';
 import { SectionIntegrations } from '@/components/settings/section-integrations';
 import { SectionModules } from '@/components/settings/section-modules';
@@ -77,6 +78,7 @@ export default function SettingsPage() {
               <SectionModules modules={modules} onToggle={handleModuleToggle} />
             )}
             {section === 'appearance' && <SectionAppearance />}
+            {section === 'notifications' && <SectionNotifications />}
             {section === 'automations' && <SectionAutomations />}
             {section === 'integrations' && <SectionIntegrations />}
             {section === 'data' && <SectionData />}
