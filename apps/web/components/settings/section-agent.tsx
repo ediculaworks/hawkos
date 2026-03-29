@@ -54,6 +54,9 @@ interface AgentSettings {
   alerts_enabled: boolean;
   alerts_time: string;
   big_purchase_threshold: number;
+  react_mode: 'auto' | 'always' | 'never';
+  cost_tracking_enabled: boolean;
+  history_compression_enabled: boolean;
 }
 
 const DEFAULTS: AgentSettings = {
@@ -77,6 +80,9 @@ const DEFAULTS: AgentSettings = {
   alerts_enabled: true,
   alerts_time: '08:00',
   big_purchase_threshold: 500,
+  react_mode: 'auto',
+  cost_tracking_enabled: true,
+  history_compression_enabled: true,
 };
 
 export function SectionAgent() {
@@ -120,6 +126,11 @@ export function SectionAgent() {
           alerts_time: data.settings?.alerts_time ?? DEFAULTS.alerts_time,
           big_purchase_threshold:
             data.settings?.big_purchase_threshold ?? DEFAULTS.big_purchase_threshold,
+          react_mode: data.settings?.react_mode ?? DEFAULTS.react_mode,
+          cost_tracking_enabled:
+            data.settings?.cost_tracking_enabled ?? DEFAULTS.cost_tracking_enabled,
+          history_compression_enabled:
+            data.settings?.history_compression_enabled ?? DEFAULTS.history_compression_enabled,
         };
         setSettings(s);
         setInitial(s);
@@ -438,6 +449,57 @@ export function SectionAgent() {
               <Switch
                 checked={settings.auto_restart}
                 onCheckedChange={(checked) => update({ auto_restart: checked })}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Behaviour */}
+        <div className="border-t border-[var(--color-border)] pt-[var(--space-5)]">
+          <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-[var(--space-4)]">
+            Comportamento
+          </h3>
+          <div className="space-y-[var(--space-4)]">
+            <div className="grid gap-[var(--space-2)]">
+              <Label htmlFor="react_mode">Modo ReAct</Label>
+              <select
+                id="react_mode"
+                value={settings.react_mode}
+                onChange={(e) =>
+                  update({ react_mode: e.target.value as 'auto' | 'always' | 'never' })
+                }
+                className={selectClass}
+              >
+                <option value="auto">Auto — decide automaticamente</option>
+                <option value="always">Sempre ativo</option>
+                <option value="never">Nunca</option>
+              </select>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Controla quando o agente usa raciocínio passo a passo (ReAct)
+              </p>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="grid gap-[var(--space-1)]">
+                <Label>Rastreamento de Custos</Label>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Registra o custo estimado de cada chamada ao LLM
+                </p>
+              </div>
+              <Switch
+                checked={settings.cost_tracking_enabled}
+                onCheckedChange={(checked) => update({ cost_tracking_enabled: checked })}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="grid gap-[var(--space-1)]">
+                <Label>Compressão de Histórico</Label>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Comprime sessões antigas para reduzir tokens no contexto
+                </p>
+              </div>
+              <Switch
+                checked={settings.history_compression_enabled}
+                onCheckedChange={(checked) => update({ history_compression_enabled: checked })}
               />
             </div>
           </div>

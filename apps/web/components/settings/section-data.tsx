@@ -3,9 +3,16 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
-import { AlertTriangle, Database, Loader2, Trash2 } from 'lucide-react';
+import { AlertTriangle, Database, Download, Loader2, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
+
+const EXPORT_TABLES = [
+  'profile', 'finance_transactions', 'finance_accounts', 'finance_categories',
+  'health_observations', 'sleep_sessions', 'workout_sessions',
+  'people', 'interactions', 'habits', 'habit_logs',
+  'objectives', 'tasks', 'calendar_events', 'agent_memories',
+];
 
 const CONFIRMATION_PHRASE = 'APAGAR TUDO';
 
@@ -14,12 +21,44 @@ export function SectionData() {
   const [showReset, setShowReset] = useState(false);
   const [confirmation, setConfirmation] = useState('');
   const [resetting, setResetting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState<{
     success: boolean;
     wiped?: number;
     errors?: string[];
   } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const supabase = createClient();
+      const exportData: Record<string, unknown[]> = {};
+
+      for (const table of EXPORT_TABLES) {
+        try {
+          const { data } = await supabase.from(table).select('*').limit(10000);
+          if (data && data.length > 0) {
+            exportData[table] = data;
+          }
+        } catch {
+          // Table may not exist for this tenant — skip
+        }
+      }
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `hawk-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed:', err);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const isConfirmed = confirmation === CONFIRMATION_PHRASE;
 
@@ -73,8 +112,13 @@ export function SectionData() {
           <p className="text-xs text-[var(--color-text-muted)] mb-[var(--space-3)]">
             Exporte todos os seus dados em formato JSON para backup ou migração.
           </p>
-          <Button variant="outline" size="sm" disabled>
-            Exportar JSON (em breve)
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
+            {exporting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            {exporting ? 'Exportando...' : 'Exportar JSON'}
           </Button>
         </div>
 
