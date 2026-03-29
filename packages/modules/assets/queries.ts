@@ -9,10 +9,17 @@ import type {
   UpdateAssetInput,
   UpdateDocumentInput,
 } from './types';
-import { createLogger, HawkError } from '@hawk/shared';
+import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { z } from 'zod';
 const logger = createLogger('assets');
 
+const CreateAssetSchema = z.object({ name: z.string().min(1) });
+
 export async function createAsset(input: CreateAssetInput): Promise<Asset> {
+  const parsed = CreateAssetSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const { data, error } = await db
     .from('assets')
     .insert({

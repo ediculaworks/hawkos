@@ -8,8 +8,11 @@ import type {
   UpdateBillInput,
   UpdateMaintenanceInput,
 } from './types';
-import { createLogger, HawkError } from '@hawk/shared';
+import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { z } from 'zod';
 const logger = createLogger('housing');
+
+const CreateBillSchema = z.object({ name: z.string().min(1) });
 
 export async function listResidences(): Promise<Residence[]> {
   const { data, error } = await db.from('residences').select('*').eq('active', true);
@@ -36,6 +39,10 @@ export async function getPrimaryResidence(): Promise<Residence | null> {
 }
 
 export async function createBill(input: CreateBillInput): Promise<HousingBill> {
+  const parsed = CreateBillSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const { data, error } = await db
     .from('housing_bills')
     .insert({

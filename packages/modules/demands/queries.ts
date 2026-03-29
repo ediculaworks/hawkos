@@ -14,14 +14,21 @@ import type {
   UpdateDemandInput,
   UpdateStepInput,
 } from './types';
-import { createLogger, HawkError } from '@hawk/shared';
+import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { z } from 'zod';
 const logger = createLogger('demands');
+
+const CreateDemandSchema = z.object({ title: z.string().min(1) });
 
 // ============================================================
 // DEMANDS
 // ============================================================
 
 export async function createDemand(input: CreateDemandInput): Promise<Demand> {
+  const parsed = CreateDemandSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const { data, error } = await db
     .from('demands')
     .insert({

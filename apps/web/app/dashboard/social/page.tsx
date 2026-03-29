@@ -8,8 +8,9 @@ import { PostForm } from '@/components/social/post-form';
 import { PostsList } from '@/components/social/posts-list';
 import { SocialHeader, type SocialTab } from '@/components/social/social-header';
 import { SocialStats } from '@/components/social/social-stats';
+import { PageSkeleton } from '@/components/ui/skeleton';
 import type { PostStatus, SocialPlatform } from '@hawk/module-social/types';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 
 export default function SocialPage() {
   const [activeTab, setActiveTab] = useState<SocialTab>('kanban');
@@ -17,7 +18,8 @@ export default function SocialPage() {
   const [statusFilter, setStatusFilter] = useState<PostStatus | undefined>();
 
   return (
-    <div className="space-y-[var(--space-6)]">
+    <Suspense fallback={<PageSkeleton />}>
+      <div className="space-y-[var(--space-6)]">
       <SocialHeader activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* Posts View */}
@@ -85,6 +87,7 @@ export default function SocialPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </Suspense>
   );
 }

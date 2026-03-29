@@ -1,5 +1,6 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError } from '@hawk/shared';
+import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { z } from 'zod';
 import type {
   CreateJournalEntryInput,
   JournalEntry,
@@ -10,10 +11,16 @@ import type {
 
 const logger = createLogger('journal');
 
+const UpsertJournalEntrySchema = z.object({ content: z.string().min(1) });
+
 /**
  * Criar ou atualizar entry do dia (upsert por date + type)
  */
 export async function upsertJournalEntry(input: CreateJournalEntryInput): Promise<JournalEntry> {
+  const parsed = UpsertJournalEntrySchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const date = input.date ?? (new Date().toISOString().split('T')[0] as string);
   const type = input.type ?? 'daily';
 

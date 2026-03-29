@@ -4,12 +4,13 @@ import { MemoryDetailPanel } from '@/components/memory/memory-detail-panel';
 import { MemoryGraph } from '@/components/memory/memory-graph';
 import { Button } from '@/components/ui/button';
 import { TabBar, type TabItem } from '@/components/ui/tab-bar';
+import { PageSkeleton } from '@/components/ui/skeleton';
 import { createMemoryAction, fetchMemoryStats } from '@/lib/actions/memory';
 import type { AgentMemory, MemoryGraphNode } from '@hawk/module-memory/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BarChart3, BookMarked, Brain, FileText, MessageSquare, Network, Plus } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 
 const MemoryExplorer = dynamic(
   () => import('@/components/memory/memory-explorer').then((m) => m.MemoryExplorer),
@@ -74,7 +75,8 @@ export default function MemoryPage() {
   const showDetailPanel = (tab === 'memories' || tab === 'graph') && selectedMemory;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-var(--topbar-height)-var(--space-12))] -mb-[var(--space-6)]">
+    <Suspense fallback={<PageSkeleton />}>
+      <div className="flex flex-col h-[calc(100vh-var(--topbar-height)-var(--space-12))] -mb-[var(--space-6)]">
       {/* Header */}
       <div className="flex items-center justify-between mb-[var(--space-4)] flex-shrink-0">
         <div className="flex items-center gap-[var(--space-4)]">
@@ -150,6 +152,7 @@ export default function MemoryPage() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </Suspense>
   );
 }

@@ -1,4 +1,5 @@
-import { createLogger, HawkError } from '@hawk/shared';
+import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { z } from 'zod';
 import { db } from '@hawk/db';
 import type {
   AgentMemory,
@@ -16,9 +17,15 @@ import type {
 
 const logger = createLogger('memory');
 
+const CreateMemorySchema = z.object({ content: z.string().min(1), category: z.string().min(1) });
+
 // ── Memories CRUD ──────────────────────────────────────────
 
 export async function createMemory(input: CreateMemoryInput): Promise<AgentMemory> {
+  const parsed = CreateMemorySchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const { data, error } = await db
     .from('agent_memories')
     .insert({
