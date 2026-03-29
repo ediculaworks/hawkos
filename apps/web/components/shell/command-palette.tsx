@@ -36,9 +36,10 @@ function HelpOverlay({ close }: { close: () => void }) {
           <button
             type="button"
             onClick={close}
+            aria-label="Fechar atalhos de teclado"
             className="p-[var(--space-1)] rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-2)] cursor-pointer"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         <div className="p-[var(--space-4)] space-y-[var(--space-2)]">
@@ -250,6 +251,7 @@ export function CommandPalette() {
           className="overflow-y-auto overscroll-contain py-[var(--space-1-5)]"
           style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}
           role="listbox"
+          tabIndex={-1}
           aria-label="Comandos disponíveis"
         >
           {filteredCommands.length === 0 ? (

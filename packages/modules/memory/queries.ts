@@ -488,46 +488,67 @@ export async function linkMemories(
 export async function getLinkedMemories(
   memoryId: string,
   maxHops = 1,
-): Promise<Array<{ memory: AgentMemory; relation: MemoryRelationType; strength: number }>> {
-  // First hop: direct links from this memory
-  // biome-ignore lint/suspicious/noExplicitAny: memory_links not yet in generated types
-  const { data: links, error } = await (db as any)
-    .from('memory_links')
-    .select('target_id, relation_type, strength')
-    .eq('source_id', memoryId)
-    .order('strength', { ascending: false })
-    .limit(10);
+): Promise<Array<{ memory: AgentMemory; relation: MemoryRelationType; strength: number; hop: number }>> {
+  const results: Array<{ memory: AgentMemory; relation: MemoryRelationType; strength: number; hop: number }> = [];
+  const visited = new Set<string>([memoryId]);
+  let frontier = [memoryId];
 
-  if (error) {
-    logger.error({ error: error.message }, 'Failed to get linked memories');
-    throw new HawkError(`Failed to get linked memories: ${error.message}`, 'DB_QUERY_FAILED');
+  for (let hop = 1; hop <= Math.min(maxHops, 3); hop++) {
+    if (frontier.length === 0) break;
+
+    // Get all links from current frontier in one query
+    // biome-ignore lint/suspicious/noExplicitAny: memory_links not yet in generated types
+    const { data: links, error } = await (db as any)
+      .from('memory_links')
+      .select('source_id, target_id, relation_type, strength')
+      .in('source_id', frontier)
+      .order('strength', { ascending: false })
+      .limit(hop === 1 ? 20 : 10);
+
+    if (error) {
+      logger.error({ error: error.message }, 'Failed to get linked memories');
+      throw new HawkError(`Failed to get linked memories: ${error.message}`, 'DB_QUERY_FAILED');
+    }
+
+    if (!links || links.length === 0) break;
+
+    // Filter out already-visited nodes
+    const newLinks = (links as { source_id: string; target_id: string; relation_type: string; strength: number }[])
+      .filter((l) => !visited.has(l.target_id));
+
+    if (newLinks.length === 0) break;
+
+    const nextIds = newLinks.map((l) => l.target_id);
+    for (const id of nextIds) visited.add(id);
+
+    // Fetch memory details for new nodes
+    const { data: memories, error: memErr } = await db
+      .from('agent_memories')
+      .select('id, content, category, memory_type, module, importance, created_at')
+      .in('id', nextIds)
+      .eq('status', 'active');
+
+    if (memErr) {
+      logger.error({ error: memErr.message }, 'Failed to fetch linked memory details');
+      throw new HawkError(`Failed to fetch linked memories: ${memErr.message}`, 'DB_QUERY_FAILED');
+    }
+
+    const memoryMap = new Map((memories ?? []).map((m) => [m.id, m]));
+
+    for (const link of newLinks) {
+      const mem = memoryMap.get(link.target_id);
+      if (mem) {
+        results.push({
+          memory: mem as unknown as AgentMemory,
+          relation: link.relation_type as MemoryRelationType,
+          strength: link.strength,
+          hop,
+        });
+      }
+    }
+
+    frontier = nextIds;
   }
 
-  if (!links || links.length === 0) return [];
-
-  const targetIds = links.map((l: { target_id: string }) => l.target_id as string);
-  const { data: memories, error: memErr } = await db
-    .from('agent_memories')
-    .select('id, content, category, memory_type, module, importance, created_at')
-    .in('id', targetIds)
-    .eq('status', 'active');
-
-  if (memErr) {
-    logger.error({ error: memErr.message }, 'Failed to fetch linked memory details');
-    throw new HawkError(`Failed to fetch linked memories: ${memErr.message}`, 'DB_QUERY_FAILED');
-  }
-
-  const memoryMap = new Map((memories ?? []).map((m) => [m.id, m]));
-
-  return links
-    .map((link: { target_id: string; relation_type: string; strength: number }) => {
-      const mem = memoryMap.get(link.target_id as string);
-      if (!mem) return null;
-      return {
-        memory: mem as unknown as AgentMemory,
-        relation: link.relation_type as MemoryRelationType,
-        strength: link.strength as number,
-      };
-    })
-    .filter((x: unknown): x is NonNullable<typeof x> => x !== null);
+  return results;
 }

@@ -31,10 +31,13 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         className={cn(
           'pt-[var(--topbar-height)]',
           'transition-[margin-left] duration-[var(--duration-slow)] ease-[var(--ease-out-quart)]',
-          sidebarCollapsed ? 'ml-[var(--sidebar-collapsed)]' : 'ml-[var(--sidebar-width)]',
+          // Mobile: no left margin (sidebar is an overlay). Desktop: shift by sidebar width.
+          sidebarCollapsed
+            ? 'md:ml-[var(--sidebar-collapsed)]'
+            : 'md:ml-[var(--sidebar-width)]',
         )}
       >
-        <div className="p-[var(--space-6)]">
+        <div className="p-[var(--space-4)] md:p-[var(--space-6)]">
           <ErrorBoundary>{children}</ErrorBoundary>
         </div>
       </main>

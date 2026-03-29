@@ -23,7 +23,11 @@
       "a11y": {
         "noLabelWithoutControl": "warn",
         "useSemanticElements": "warn",
-        "useFocusableInteractive": "warn"
+        "useFocusableInteractive": "warn",
+        "useAltText": "error",
+        "useButtonType": "error",
+        "noAriaHiddenOnFocusable": "error",
+        "useAriaPropsForRole": "error"
       }
     }
   },

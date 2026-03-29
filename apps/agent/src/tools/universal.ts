@@ -1,3 +1,4 @@
+import { getLinkedMemories } from '@hawk/module-memory/queries';
 import { getNextQuestion, markQuestionAnswered, markQuestionAsked } from '@hawk/module-memory';
 
 import type { ToolDefinition } from './types.js';
@@ -143,6 +144,31 @@ export const universalTools: Record<string, ToolDefinition> = {
       } catch (err) {
         return `Erro ao transferir para agente: ${err}`;
       }
+    },
+  },
+
+  explore_memory_graph: {
+    name: 'explore_memory_graph',
+    modules: [],
+    description:
+      'Explora o grafo de conhecimento a partir de uma memória, retornando memórias conectadas por até N saltos. Útil para encontrar conexões não óbvias entre informações.',
+    parameters: {
+      type: 'object',
+      properties: {
+        memory_id: { type: 'string', description: 'UUID da memória raiz' },
+        max_hops: { type: 'number', description: 'Número máximo de saltos (1-3, default 2)' },
+      },
+      required: ['memory_id'],
+    },
+    handler: async (args: { memory_id: string; max_hops?: number }) => {
+      const hops = Math.min(args.max_hops ?? 2, 3);
+      const linked = await getLinkedMemories(args.memory_id, hops);
+      if (linked.length === 0) return 'Nenhuma memória conectada encontrada.';
+      const lines = linked.map(
+        ({ memory, relation, strength, hop }) =>
+          `[hop ${hop}, ${relation}, força ${(strength * 100).toFixed(0)}%] ${memory.content.slice(0, 120)}`,
+      );
+      return `**Memórias conectadas (${linked.length}):**\n${lines.join('\n')}`;
     },
   },
 

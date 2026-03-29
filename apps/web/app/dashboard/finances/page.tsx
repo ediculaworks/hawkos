@@ -190,11 +190,11 @@ function FinancesContent() {
       )}
 
       {activeTab === 'orcamento' && (
-        <div className="flex gap-[var(--space-6)] items-start">
+        <div className="flex flex-col gap-[var(--space-6)] lg:flex-row lg:items-start">
           <div className="flex-1 min-w-0 bg-[var(--color-surface-1)] rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)]">
             <BudgetOverview month={selectedMonth} />
           </div>
-          <div className="w-64 flex-shrink-0 space-y-[var(--space-6)] hidden lg:block">
+          <div className="w-full lg:w-64 lg:flex-shrink-0 space-y-[var(--space-6)]">
             <AccountManager />
           </div>
         </div>

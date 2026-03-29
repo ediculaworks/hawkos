@@ -62,12 +62,12 @@ function HealthPageInner() {
 
   return (
     <div className="space-y-[var(--space-6)]">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--color-text-primary)]">Saúde</h1>
           <p className="text-sm text-[var(--color-text-muted)]">Acompanhe sua saúde e bem-estar</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
           {activeTab !== 'today' && (
             <TabBar tabs={RANGE_TABS} active={dateRange} onChange={setDateRange} size="sm" />
           )}
