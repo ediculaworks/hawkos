@@ -23,6 +23,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Hawk OS',
   description: 'Personal life operating system',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Hawk OS',
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
