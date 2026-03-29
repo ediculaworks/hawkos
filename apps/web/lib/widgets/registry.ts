@@ -8,6 +8,7 @@ import {
   DollarSign,
   Heart,
   Home,
+  Lightbulb,
   ListChecks,
   MessageSquare,
   Rocket,
@@ -215,6 +216,16 @@ export const WIDGET_REGISTRY: Record<string, WidgetEntry> = {
     minSize: { w: 3, h: 3 },
     maxSize: { w: 6, h: 8 },
     component: () => import('@/components/widgets/agent/agent-activity'),
+  },
+  insights: {
+    id: 'insights',
+    moduleId: 'memory',
+    title: 'Insights',
+    icon: Lightbulb,
+    defaultSize: { w: 4, h: 4 },
+    minSize: { w: 3, h: 3 },
+    maxSize: { w: 6, h: 8 },
+    component: () => import('@/components/widgets/agent/insights'),
   },
 };
 
