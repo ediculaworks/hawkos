@@ -1,5 +1,6 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError } from '@hawk/shared';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
+import { z } from 'zod';
 import type {
   Contract,
   CreateContractInput,
@@ -205,7 +206,21 @@ export async function deleteLegalEntity(id: string): Promise<void> {
 /**
  * Criar obrigação legal
  */
+const createObligationSchema = z.object({
+  name: z.string().min(1).max(300),
+  type: z.string().min(1),
+  due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  frequency: z.string().optional(),
+  amount: z.number().positive().optional(),
+  notes: z.string().max(1000).optional(),
+  entity_id: z.string().uuid().optional(),
+});
+
 export async function createObligation(input: CreateObligationInput): Promise<LegalObligation> {
+  const parsed = createObligationSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid createObligation input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const { data, error } = await db
     .from('legal_obligations')
     .insert({

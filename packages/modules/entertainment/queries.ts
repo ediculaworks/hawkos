@@ -12,7 +12,19 @@ import type {
 
 const logger = createLogger('entertainment');
 
+const createMediaSchema = z.object({
+  title: z.string().min(1).max(300),
+  type: z.enum(['movie', 'series', 'book', 'game', 'podcast', 'music']),
+  status: z.enum(['want', 'in_progress', 'done', 'abandoned']).optional(),
+  platform: z.string().max(100).optional(),
+  genre: z.string().max(100).optional(),
+});
+
 export async function createMedia(input: CreateMediaInput): Promise<MediaItem> {
+  const parsed = createMediaSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid createMedia input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const { data, error } = await db
     .from('media_items')
     .insert({

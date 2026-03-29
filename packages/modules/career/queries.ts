@@ -1,5 +1,6 @@
 import { db } from '@hawk/db';
-import { HawkError, createLogger } from '@hawk/shared';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
+import { z } from 'zod';
 const logger = createLogger('career');
 import type {
   CreateProjectInput,
@@ -90,7 +91,20 @@ export async function findProjectByName(name: string): Promise<Project | null> {
 /**
  * Registrar horas trabalhadas
  */
+const logWorkSchema = z.object({
+  workspace_name: z.string().min(1),
+  project_name: z.string().optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  duration_minutes: z.number().int().positive().max(1440),
+  description: z.string().max(500).optional(),
+  billable: z.boolean().optional(),
+});
+
 export async function logWork(input: LogWorkInput): Promise<WorkLog> {
+  const parsed = logWorkSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid logWork input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+  }
   const workspace = await findWorkspaceByName(input.workspace_name);
   if (!workspace) {
     logger.error({ error: `Workspace "${input.workspace_name}" not found` }, 'Failed to log work');
