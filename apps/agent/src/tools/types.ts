@@ -7,6 +7,5 @@ export type ToolDefinition = {
   modules: ModuleId[];
   /** If true, the agent MUST confirm with the user before executing */
   dangerous?: boolean;
-  // biome-ignore lint/suspicious/noExplicitAny: tool handlers have specific typed args
-  handler: (args: any) => Promise<string>;
+  handler: (args: Record<string, unknown>) => Promise<string>;
 };

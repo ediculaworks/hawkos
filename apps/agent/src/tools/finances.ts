@@ -116,13 +116,12 @@ export const financeTools: Record<string, ToolDefinition> = {
     handler: async () => {
       const positions = await getPortfolioPositions();
       if (positions.length === 0) return 'Nenhum ativo no portfólio.';
-      // biome-ignore lint/suspicious/noExplicitAny: view returns untyped JSON
-      const total = positions.reduce((s, p) => s + ((p as any).current_value ?? 0), 0);
+      type Position = { ticker?: string; asset_class?: string; quantity?: number; current_price?: number; current_value?: number };
+      const total = (positions as Position[]).reduce((s, p) => s + (p.current_value ?? 0), 0);
       return [
         `**Portfólio** — Total: R$ ${total.toFixed(2)}`,
-        ...positions.map(
-          // biome-ignore lint/suspicious/noExplicitAny: view returns untyped JSON
-          (p: any) =>
+        ...(positions as Position[]).map(
+          (p) =>
             `• ${p.ticker} (${p.asset_class}): ${p.quantity} × R$ ${p.current_price?.toFixed(2) ?? '?'} = R$ ${p.current_value?.toFixed(2) ?? '?'}`,
         ),
       ].join('\n');
@@ -143,12 +142,11 @@ export const financeTools: Record<string, ToolDefinition> = {
       const month = args.month ?? new Date().toISOString().slice(0, 7);
       const budget = await getBudgetVsActual(month);
       if (budget.length === 0) return `Nenhum orçamento configurado para ${month}.`;
-      // biome-ignore lint/suspicious/noExplicitAny: view returns untyped JSON
-      const overBudget = budget.filter((b: any) => b.remaining_amount < 0);
-      const lines = budget.map(
-        // biome-ignore lint/suspicious/noExplicitAny: view returns untyped JSON
-        (b: any) =>
-          `${b.remaining_amount < 0 ? '🔴' : '🟢'} ${b.category_name}: R$ ${b.spent_amount?.toFixed(2) ?? 0} / R$ ${b.budget_amount?.toFixed(2)} (${b.remaining_amount < 0 ? 'excedido' : `R$ ${b.remaining_amount?.toFixed(2)} restante`})`,
+      type BudgetRow = { category_name?: string; spent_amount?: number; budget_amount?: number; remaining_amount?: number };
+      const overBudget = (budget as BudgetRow[]).filter((b) => (b.remaining_amount ?? 0) < 0);
+      const lines = (budget as BudgetRow[]).map(
+        (b) =>
+          `${(b.remaining_amount ?? 0) < 0 ? '🔴' : '🟢'} ${b.category_name}: R$ ${b.spent_amount?.toFixed(2) ?? 0} / R$ ${b.budget_amount?.toFixed(2)} (${(b.remaining_amount ?? 0) < 0 ? 'excedido' : `R$ ${b.remaining_amount?.toFixed(2)} restante`})`,
       );
       return [`**Orçamento ${month}** — ${overBudget.length} categorias excedidas`, ...lines].join(
         '\n',
