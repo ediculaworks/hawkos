@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { classifyComplexity, selectModel } from '../model-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { classifyComplexity, getDailyUsage, selectModel, trackUsage } from '../model-router';
 
 describe('Model Router', () => {
   describe('classifyComplexity', () => {
@@ -41,5 +41,46 @@ describe('Model Router', () => {
       expect(selectModel('moderate', 'openrouter/auto')).toBe('openrouter/auto');
       expect(selectModel('complex', 'openrouter/auto')).toBe('openrouter/auto');
     });
+
+    it('should use MODEL_TIER_SIMPLE when set', () => {
+      vi.stubEnv('MODEL_TIER_SIMPLE', 'fast-model');
+      expect(selectModel('simple', 'openrouter/auto')).toBe('fast-model');
+      vi.unstubAllEnvs();
+    });
+
+    it('should use MODEL_TIER_COMPLEX when set', () => {
+      vi.stubEnv('MODEL_TIER_COMPLEX', 'powerful-model');
+      expect(selectModel('complex', 'openrouter/auto')).toBe('powerful-model');
+      vi.unstubAllEnvs();
+    });
+  });
+});
+
+describe('Daily budget tracking', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('getDailyUsage returns an object with tokens and cost', () => {
+    const usage = getDailyUsage();
+    expect(usage).toHaveProperty('tokens');
+    expect(usage).toHaveProperty('cost');
+    expect(typeof usage.tokens).toBe('number');
+    expect(typeof usage.cost).toBe('number');
+  });
+
+  it('trackUsage returns overBudget=false when no budget limit is set', () => {
+    delete process.env.MODEL_DAILY_BUDGET_USD;
+    const result = trackUsage(0, 0);
+    expect(result.overBudget).toBe(false);
+  });
+
+  it('trackUsage accumulates usage and detects limit exceeded', () => {
+    // Set a very high limit so we can test with a fresh add
+    const usageBefore = getDailyUsage();
+    vi.stubEnv('MODEL_DAILY_BUDGET_USD', String(usageBefore.cost + 0.001)); // limit = current + tiny
+    trackUsage(0, 0.002); // push over limit
+    const result = trackUsage(0, 0);
+    expect(result.overBudget).toBe(true);
   });
 });
