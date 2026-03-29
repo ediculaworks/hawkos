@@ -2,6 +2,7 @@ import { initModuleCentroids } from '@hawk/context-engine';
 import { trainCategorizer } from '@hawk/module-finances/categorizer';
 import { trainPredictionModels } from '@hawk/module-health/predictor';
 import { computeAdaptiveHalfLives, learnImportanceWeights } from '@hawk/module-memory';
+import { db } from '@hawk/db';
 import cron, { type ScheduledTask } from 'node-cron';
 import { stopApiServer } from './api/server.js';
 import { setAnalyticsNotifier } from './automations/analytics.js';
@@ -16,6 +17,7 @@ import { runSessionCompactor } from './automations/session-compactor.js';
 import { startAlertsCron } from './automations/alerts.js';
 import { startCheckinCrons } from './automations/daily-checkin.js';
 import { startStreakGuardianCron } from './automations/streak-guardian.js';
+import { startMemoryForgetterCron } from './automations/memory-forgetter.js';
 import { startWeeklyReviewCron } from './automations/weekly-review.js';
 import { discordChannel } from './channels/discord-adapter.js';
 import { sendToChannel } from './channels/discord.js';
@@ -145,6 +147,9 @@ async function main() {
     );
   });
   activeTasks.push(mlTrainTask);
+
+  // Weekly: archive stale memories (Sunday 04:00 — after adaptive half-lives and ML training)
+  startMemoryForgetterCron();
 
   // Run once at startup to initialize all ML models from existing data (non-blocking)
   Promise.all([

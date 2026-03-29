@@ -3,6 +3,7 @@
 import { setupGlobalErrorReporting } from '@/lib/error-reporter';
 import { useLayoutStore } from '@/lib/stores/layout-store';
 import { useUIStore } from '@/lib/stores/ui-store';
+import { initWebVitals } from '@/lib/web-vitals';
 import { useEffect, useState } from 'react';
 
 const STALE_KEYS = ['hawk-ui', 'hawk-layout', 'hawk_active_session', 'hawk-onboarding-draft'];
@@ -34,6 +35,9 @@ export function HydrationGate({ children }: { children: React.ReactNode }) {
 
     // Setup global error reporting
     setupGlobalErrorReporting();
+
+    // Setup Web Vitals monitoring
+    initWebVitals();
 
     setMounted(true);
   }, []);

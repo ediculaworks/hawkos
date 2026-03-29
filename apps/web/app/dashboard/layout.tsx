@@ -5,6 +5,7 @@ import { FloatingAgentCTA } from '@/components/shell/floating-agent-cta';
 import { HydrationGate } from '@/components/shell/hydration-gate';
 import { Sidebar } from '@/components/shell/sidebar';
 import { TopBar } from '@/components/shell/topbar';
+import { WelcomeWizard } from '@/components/dashboard/welcome-wizard';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { useKeyboardShortcuts } from '@/lib/use-keyboard-shortcuts';
 import { useUIStore } from '@/lib/stores/ui-store';
@@ -39,6 +40,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
       </main>
       <FloatingAgentCTA />
       <CommandPalette />
+      <WelcomeWizard />
     </div>
   );
 }
