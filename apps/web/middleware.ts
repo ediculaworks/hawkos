@@ -1,6 +1,23 @@
-import { updateSession } from '@/lib/supabase/middleware';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { updateSession } from '@/lib/supabase/middleware';
 import { type NextRequest, NextResponse } from 'next/server';
+
+// Security headers applied to all responses
+const SECURITY_HEADERS: Record<string, string> = {
+  'X-Frame-Options': 'DENY',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'X-DNS-Prefetch-Control': 'on',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
+};
+
+function applySecurityHeaders(response: NextResponse): NextResponse {
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    response.headers.set(key, value);
+  }
+  return response;
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -24,11 +41,12 @@ export async function middleware(request: NextRequest) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next());
   }
 
-  // Page routes — session management
-  return await updateSession(request);
+  // Page routes — session management + security headers
+  const response = await updateSession(request);
+  return applySecurityHeaders(response);
 }
 
 export const config = {

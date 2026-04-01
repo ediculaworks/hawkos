@@ -26,7 +26,7 @@ for (const id of ALL_MODULE_IDS) {
     id,
     getL0: () => `[${id} L0]`,
     getL1: async () => `[${id} L1]`,
-    getL2: async () => `[${id} L2]`,
+    getL2: async (_msg?: string) => `[${id} L2]`,
   });
 }
 
@@ -77,5 +77,55 @@ describe('Module Detection (keyword-based)', () => {
   it('assembledContext includes l0 content from detected modules', async () => {
     const ctx = await assembleContext('qual é meu gasto esse mês?');
     expect(ctx.l0).toContain('[finances L0]');
+  });
+
+  // ── Extended keyword coverage (Wave 2 expansion) ─────────────────────────
+
+  it('detects finances for "fatura", "cartão", "pix", "boleto"', async () => {
+    for (const keyword of ['fatura', 'cartão', 'pix', 'boleto']) {
+      const ctx = await assembleContext(`quero ver meu ${keyword}`);
+      expect(ctx.modulesLoaded).toContain('finances');
+    }
+  });
+
+  it('detects health for "corrida", "musculação", "consulta"', async () => {
+    for (const keyword of ['corrida', 'musculação', 'consulta médica']) {
+      const ctx = await assembleContext(`tenho ${keyword} amanhã`);
+      expect(ctx.modulesLoaded).toContain('health');
+    }
+  });
+
+  it('detects career for "deadline", "sprint", "promoção"', async () => {
+    for (const keyword of ['deadline', 'sprint', 'promoção']) {
+      const ctx = await assembleContext(`meu ${keyword} é sexta`);
+      expect(ctx.modulesLoaded).toContain('career');
+    }
+  });
+
+  it('detects routine module for habit-related queries', async () => {
+    const ctx = await assembleContext('meus hábitos estão fracos');
+    expect(ctx.modulesLoaded).toContain('routine');
+  });
+
+  it('detects objectives module for goal-related queries', async () => {
+    const ctx = await assembleContext('qual o progresso das minhas metas?');
+    expect(ctx.modulesLoaded).toContain('objectives');
+  });
+
+  it('loads L1 for primary detected module', async () => {
+    const ctx = await assembleContext('quanto gastei no cartão?');
+    expect(ctx.l1).toContain('[finances L1]');
+  });
+
+  it('returns L2 content for specific data queries with month reference', async () => {
+    // "gasto" is an exact keyword for finances, "janeiro" triggers requiresSpecificData
+    const ctx = await assembleContext('meu gasto em janeiro foi alto');
+    expect(ctx.l2).toContain('[finances L2]');
+  });
+
+  it('does not include L1 for modules not detected', async () => {
+    const ctx = await assembleContext('bom dia');
+    // Generic greeting — no modules detected, L1 should be empty
+    expect(ctx.l1).toBe('');
   });
 });

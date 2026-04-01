@@ -1,5 +1,8 @@
 import { db } from '@hawk/db';
+import { HawkError, createLogger } from '@hawk/shared';
 import { getAdaptiveHalfLife } from './adaptive';
+
+const logger = createLogger('memory');
 import { semanticSearchMemories } from './embeddings';
 import type { AgentMemory } from './types';
 
@@ -160,7 +163,10 @@ async function getHottestMemories(limit: number): Promise<AgentMemory[]> {
     .order('updated_at', { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to get hot memories: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get hot memories');
+    throw new HawkError(`Failed to get hot memories: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as AgentMemory[];
 }
 
@@ -175,6 +181,9 @@ async function getTopByImportance(limit: number): Promise<AgentMemory[]> {
     .order('last_accessed', { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to get important memories: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to get important memories');
+    throw new HawkError(`Failed to get important memories: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   return (data ?? []) as AgentMemory[];
 }

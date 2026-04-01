@@ -6,6 +6,9 @@
  */
 
 import { db } from '@hawk/db';
+import { HawkError, createLogger } from '@hawk/shared';
+
+const logger = createLogger('memory');
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -290,7 +293,10 @@ export async function insertDynamicQuestion(
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to insert dynamic question: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to insert dynamic question');
+    throw new HawkError(`Failed to insert dynamic question: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return data as unknown as OnboardingQuestion;
 }
 
@@ -309,7 +315,10 @@ export async function persistDataGaps(gaps: DataGap[]): Promise<number> {
   }));
 
   const { error } = await db.from('data_gaps').insert(rows);
-  if (error) throw new Error(`Failed to persist data gaps: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to persist data gaps');
+    throw new HawkError(`Failed to persist data gaps: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return gaps.length;
 }
 

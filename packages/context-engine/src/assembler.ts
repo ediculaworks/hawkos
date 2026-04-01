@@ -51,13 +51,13 @@ const EMBEDDING_WEIGHT = 0.6;
 
 const moduleKeywords: Record<ModuleId, string[]> = {
   finances: [
-    'gasto', 'receita', 'dinheiro', 'saldo', 'dívida', 'pagar', 'comprar', 'custo', 'r$',
-    'fatura', 'conta', 'investimento', 'cartão', 'transferência', 'orçamento', 'budget',
-    'despesa', 'salário', 'renda', 'extrato', 'banco', 'pix', 'boleto',
+    'gasto', 'gastei', 'receita', 'dinheiro', 'saldo', 'dívida', 'pagar', 'paguei', 'comprar',
+    'comprei', 'custo', 'r$', 'fatura', 'conta', 'investimento', 'cartão', 'transferência',
+    'orçamento', 'budget', 'despesa', 'salário', 'renda', 'extrato', 'banco', 'pix', 'boleto',
   ],
   health: [
-    'saúde', 'treino', 'academia', 'humor', 'sono', 'remédio', 'peso',
-    'cannabis', 'cigarro', 'corrida', 'exercício', 'médico', 'consulta médica',
+    'saúde', 'treino', 'treinei', 'academia', 'humor', 'sono', 'dormi', 'remédio', 'peso',
+    'cannabis', 'cigarro', 'corrida', 'corri', 'exercício', 'médico', 'consulta médica',
     'calorias', 'dieta', 'alimentação', 'dor', 'cansado', 'energia', 'musculação',
   ],
   people: [

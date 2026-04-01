@@ -1,5 +1,8 @@
 import { db } from '@hawk/db';
+import { HawkError, createLogger } from '@hawk/shared';
 import type OpenAI from 'openai';
+
+const logger = createLogger('memory');
 import { generateEmbedding, semanticSearchMemories } from './embeddings';
 import { setWorkerLLM } from './session-commit';
 
@@ -242,7 +245,10 @@ export async function applyDedupResult(
       .update(updateData)
       .eq('id', result.mergeTargetId);
 
-    if (error) throw new Error(`Failed to merge memory: ${error.message}`);
+    if (error) {
+      logger.error({ error: error.message }, 'Failed to merge memory');
+      throw new HawkError(`Failed to merge memory: ${error.message}`, 'DB_UPDATE_FAILED');
+    }
     return result.mergeTargetId;
   }
 
@@ -263,7 +269,10 @@ export async function applyDedupResult(
 
   const { data, error } = await db.from('agent_memories').insert(insertData).select('id').single();
 
-  if (error) throw new Error(`Failed to create memory: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to create memory');
+    throw new HawkError(`Failed to create memory: ${error.message}`, 'DB_INSERT_FAILED');
+  }
   return (data as { id: string }).id;
 }
 

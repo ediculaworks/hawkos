@@ -1,6 +1,7 @@
 'use server';
 
 import { db } from '@hawk/db';
+import { HawkError } from '@hawk/shared';
 import OpenAI from 'openai';
 
 let _openai: OpenAI | null = null;
@@ -26,7 +27,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   });
 
   const embedding = response.data[0]?.embedding;
-  if (!embedding) throw new Error('Failed to generate embedding: empty response');
+  if (!embedding) throw new HawkError('Failed to generate embedding: empty response', 'EMBEDDING_FAILED');
   return embedding;
 }
 
