@@ -26,20 +26,17 @@ import { getLinkedMemories } from '../queries.ts';
 
 // ── Chainable Supabase mock ───────────────────────────────────────────────
 function makeChain(finalValue: unknown) {
-  const chain: Record<string, unknown> = {};
+  // Use a real Promise proxy so biome doesn't flag .then as a custom property
+  const promise = Promise.resolve(finalValue);
+  const chain = Object.assign(promise, {} as Record<string, unknown>);
+
   const methods = ['select', 'in', 'eq', 'order', 'limit', 'gte', 'lte', 'maybeSingle', 'single'];
   for (const m of methods) {
-    chain[m] = vi.fn().mockReturnValue(chain);
+    (chain as Record<string, unknown>)[m] = vi.fn().mockReturnValue(chain);
   }
-  // Terminal calls resolve with value
-  (chain.maybeSingle as ReturnType<typeof vi.fn>).mockResolvedValue(finalValue);
-  (chain.single as ReturnType<typeof vi.fn>).mockResolvedValue(finalValue);
-
-  // Make chain itself thenable (Supabase query builder is awaitable)
-  (chain as Record<string, unknown>).then = (
-    resolve: (v: unknown) => unknown,
-    reject?: (e: unknown) => unknown,
-  ) => Promise.resolve(finalValue).then(resolve, reject);
+  // Terminal calls also resolve correctly
+  ((chain as Record<string, unknown>).maybeSingle as ReturnType<typeof vi.fn>).mockResolvedValue(finalValue);
+  ((chain as Record<string, unknown>).single as ReturnType<typeof vi.fn>).mockResolvedValue(finalValue);
 
   return chain;
 }

@@ -1,9 +1,12 @@
 import { db } from '@hawk/db';
+import { HawkError, createLogger } from '@hawk/shared';
 import type OpenAI from 'openai';
 import { applyDedupResult, deduplicateMemory } from './deduplicator';
 import type { MemoryCandidate } from './deduplicator';
 import { predictImportance } from './importance-scorer';
 import { extractMemoriesByRules } from './rule-extractor';
+
+const logger = createLogger('memory');
 
 // Worker client + model injected from agent (Ollama local or OpenRouter)
 let _workerClient: (() => OpenAI) | null = null;
@@ -66,7 +69,10 @@ export async function findExpiredSessions(ttlMs = 30 * 60 * 1000): Promise<strin
     .lt('created_at', cutoff)
     .order('created_at', { ascending: false });
 
-  if (error) throw new Error(`Failed to find expired sessions: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message }, 'Failed to find expired sessions');
+    throw new HawkError(`Failed to find expired sessions: ${error.message}`, 'DB_QUERY_FAILED');
+  }
 
   // Deduplicate session IDs
   const sessionIds = new Set((data ?? []).map((m) => m.session_id as string));
@@ -103,7 +109,10 @@ export async function commitSession(sessionId: string): Promise<CommitResult> {
     .eq('archived', false)
     .order('created_at', { ascending: true });
 
-  if (error) throw new Error(`Failed to load session messages: ${error.message}`);
+  if (error) {
+    logger.error({ error: error.message, sessionId }, 'Failed to load session messages');
+    throw new HawkError(`Failed to load session messages: ${error.message}`, 'DB_QUERY_FAILED');
+  }
   if (!messages?.length) {
     // Archive empty sessions to prevent infinite reprocessing
     await db.from('session_archives').insert({
@@ -227,7 +236,8 @@ export async function commitSession(sessionId: string): Promise<CommitResult> {
         memoriesSkipped: skipped,
       };
     }
-    throw new Error(`Failed to archive session: ${archiveError.message}`);
+    logger.error({ error: archiveError.message, sessionId }, 'Failed to archive session');
+    throw new HawkError(`Failed to archive session: ${archiveError.message}`, 'DB_INSERT_FAILED');
   }
 
   // 6. Mark messages as archived (only after successful archive insert)

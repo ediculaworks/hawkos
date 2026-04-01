@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { classifyComplexity, getDailyUsage, selectModel, trackUsage } from '../model-router';
 
 describe('Model Router', () => {
@@ -70,7 +70,7 @@ describe('Daily budget tracking', () => {
   });
 
   it('trackUsage returns overBudget=false when no budget limit is set', () => {
-    delete process.env.MODEL_DAILY_BUDGET_USD;
+    process.env.MODEL_DAILY_BUDGET_USD = '';
     const result = trackUsage(0, 0);
     expect(result.overBudget).toBe(false);
   });
