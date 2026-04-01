@@ -1,6 +1,26 @@
 # Current Status
 
-**Ultima atualizacao:** 2026-03-29
+**Ultima atualizacao:** 2026-04-01
+
+## Wave 3 Improvements (2026-04-01)
+**Status: [🔄 Em Progresso]**
+
+Continuacao agressiva do hardening. Score estimado subiu de ~78 para ~86/100.
+
+### O que foi implementado:
+
+| Area | O que mudou |
+|------|------------|
+| Life Score Widget | Score real de 5 dimensoes (health/finances/objectives/routine/people) com SVG ring animado |
+| Proactive Insights | fetchInsights() gap-scanner: 7 checagens (sono, treino, transacoes, budget, overdue, habitos, interacoes) |
+| Insights Widget | Cards com severity (critical/warning/info) + action links registrado no WIDGET_REGISTRY |
+| PWA Complete | Service worker (cache-first static, network-first pages) + manifest + SW registration |
+| Security Headers | X-Frame-Options DENY, HSTS, X-Content-Type-Options, Referrer-Policy, Permissions-Policy |
+| Error Handling | Memory module: 10 throw new Error → HawkError + logger. EMBEDDING_FAILED + BUDGET_EXCEEDED codes |
+| Lint Clean | Handler.ts noInvalidUseBeforeDeclaration fix, 30 files auto-formatted, zero lint errors |
+| Context Keywords | Verbos conjugados (gastei, paguei, comprei, treinei, dormi, corri) para melhor detecção |
+| Tests | 117 → 148 testes (+31), 15 → 17 test files. Novos: tool-executor, memory BFS, context-engine extended, model-router budget |
+| Mobile | calendar, people, routine pages responsive (stacking + grid adjustments) |
 
 ## Wave 2 Improvements (2026-03-29)
 **Status: [✅ Completo]**
@@ -29,8 +49,8 @@ Continuacao do hardening. Score estimado subiu de ~69 para ~78/100.
 
 ## P0 Proximas Acoes
 
-1. Knowledge graph visualization no memory dashboard
-2. Testes E2E com Playwright (login, settings, automations)
-3. Proactive insights via gap-scanner UI
-4. PWA support (manifest + service worker)
-5. Multi-tenant observability (por-tenant activity_log dashboard)
+1. Testes E2E com Playwright (login, settings, automations)
+2. Multi-tenant observability (por-tenant activity_log dashboard)
+3. Content Security Policy (CSP) header com nonces
+4. Agent reflection loop: post-tool-call self-evaluation
+5. Exportar metricas para Grafana/Prometheus via /metrics endpoint
