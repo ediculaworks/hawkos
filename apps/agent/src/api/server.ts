@@ -641,6 +641,31 @@ const agentServer = Bun.serve({
       }
     }
 
+    // ── Prometheus-style metrics ────────────────────────────────────────────
+    if (path === '/metrics' && method === 'GET') {
+      const dailyUsage = (await import('../model-router.js')).getDailyUsage();
+      const lines = [
+        '# HELP hawk_uptime_seconds Agent uptime in seconds',
+        '# TYPE hawk_uptime_seconds gauge',
+        `hawk_uptime_seconds ${getUptimeSeconds()}`,
+        '# HELP hawk_active_sessions Number of active sessions',
+        '# TYPE hawk_active_sessions gauge',
+        `hawk_active_sessions ${state.sessions.size}`,
+        '# HELP hawk_daily_tokens Total tokens used today',
+        '# TYPE hawk_daily_tokens counter',
+        `hawk_daily_tokens ${dailyUsage.tokens}`,
+        '# HELP hawk_daily_cost_usd Estimated cost today in USD',
+        '# TYPE hawk_daily_cost_usd counter',
+        `hawk_daily_cost_usd ${dailyUsage.cost.toFixed(4)}`,
+        '# HELP hawk_total_messages Total messages across all sessions',
+        '# TYPE hawk_total_messages counter',
+        `hawk_total_messages ${Array.from(state.sessions.values()).reduce((s, x) => s + x.messageCount, 0)}`,
+      ];
+      return new Response(lines.join('\n'), {
+        headers: { ...corsHeaders, 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' },
+      });
+    }
+
     return new Response('Not Found', { status: 404 });
   },
 });
