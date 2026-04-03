@@ -3,6 +3,7 @@ WORKDIR /app
 
 COPY package.json bun.lock turbo.json ./
 COPY apps/agent/package.json apps/agent/
+COPY apps/web/package.json apps/web/
 COPY packages/db/package.json packages/db/
 COPY packages/shared/package.json packages/shared/
 COPY packages/admin/package.json packages/admin/
