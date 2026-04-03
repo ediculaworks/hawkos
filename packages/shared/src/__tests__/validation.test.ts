@@ -9,6 +9,8 @@ import {
   UUIDSchema,
   WorkoutTypeSchema,
   parseCommand,
+  sanitizeHtml,
+  stripTags,
   validatedCommand,
 } from '../validation';
 
@@ -121,5 +123,47 @@ describe('parseCommand', () => {
     // editReply is called asynchronously (fire-and-forget), wait a tick
     await Promise.resolve();
     expect(editReply).toHaveBeenCalledWith(expect.stringContaining('AddValue'));
+  });
+});
+
+describe('sanitizeHtml', () => {
+  it('escapes HTML tags', () => {
+    expect(sanitizeHtml('<script>alert("xss")</script>')).toBe(
+      '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;',
+    );
+  });
+
+  it('escapes ampersands', () => {
+    expect(sanitizeHtml('foo & bar')).toBe('foo &amp; bar');
+  });
+
+  it('escapes single quotes', () => {
+    expect(sanitizeHtml("it's")).toBe('it&#39;s');
+  });
+
+  it('returns empty string unchanged', () => {
+    expect(sanitizeHtml('')).toBe('');
+  });
+
+  it('does not modify safe strings', () => {
+    expect(sanitizeHtml('Hello World 123')).toBe('Hello World 123');
+  });
+});
+
+describe('stripTags', () => {
+  it('removes all HTML tags', () => {
+    expect(stripTags('<b>bold</b> and <i>italic</i>')).toBe('bold and italic');
+  });
+
+  it('removes self-closing tags', () => {
+    expect(stripTags('text<br/>more')).toBe('textmore');
+  });
+
+  it('handles nested tags', () => {
+    expect(stripTags('<div><span>inner</span></div>')).toBe('inner');
+  });
+
+  it('returns plain text unchanged', () => {
+    expect(stripTags('no tags here')).toBe('no tags here');
   });
 });

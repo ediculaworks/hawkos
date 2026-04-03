@@ -55,6 +55,26 @@ export function parseCommand<T>(
   return result.data;
 }
 
+/**
+ * Sanitize user-supplied strings to prevent XSS.
+ * Escapes HTML entities: <, >, &, ", '
+ */
+export function sanitizeHtml(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Strip all HTML tags from a string (for plain-text contexts).
+ */
+export function stripTags(input: string): string {
+  return input.replace(/<[^>]*>/g, '');
+}
+
 export function validatedCommand<T>(
   schema: z.ZodSchema<T>,
   data: unknown,
