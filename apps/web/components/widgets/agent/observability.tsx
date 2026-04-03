@@ -3,7 +3,7 @@
 import { fetchActivityStats } from '@/lib/actions/observability';
 import type { ActivityStats } from '@/lib/actions/observability';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, Clock, Layers, Zap } from 'lucide-react';
+import { type Activity, Clock, Layers, Zap } from 'lucide-react';
 
 function StatCard({
   icon: Icon,
@@ -86,10 +86,7 @@ export default function ObservabilityWidget() {
           Últimos eventos
         </p>
         {data.recentEntries.slice(0, 5).map((entry) => (
-          <div
-            key={entry.id}
-            className="flex items-center justify-between rounded p-1 text-[10px]"
-          >
+          <div key={entry.id} className="flex items-center justify-between rounded p-1 text-[10px]">
             <div className="flex items-center gap-1.5 min-w-0">
               <Clock className="h-2.5 w-2.5 shrink-0 text-[var(--color-text-muted)]" />
               <span className="truncate text-[var(--color-text)]">

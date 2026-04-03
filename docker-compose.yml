@@ -1,10 +1,11 @@
 # Hawk OS — Multi-Tenant Docker Compose
-# 1 Web Dashboard + N Agent instances
-# All services share the same .env with Admin Supabase credentials.
+# PostgreSQL + PgBouncer + 1 Web Dashboard + N Agent instances
+# All services share the same .env.
 # Each agent differentiates by AGENT_SLOT (ten1-ten6).
 #
 # Usage:
 #   docker compose up -d              # start all
+#   docker compose up -d postgres     # start database only
 #   docker compose up -d web          # start web only
 #   docker compose up -d agent-ten1   # start single agent
 #   docker compose logs -f agent-ten1 # follow agent logs
@@ -17,6 +18,9 @@ x-agent-defaults: &agent-defaults
   restart: unless-stopped
   extra_hosts:
     - "host.docker.internal:host-gateway"
+  depends_on:
+    postgres:
+      condition: service_healthy
   deploy:
     resources:
       limits:
@@ -30,6 +34,59 @@ x-agent-defaults: &agent-defaults
       max-file: "3"
 
 services:
+  # ── PostgreSQL 17 + pgvector ───────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hawkos
+      POSTGRES_USER: ${POSTGRES_USER:-hawkos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hawkos} -d hawkos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── PgBouncer (connection pooling) ─────────────────────────────────────
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-hawkos}:${POSTGRES_PASSWORD}@postgres:5432/hawkos
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 20
+    ports:
+      - "127.0.0.1:6432:6432"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
   # ── Next.js Dashboard (shared by all tenants) ──────────────────────────
   web:
     build:
@@ -37,6 +94,9 @@ services:
       dockerfile: Dockerfile.web
     env_file: .env
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "80:3000"
     environment:
@@ -140,5 +200,7 @@ services:
       start_period: 15s
 
 volumes:
+  pgdata:
+    driver: local
   backups:
     driver: local
