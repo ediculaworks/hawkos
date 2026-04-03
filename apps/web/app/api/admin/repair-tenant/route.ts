@@ -175,7 +175,7 @@ async function handleFixProfile(
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
          onboarding_complete = true`,
-      [user.id, name || email.split('@')[0]],
+      [user.id, (name ?? email.split('@')[0]) as string],
     );
   });
 

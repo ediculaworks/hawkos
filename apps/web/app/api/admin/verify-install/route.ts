@@ -55,7 +55,7 @@ export async function POST(request: Request) {
         await tx.unsafe(`SET LOCAL search_path TO "${schema}", public`);
         return tx.unsafe(
           'SELECT id, name, onboarding_complete FROM profile WHERE id = $1 LIMIT 1',
-          [user.id],
+          [user.id as string],
         );
       });
       const profile = profiles[0] as Record<string, unknown> | undefined;
