@@ -4,7 +4,7 @@ WORKDIR /app
 RUN apt-get update -qq && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 COPY . .
-RUN bun install --frozen-lockfile
+RUN HUSKY=0 bun install --frozen-lockfile
 
 WORKDIR /app/apps/web
 RUN bun run build
