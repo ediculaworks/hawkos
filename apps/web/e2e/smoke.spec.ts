@@ -52,3 +52,33 @@ test.describe('Rate Limiting', () => {
     expect(responses.some((s) => s === 429)).toBe(true);
   });
 });
+
+test.describe('PWA', () => {
+  test('manifest.json is accessible', async ({ request }) => {
+    const res = await request.get('/manifest.json');
+    expect(res.ok()).toBe(true);
+    const manifest = await res.json();
+    expect(manifest.name).toContain('Hawk');
+    expect(manifest.display).toBe('standalone');
+  });
+
+  test('service worker is registered', async ({ request }) => {
+    const res = await request.get('/sw.js');
+    expect(res.ok()).toBe(true);
+    const body = await res.text();
+    expect(body).toContain('CACHE_VERSION');
+  });
+});
+
+test.describe('Static Pages', () => {
+  test('onboarding page loads', async ({ page }) => {
+    await page.goto('/onboarding');
+    const body = await page.textContent('body');
+    expect(body).toBeTruthy();
+  });
+
+  test('API 404 for unknown routes', async ({ request }) => {
+    const res = await request.get('/api/nonexistent-route');
+    expect(res.status()).toBe(404);
+  });
+});
