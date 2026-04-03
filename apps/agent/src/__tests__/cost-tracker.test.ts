@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSessionCost, trackLLMCall, trackToolCall } from '../cost-tracker';
+import { createSessionCost, estimateCostUsd, trackLLMCall, trackToolCall } from '../cost-tracker';
 
 describe('Cost Tracker', () => {
   it('should initialize with zero values', () => {
@@ -46,5 +46,28 @@ describe('Cost Tracker', () => {
     const cost = createSessionCost('test-model');
     trackToolCall(cost);
     expect(cost.toolCalls).toBe(1);
+  });
+});
+
+describe('estimateCostUsd', () => {
+  it('returns 0 for 0 tokens', () => {
+    expect(estimateCostUsd(0)).toBe(0);
+  });
+
+  it('estimates cost at $3 per 1M tokens', () => {
+    // COST_PER_1M = 3.0
+    expect(estimateCostUsd(1_000_000)).toBeCloseTo(3.0, 4);
+  });
+
+  it('scales linearly', () => {
+    const half = estimateCostUsd(500_000);
+    const full = estimateCostUsd(1_000_000);
+    expect(full).toBeCloseTo(half * 2, 8);
+  });
+
+  it('gives a reasonable estimate for typical sessions (5k tokens ~$0.015)', () => {
+    const cost = estimateCostUsd(5000);
+    expect(cost).toBeGreaterThan(0);
+    expect(cost).toBeLessThan(0.05); // sanity bound
   });
 });
