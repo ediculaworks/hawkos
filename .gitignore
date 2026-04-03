@@ -16,6 +16,7 @@ out
 
 # Secrets / Personal data
 resources/user/
+resources/repo/
 tenants.json
 .env.*
 !.env.example
