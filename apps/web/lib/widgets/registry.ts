@@ -227,6 +227,16 @@ export const WIDGET_REGISTRY: Record<string, WidgetEntry> = {
     maxSize: { w: 6, h: 8 },
     component: () => import('@/components/widgets/agent/insights'),
   },
+  observability: {
+    id: 'observability',
+    moduleId: 'memory',
+    title: 'Observabilidade',
+    icon: Activity,
+    defaultSize: { w: 4, h: 4 },
+    minSize: { w: 3, h: 3 },
+    maxSize: { w: 6, h: 8 },
+    component: () => import('@/components/widgets/agent/observability'),
+  },
 };
 
 export function getWidgetDef(widgetId: string): WidgetEntry | undefined {
