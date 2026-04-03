@@ -135,7 +135,7 @@ export default async function AdminPage() {
                     <th className="pb-3">Label</th>
                     <th className="pb-3">Slug</th>
                     <th className="pb-3">Status</th>
-                    <th className="pb-3">Supabase</th>
+                    <th className="pb-3">Schema</th>
                     <th className="pb-3">Created</th>
                     <th className="pb-3">Actions</th>
                   </tr>

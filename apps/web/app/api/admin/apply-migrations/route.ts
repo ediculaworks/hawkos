@@ -1,12 +1,12 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { requireAdminAuth } from '@/lib/admin-auth';
+import { getPool } from '@hawk/db';
 import { NextResponse } from 'next/server';
 
 interface MigrateRequest {
-  projectRef: string;
-  target: 'admin' | 'tenant';
-  tenantAccessToken?: string;
+  tenantSlug: string;
+  schemaName: string;
 }
 
 function findMigrationsDir(): string {
@@ -17,17 +17,6 @@ function findMigrationsDir(): string {
   throw new Error('Cannot locate packages/db/supabase/migrations');
 }
 
-function loadAdminSchemaFiles(): { name: string; sql: string }[] {
-  const dir = findMigrationsDir();
-  const adminFiles = [
-    '20260410000000_admin_schema.sql',
-    '20260411000000_admin_schema_encrypt_configs.sql',
-  ];
-  return adminFiles
-    .filter((f) => existsSync(path.join(dir, f)))
-    .map((f) => ({ name: f, sql: readFileSync(path.join(dir, f), 'utf-8') }));
-}
-
 function loadTenantMigrationFiles(): { name: string; sql: string }[] {
   const dir = findMigrationsDir();
   const files = readdirSync(dir)
@@ -36,161 +25,68 @@ function loadTenantMigrationFiles(): { name: string; sql: string }[] {
   return files.map((f) => ({ name: f, sql: readFileSync(path.join(dir, f), 'utf-8') }));
 }
 
-async function runSql(projectRef: string, sql: string, accessToken: string): Promise<void> {
-  const response = await fetch(
-    `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: sql }),
-    },
-  );
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Management API error ${response.status}: ${body}`);
-  }
-}
-
-async function tableExists(
-  projectRef: string,
-  tableName: string,
-  accessToken: string,
-): Promise<boolean> {
-  const response = await fetch(
-    `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: `SELECT to_regclass('public.${tableName}') IS NOT NULL AS exists`,
-      }),
-    },
-  );
-  if (!response.ok) return false;
-  // biome-ignore lint/suspicious/noExplicitAny: management API returns unknown shape
-  const data = (await response.json()) as any;
-  return data?.[0]?.exists === true || data?.rows?.[0]?.exists === true;
-}
-
-function send(controller: ReadableStreamDefaultController, encoder: TextEncoder, data: object) {
-  controller.enqueue(encoder.encode(`${JSON.stringify(data)}\n`));
-}
-
 export async function POST(request: Request) {
   const authError = requireAdminAuth(request);
   if (authError) return authError;
 
   const body: MigrateRequest = await request.json();
-  const { projectRef, target, tenantAccessToken } = body;
+  const { schemaName } = body;
 
-  const adminAccessToken = process.env.SUPABASE_ACCESS_TOKEN;
-
-  // For tenant migrations, use tenant's token if provided, otherwise fall back to admin token
-  let effectiveToken: string | undefined;
-  if (target === 'tenant' && tenantAccessToken) {
-    effectiveToken = tenantAccessToken;
-  } else {
-    effectiveToken = adminAccessToken;
+  if (!schemaName || !/^[a-z_][a-z0-9_]*$/.test(schemaName)) {
+    return NextResponse.json({ error: 'Invalid schema name' }, { status: 400 });
   }
 
-  if (!effectiveToken) {
-    const reason =
-      target === 'tenant'
-        ? 'Token de acesso não fornecido. Forneça um Personal Access Token do Supabase no onboarding.'
-        : 'SUPABASE_ACCESS_TOKEN not set — migrations skipped';
-    return NextResponse.json({ skipped: true, reason }, { status: 501 });
-  }
+  const sql = getPool();
 
-  const encoder = new TextEncoder();
+  try {
+    // Ensure schema exists
+    await sql.unsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
 
-  const stream = new ReadableStream({
-    async start(controller) {
+    const files = loadTenantMigrationFiles();
+    const results: { file: string; status: 'ok' | 'skipped'; error?: string }[] = [];
+
+    for (const file of files) {
+      const { name } = file;
+      let migrationSql = file.sql;
+
+      if (!migrationSql.trim()) continue;
+
       try {
-        if (target === 'admin') {
-          send(controller, encoder, { type: 'status', msg: 'Verificando schema do Admin...' });
-          const alreadyApplied = await tableExists(projectRef, 'tenants', effectiveToken);
-          if (alreadyApplied) {
-            send(controller, encoder, { type: 'status', msg: 'Schema já aplicado, pulando.' });
-          } else {
-            const files = loadAdminSchemaFiles();
-            for (const { name, sql } of files) {
-              send(controller, encoder, { type: 'file', name, msg: `Aplicando ${name}...` });
-              await runSql(projectRef, sql, effectiveToken);
-              send(controller, encoder, { type: 'file_done', name });
-            }
-          }
-          send(controller, encoder, { type: 'done', applied: !alreadyApplied, target: 'admin' });
-        }
+        await sql.begin(async (tx) => {
+          await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
 
-        if (target === 'tenant') {
-          send(controller, encoder, { type: 'status', msg: 'Limpando schema existente...' });
-          const dropSql = `
-            DO $$ DECLARE r RECORD; BEGIN
-              FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public')
-              LOOP EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE', r.tablename); END LOOP;
-              FOR r IN (SELECT typname FROM pg_type
-                        WHERE typnamespace = 'public'::regnamespace AND typtype = 'e')
-              LOOP EXECUTE format('DROP TYPE IF EXISTS public.%I CASCADE', r.typname); END LOOP;
-              FOR r IN (
-                SELECT p.oid::regprocedure::text AS sig
-                FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-                WHERE n.nspname = 'public'
-                  AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
-              )
-              LOOP EXECUTE format('DROP FUNCTION IF EXISTS %s CASCADE', r.sig); END LOOP;
-            END $$;
-          `;
-          await runSql(projectRef, dropSql, effectiveToken);
-          send(controller, encoder, {
-            type: 'status',
-            msg: 'Schema limpo. Aplicando migrações...',
-          });
+          // Remove BEGIN/COMMIT since we're already in a transaction
+          migrationSql = migrationSql
+            .replace(/^BEGIN;\s*/im, '')
+            .replace(/\s*COMMIT;\s*$/im, '');
 
-          const files = loadTenantMigrationFiles();
-          const results: { file: string; status: 'ok' | 'skipped'; error?: string }[] = [];
-
-          for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            if (!file) continue;
-            const { name, sql } = file;
-            const label = name.replace(/^\d{14}_/, '').replace('.sql', '');
-            send(controller, encoder, {
-              type: 'file',
-              name,
-              msg: `[${i + 1}/${files.length}] ${label}`,
-              progress: Math.round(((i + 1) / files.length) * 100),
-            });
-            try {
-              await runSql(projectRef, sql, effectiveToken);
-              results.push({ file: name, status: 'ok' });
-              send(controller, encoder, { type: 'file_done', name, status: 'ok' });
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err);
-              results.push({ file: name, status: 'skipped', error: msg });
-              send(controller, encoder, { type: 'file_done', name, status: 'skipped' });
-              console.warn(`[apply-migrations] Skipped ${name}: ${msg}`);
-            }
-          }
-
-          await runSql(projectRef, `NOTIFY pgrst, 'reload schema';`, effectiveToken);
-          send(controller, encoder, {
-            type: 'done',
-            applied: true,
-            reset: true,
-            target: 'tenant',
-            results,
-          });
-        }
+          await tx.unsafe(migrationSql);
+        });
+        results.push({ file: name, status: 'ok' });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        send(controller, encoder, { type: 'error', error: msg });
-      } finally {
-        controller.close();
+        if (msg.includes('already exists') || msg.includes('duplicate')) {
+          results.push({ file: name, status: 'skipped' });
+        } else {
+          results.push({ file: name, status: 'skipped', error: msg });
+          console.warn(`[apply-migrations] Skipped ${name}: ${msg}`);
+        }
       }
-    },
-  });
+    }
 
-  return new Response(stream, {
-    headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' },
-  });
+    const applied = results.filter((r) => r.status === 'ok').length;
+    const skipped = results.filter((r) => r.status === 'skipped').length;
+
+    return NextResponse.json({
+      success: true,
+      schema: schemaName,
+      applied,
+      skipped,
+      total: files.length,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[apply-migrations] Error: ${msg}`);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

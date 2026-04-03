@@ -15,10 +15,6 @@ import { Step6Complete } from './steps/Step6Complete';
 interface OnboardingData {
   workspaceLabel?: string;
   slot?: string;
-  supabaseUrl?: string;
-  anonKey?: string;
-  serviceRoleKey?: string;
-  supabaseAccessToken?: string;
   email?: string;
   password?: string;
   name?: string;
@@ -82,7 +78,7 @@ export function OnboardingWizard({ slots: _slots }: Props) {
   useEffect(() => {
     if (!mounted) return;
     try {
-      const { password: _pw, supabaseAccessToken: _token, ...safeData } = formData;
+      const { password: _pw, ...safeData } = formData;
       localStorage.setItem(
         'hawk-onboarding-draft',
         JSON.stringify({ ...safeData, _step: currentStepIndex }),
@@ -209,10 +205,6 @@ export function OnboardingWizard({ slots: _slots }: Props) {
             }}
             onBack={goBack}
             initialValues={{
-              supabaseUrl: formData.supabaseUrl,
-              anonKey: formData.anonKey,
-              serviceRoleKey: formData.serviceRoleKey,
-              supabaseAccessToken: formData.supabaseAccessToken,
               openrouter: formData.openrouter,
               discord: formData.discord,
             }}
@@ -230,14 +222,10 @@ export function OnboardingWizard({ slots: _slots }: Props) {
           />
         )}
 
-        {currentStep === 'configure' && formData.supabaseUrl && formData.name && (
+        {currentStep === 'configure' && formData.name && (
           <Step5Configure
             formData={{
               workspaceLabel: formData.workspaceLabel,
-              supabaseUrl: formData.supabaseUrl || '',
-              anonKey: formData.anonKey || '',
-              serviceRoleKey: formData.serviceRoleKey || '',
-              supabaseAccessToken: formData.supabaseAccessToken,
               name: formData.name,
               email: formData.email,
               password: formData.password,

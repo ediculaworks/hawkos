@@ -1,177 +1,213 @@
-# Supabase CLI
+# Hawk OS
 
-[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=develop)](https://coveralls.io/github/supabase/cli?branch=develop) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary)
-](https://gitlab.com/sweatybridge/setup-cli/-/pipelines)
+A personal life operating system powered by AI. Manage finances, health, relationships, career, routines, and more through a Discord-based AI agent and a full-featured web dashboard.
 
-[Supabase](https://supabase.io) is an open source Firebase alternative. We're building the features of Firebase using enterprise-grade open source tools.
+## Overview
 
-This repository contains all the functionality for Supabase CLI.
+Hawk OS is a modular, self-hosted system that combines:
 
-- [x] Running Supabase locally
-- [x] Managing database migrations
-- [x] Creating and deploying Supabase Functions
-- [x] Generating types directly from your database schema
-- [x] Making authenticated HTTP requests to [Management API](https://supabase.com/docs/reference/api/introduction)
+- **AI Agent** — A Discord bot that understands natural language, executes actions, and proactively helps you stay on top of your life
+- **Web Dashboard** — A Next.js app with customizable widget grid for visualizing all your data
+- **Context Engine** — Three-layer context system (L0/L1/L2) that gives the AI deep understanding of your situation
+- **Memory System** — Long-term memory with semantic search (pgvector), frecency scoring, and automatic deduplication
 
-## Getting started
+## Architecture
 
-### Install the CLI
+```
+apps/
+  agent/          Discord bot + AI handler + 18 automations
+  web/            Next.js 15 dashboard (App Router, Server Components)
 
-Available via [NPM](https://www.npmjs.com) as dev dependency. To install:
+packages/
+  db/             PostgreSQL client + 85 migrations
+  modules/        18 isolated domain modules
+  context-engine/ L0/L1/L2 context assembler
+  shared/         Errors, constants, utilities
+  auth/           Authentication layer
+  admin/          Multi-tenant administration
+  extensions/     Third-party integrations (GitHub, ClickUp)
+  ui/             Shared UI primitives
+```
+
+## Modules
+
+11 active modules on the dashboard sidebar:
+
+| Module | Description |
+| ------ | ----------- |
+| **Finances** | Accounts, transactions, budgets, recurring payments, net worth tracking |
+| **Health** | Sleep, workouts, body measurements, health observations |
+| **People** | Contact management, interaction tracking, relationship scoring |
+| **Career** | Job applications, interviews, career goals |
+| **Objectives** | Goals, key results, progress tracking |
+| **Routine** | Habits, streaks, daily routines |
+| **Assets** | Physical and digital asset inventory |
+| **Entertainment** | Media backlog, watchlist, recommendations |
+| **Legal** | Documents, deadlines, legal matters |
+| **Housing** | Property management, maintenance, expenses |
+| **Calendar** | Events, reminders, Google Calendar sync |
+
+Additional modules exist in code (security, social, spirituality, journal, knowledge) but are not active in the sidebar.
+
+## Tech Stack
+
+| Layer | Technology |
+| ----- | ---------- |
+| Runtime | Bun 1.3 |
+| Language | TypeScript 5.7 (strict) |
+| Frontend | Next.js 15, React 19, Tailwind CSS v4, shadcn/ui |
+| State | Zustand + TanStack React Query |
+| AI | OpenRouter (multi-model with fallback chain) |
+| Database | PostgreSQL 17 + pgvector + pg_trgm |
+| Pooling | PgBouncer |
+| Bot | discord.js v14 |
+| Monorepo | Turborepo |
+| Linting | Biome |
+| Testing | Vitest + Playwright |
+| Reverse Proxy | Caddy (automatic HTTPS) |
+
+## Getting Started
+
+### Prerequisites
+
+- [Bun](https://bun.sh) >= 1.3
+- [Docker](https://www.docker.com/) and Docker Compose
+- A Discord bot token
+- An OpenRouter API key
+
+### Setup
+
+1. Clone the repository:
 
 ```bash
-npm i supabase --save-dev
+git clone https://github.com/ediculaworks/hawkos.git
+cd hawkos
 ```
 
-When installing with yarn 4, you need to disable experimental fetch with the following nodejs config.
-
-```
-NODE_OPTIONS=--no-experimental-fetch yarn add supabase
-```
-
-> **Note**
-For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency](https://bun.sh/guides/install/trusted) before running `bun add -D supabase`.
-
-<details>
-  <summary><b>macOS</b></summary>
-
-  Available via [Homebrew](https://brew.sh). To install:
-
-  ```sh
-  brew install supabase/tap/supabase
-  ```
-
-  To install the beta release channel:
-  
-  ```sh
-  brew install supabase/tap/supabase-beta
-  brew link --overwrite supabase-beta
-  ```
-  
-  To upgrade:
-
-  ```sh
-  brew upgrade supabase
-  ```
-</details>
-
-<details>
-  <summary><b>Windows</b></summary>
-
-  Available via [Scoop](https://scoop.sh). To install:
-
-  ```powershell
-  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
-  scoop install supabase
-  ```
-
-  To upgrade:
-
-  ```powershell
-  scoop update supabase
-  ```
-</details>
-
-<details>
-  <summary><b>Linux</b></summary>
-
-  Available via [Homebrew](https://brew.sh) and Linux packages.
-
-  #### via Homebrew
-
-  To install:
-
-  ```sh
-  brew install supabase/tap/supabase
-  ```
-
-  To upgrade:
-
-  ```sh
-  brew upgrade supabase
-  ```
-
-  #### via Linux packages
-
-  Linux packages are provided in [Releases](https://github.com/supabase/cli/releases). To install, download the `.apk`/`.deb`/`.rpm`/`.pkg.tar.zst` file depending on your package manager and run the respective commands.
-
-  ```sh
-  sudo apk add --allow-untrusted <...>.apk
-  ```
-
-  ```sh
-  sudo dpkg -i <...>.deb
-  ```
-
-  ```sh
-  sudo rpm -i <...>.rpm
-  ```
-
-  ```sh
-  sudo pacman -U <...>.pkg.tar.zst
-  ```
-</details>
-
-<details>
-  <summary><b>Other Platforms</b></summary>
-
-  You can also install the CLI via [go modules](https://go.dev/ref/mod#go-install) without the help of package managers.
-
-  ```sh
-  go install github.com/supabase/cli@latest
-  ```
-
-  Add a symlink to the binary in `$PATH` for easier access:
-
-  ```sh
-  ln -s "$(go env GOPATH)/bin/cli" /usr/bin/supabase
-  ```
-
-  This works on other non-standard Linux distros.
-</details>
-
-<details>
-  <summary><b>Community Maintained Packages</b></summary>
-
-  Available via [pkgx](https://pkgx.sh/). Package script [here](https://github.com/pkgxdev/pantry/blob/main/projects/supabase.com/cli/package.yml).
-  To install in your working directory:
-
-  ```bash
-  pkgx install supabase
-  ```
-
-  Available via [Nixpkgs](https://nixos.org/). Package script [here](https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/tools/supabase-cli/default.nix).
-</details>
-
-### Run the CLI
+2. Install dependencies:
 
 ```bash
-supabase bootstrap
+bun install
 ```
 
-Or using npx:
+3. Configure environment:
 
 ```bash
-npx supabase bootstrap
+cp .env.example .env
+# Edit .env with your credentials
 ```
 
-The bootstrap command will guide you through the process of setting up a Supabase project using one of the [starter](https://github.com/supabase-community/supabase-samples/blob/main/samples.json) templates.
+4. Start the database:
 
-## Docs
-
-Command & config reference can be found [here](https://supabase.com/docs/reference/cli/about).
-
-## Breaking changes
-
-We follow semantic versioning for changes that directly impact CLI commands, flags, and configurations.
-
-However, due to dependencies on other service images, we cannot guarantee that schema migrations, seed.sql, and generated types will always work for the same CLI major version. If you need such guarantees, we encourage you to pin a specific version of CLI in package.json.
-
-## Developing
-
-To run from source:
-
-```sh
-# Go >= 1.22
-go run . help
+```bash
+docker compose up -d postgres pgbouncer
 ```
+
+5. Run migrations:
+
+```bash
+bun db:migrate
+```
+
+6. Start development:
+
+```bash
+bun dev        # All apps (web + agent)
+bun dev:web    # Dashboard only
+bun dev:agent  # Agent only
+```
+
+## Agent Automations
+
+The AI agent runs 18 scheduled automations:
+
+| Automation | Schedule | Purpose |
+| ---------- | -------- | ------- |
+| Daily Check-in | 09:00 + 22:00 | Morning briefing and evening review |
+| Alerts | 08:00 daily | Upcoming deadlines and reminders |
+| Weekly Review | Sunday 20:00 | Week summary and planning |
+| Session Compactor | Every hour | Extract memories from conversations |
+| Memory Forgetter | Periodic | Archive unused memories (>90d) |
+| Health Insights | Periodic | Patterns in sleep, exercise, vitals |
+| Gap Scanner | Periodic | Detect missing data and suggest actions |
+| Backup | Scheduled | Database backup to Cloudflare R2 |
+| Heartbeat | Active hours | Proactive check-ins and suggestions |
+| Net Worth Snapshot | Periodic | Track financial position over time |
+| Streak Guardian | Daily | Protect habit streaks |
+| And more... | | Analytics, job monitoring, content pipeline |
+
+## Multi-Tenant
+
+Hawk OS supports up to 6 tenants on a single deployment. Each tenant gets:
+
+- Isolated PostgreSQL schema
+- Dedicated Discord agent instance
+- Independent AI context and memory
+- Per-tenant feature flags
+
+```bash
+docker compose up -d                 # Start everything
+docker compose up -d agent-ten1      # Start single tenant agent
+```
+
+## Scripts
+
+```bash
+bun dev          # Run all apps in dev mode
+bun build        # Build all packages
+bun lint         # Check code with Biome
+bun test         # Run unit tests (Vitest)
+bun test:e2e     # Run E2E tests (Playwright)
+bun agent        # Run Discord agent
+bun db:migrate   # Apply database migrations
+bun setup        # Interactive setup wizard
+```
+
+## Production Deployment
+
+Hawk OS is designed to run on a single VPS with Docker Compose:
+
+- **Caddy** handles HTTPS automatically via Let's Encrypt
+- **PgBouncer** pools database connections
+- **Health checks** on all services with automatic restart
+- **Resource limits** configured per container
+- Security headers (HSTS, CSP, X-Frame-Options)
+- Prometheus-compatible `/metrics` endpoint
+
+```bash
+# On your VPS
+git pull
+./scripts/deploy.sh    # Pull, migrate, build, health check
+```
+
+## Project Structure
+
+```text
+.
+├── apps/
+│   ├── agent/                 # Discord bot + AI handler
+│   │   └── src/
+│   │       ├── handler.ts     # LLM orchestration
+│   │       ├── tools.ts       # Dynamic tool routing
+│   │       └── automations/   # 18 scheduled jobs
+│   └── web/                   # Next.js dashboard
+│       ├── app/dashboard/     # Module pages
+│       ├── components/
+│       │   ├── widgets/       # Grid widgets per module
+│       │   └── shell/         # Sidebar, TopBar
+│       └── lib/
+│           ├── actions/       # Server Actions
+│           └── widgets/       # Widget registry
+├── packages/
+│   ├── db/                    # Database client + migrations
+│   ├── modules/               # 18 domain modules
+│   ├── context-engine/        # L0/L1/L2 assembler
+│   └── shared/                # Errors, constants, utils
+├── docker/                    # Dockerfiles + Caddy config
+├── docker-compose.yml
+└── .env.example
+```
+
+## License
+
+Private project. All rights reserved.

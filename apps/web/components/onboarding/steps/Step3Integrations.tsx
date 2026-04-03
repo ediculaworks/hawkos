@@ -10,12 +10,8 @@ type TestStatus = 'idle' | 'loading' | 'ok' | 'error';
 
 interface Step3IntegrationsProps {
   onNext: (data: {
-    supabaseUrl: string;
-    anonKey: string;
-    serviceRoleKey: string;
-    supabaseAccessToken?: string;
     openrouter: { apiKey: string; model?: string };
-    discord?: {
+    discord: {
       botToken: string;
       clientId: string;
       guildId: string;
@@ -25,10 +21,6 @@ interface Step3IntegrationsProps {
   }) => void;
   onBack: () => void;
   initialValues?: {
-    supabaseUrl?: string;
-    anonKey?: string;
-    serviceRoleKey?: string;
-    supabaseAccessToken?: string;
     openrouter?: { apiKey?: string; model?: string };
     discord?: {
       botToken?: string;
@@ -55,15 +47,6 @@ function ConnectionBadge({ status, error }: { status: TestStatus; error?: string
 }
 
 export function Step3Integrations({ onNext, onBack, initialValues }: Step3IntegrationsProps) {
-  const [supabase, setSupabase] = useState({
-    url: initialValues?.supabaseUrl ?? '',
-    anonKey: initialValues?.anonKey ?? '',
-    serviceKey: initialValues?.serviceRoleKey ?? '',
-    accessToken: initialValues?.supabaseAccessToken ?? '',
-  });
-  const [supabaseStatus, setSupabaseStatus] = useState<TestStatus>('idle');
-  const [supabaseError, setSupabaseError] = useState('');
-
   const [openrouter, setOpenrouter] = useState({
     apiKey: initialValues?.openrouter?.apiKey ?? '',
     model: initialValues?.openrouter?.model ?? 'nvidia/nemotron-3-super-120b-a12b:free',
@@ -72,7 +55,6 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
   const [openrouterStatus, setOpenrouterStatus] = useState<TestStatus>('idle');
   const [openrouterError, setOpenrouterError] = useState('');
 
-  const [discordExpanded, setDiscordExpanded] = useState(!!initialValues?.discord?.botToken);
   const [discord, setDiscord] = useState({
     botToken: initialValues?.discord?.botToken ?? '',
     clientId: initialValues?.discord?.clientId ?? '',
@@ -82,38 +64,7 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
   });
   const [discordStatus, setDiscordStatus] = useState<TestStatus>('idle');
   const [discordError, setDiscordError] = useState('');
-
-  const testSupabase = async () => {
-    const url = supabase.url.trim();
-    if (!url || !supabase.anonKey || !supabase.serviceKey) {
-      setSupabaseError('Preencha todos os campos');
-      setSupabaseStatus('error');
-      return;
-    }
-    setSupabaseStatus('loading');
-    setSupabaseError('');
-    try {
-      const res = await fetch('/api/admin/validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          supabaseUrl: url,
-          supabaseAnonKey: supabase.anonKey,
-          supabaseServiceKey: supabase.serviceKey,
-        }),
-      });
-      const data = await res.json();
-      if (data.valid) {
-        setSupabaseStatus('ok');
-      } else {
-        setSupabaseStatus('error');
-        setSupabaseError(data.error || 'Falha na conexão');
-      }
-    } catch {
-      setSupabaseStatus('error');
-      setSupabaseError('Erro ao testar conexão');
-    }
-  };
+  const [discordExpanded, setDiscordExpanded] = useState(!!initialValues?.discord?.botToken);
 
   const testOpenRouter = async () => {
     if (!openrouter.apiKey.trim()) {
@@ -134,7 +85,7 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
         setOpenrouterStatus('ok');
       } else {
         setOpenrouterStatus('error');
-        setOpenrouterError(data.error || 'API key inválida');
+        setOpenrouterError(data.error || 'API key invalida');
       }
     } catch {
       setOpenrouterStatus('error');
@@ -161,7 +112,7 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
         setDiscordStatus('ok');
       } else {
         setDiscordStatus('error');
-        setDiscordError(data.error || 'Token inválido');
+        setDiscordError(data.error || 'Token invalido');
       }
     } catch {
       setDiscordStatus('error');
@@ -169,134 +120,124 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
     }
   };
 
-  const canContinue = supabaseStatus === 'ok' && openrouterStatus === 'ok';
+  const discordFilled =
+    discord.botToken.trim() &&
+    discord.clientId.trim() &&
+    discord.guildId.trim() &&
+    discord.channelId.trim() &&
+    discord.userId.trim();
+
+  const canContinue = openrouterStatus === 'ok' && !!discordFilled;
 
   const handleSubmit = () => {
     if (!canContinue) return;
     const resolvedModel = openrouter.model === '__manual__' ? manualModel.trim() : openrouter.model;
     onNext({
-      supabaseUrl: supabase.url.trim(),
-      anonKey: supabase.anonKey.trim(),
-      serviceRoleKey: supabase.serviceKey.trim(),
-      supabaseAccessToken: supabase.accessToken || undefined,
       openrouter: { apiKey: openrouter.apiKey.trim(), model: resolvedModel },
-      discord: discord.botToken.trim() ? discord : undefined,
+      discord: {
+        botToken: discord.botToken.trim(),
+        clientId: discord.clientId.trim(),
+        guildId: discord.guildId.trim(),
+        channelId: discord.channelId.trim(),
+        userId: discord.userId.trim(),
+      },
     });
   };
 
   return (
     <div className="space-y-4">
-      {/* Supabase */}
+      {/* Discord */}
       <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-accent)]/30 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-medium text-[var(--color-text-primary)] flex items-center gap-2">
-              Supabase
+              Discord
               <span className="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)]">
-                Obrigatório
+                Obrigatorio
               </span>
             </h3>
             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
               <a
-                href="https://supabase.com/dashboard"
+                href="https://discord.com/developers/applications"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[var(--color-accent)] hover:underline inline-flex items-center gap-1"
               >
-                supabase.com → Settings → API <ExternalLink className="h-3 w-3" />
+                discord.com/developers → Applications <ExternalLink className="h-3 w-3" />
               </a>
             </p>
           </div>
           <div className="mt-0.5 shrink-0">
-            <ConnectionBadge status={supabaseStatus} />
+            <ConnectionBadge status={discordStatus} />
           </div>
         </div>
 
         <div>
           <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
-            Project URL
-          </label>
-          <Input
-            placeholder="https://xxxx.supabase.co"
-            value={supabase.url}
-            onChange={(e) => {
-              let url = e.target.value.trim();
-              if (url && !url.startsWith('http://') && !url.startsWith('https://'))
-                url = `https://${url}`;
-              setSupabase({ ...supabase, url });
-              setSupabaseStatus('idle');
-            }}
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
-            Anon / Public Key
-          </label>
-          <Input
-            placeholder="eyJ..."
-            value={supabase.anonKey}
-            onChange={(e) => {
-              setSupabase({ ...supabase, anonKey: e.target.value.trim() });
-              setSupabaseStatus('idle');
-            }}
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
-            Service Role Key
+            Bot Token
           </label>
           <Input
             type="password"
-            placeholder="eyJ..."
-            value={supabase.serviceKey}
+            placeholder="MTIz... (Bot → Token)"
+            value={discord.botToken}
             onChange={(e) => {
-              setSupabase({ ...supabase, serviceKey: e.target.value.trim() });
-              setSupabaseStatus('idle');
+              setDiscord({ ...discord, botToken: e.target.value });
+              setDiscordStatus('idle');
             }}
           />
         </div>
         <div>
           <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
-            Personal Access Token (para migrations)
+            Client ID
           </label>
           <Input
-            type="password"
-            placeholder="sbp_xxxxxxxx"
-            value={supabase.accessToken}
-            onChange={(e) => {
-              setSupabase({ ...supabase, accessToken: e.target.value.trim() });
-            }}
+            placeholder="123456789 (General → App ID)"
+            value={discord.clientId}
+            onChange={(e) => setDiscord({ ...discord, clientId: e.target.value })}
           />
-          <p className="text-xs text-[var(--color-text-muted)] mt-1">
-            Crie em{' '}
-            <a
-              href="https://app.supabase.com/account/tokens"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[var(--color-accent)] hover:underline inline-flex items-center gap-1"
-            >
-              app.supabase.com → Account → Access Tokens <ExternalLink className="h-3 w-3" />
-            </a>
-            . Necessário para aplicar o schema no seu projeto.
-          </p>
         </div>
-        {supabaseStatus === 'error' && supabaseError && (
-          <p className="text-xs text-[var(--color-danger)]">{supabaseError}</p>
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+            Guild / Server ID
+          </label>
+          <Input
+            placeholder="123456789 (Server Settings → Widget)"
+            value={discord.guildId}
+            onChange={(e) => setDiscord({ ...discord, guildId: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+            Channel ID
+          </label>
+          <Input
+            placeholder="123456789 (Right-click channel → Copy ID)"
+            value={discord.channelId}
+            onChange={(e) => setDiscord({ ...discord, channelId: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+            Seu User ID
+          </label>
+          <Input
+            placeholder="123456789 (Right-click seu nome → Copy ID)"
+            value={discord.userId}
+            onChange={(e) => setDiscord({ ...discord, userId: e.target.value })}
+          />
+        </div>
+        {discordStatus === 'error' && discordError && (
+          <p className="text-xs text-[var(--color-danger)]">{discordError}</p>
         )}
         <Button
           size="sm"
           variant="outline"
-          onClick={testSupabase}
-          disabled={
-            supabaseStatus === 'loading' ||
-            !supabase.url ||
-            !supabase.anonKey ||
-            !supabase.serviceKey
-          }
+          onClick={testDiscord}
+          disabled={discordStatus === 'loading' || !discord.botToken}
           className="w-full"
         >
-          {supabaseStatus === 'loading' && <Loader2 className="h-3 w-3 animate-spin mr-2" />}
-          {supabaseStatus === 'ok' ? '✓ Conectado' : 'Testar conexão'}
+          {discordStatus === 'loading' && <Loader2 className="h-3 w-3 animate-spin mr-2" />}
+          {discordStatus === 'ok' ? '✓ Bot online' : 'Testar Discord'}
         </Button>
       </div>
 
@@ -307,7 +248,7 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
             <h3 className="text-sm font-medium text-[var(--color-text-primary)] flex items-center gap-2">
               OpenRouter
               <span className="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)]">
-                Obrigatório
+                Obrigatorio
               </span>
             </h3>
             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
@@ -379,120 +320,9 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
         </Button>
       </div>
 
-      {/* Discord (optional) */}
-      <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border)] space-y-3">
-        <button
-          type="button"
-          onClick={() => setDiscordExpanded(!discordExpanded)}
-          className="w-full flex items-center justify-between"
-        >
-          <div>
-            <h3 className="text-sm font-medium text-[var(--color-text-primary)] flex items-center gap-2">
-              Discord
-              <span className="text-xs px-2 py-0.5 rounded bg-[var(--color-surface-2)] text-[var(--color-text-muted)]">
-                Opcional
-              </span>
-              {discordStatus === 'ok' && (
-                <CheckCircle className="h-3.5 w-3.5 text-[var(--color-success)]" />
-              )}
-            </h3>
-            <p className="text-xs text-[var(--color-text-muted)] mt-0.5 text-left">
-              Interface de chat do agente
-            </p>
-          </div>
-          {discordExpanded ? (
-            <ChevronUp className="h-4 w-4 text-[var(--color-text-muted)] shrink-0" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-[var(--color-text-muted)] shrink-0" />
-          )}
-        </button>
-
-        {discordExpanded && (
-          <div className="space-y-3 pt-1">
-            <p className="text-xs text-[var(--color-text-muted)]">
-              <a
-                href="https://discord.com/developers/applications"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[var(--color-accent)] hover:underline inline-flex items-center gap-1"
-              >
-                discord.com/developers → Applications <ExternalLink className="h-3 w-3" />
-              </a>
-            </p>
-            <div>
-              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
-                Bot Token
-              </label>
-              <Input
-                type="password"
-                placeholder="MTIz... (Bot → Token)"
-                value={discord.botToken}
-                onChange={(e) => {
-                  setDiscord({ ...discord, botToken: e.target.value });
-                  setDiscordStatus('idle');
-                }}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
-                Client ID
-              </label>
-              <Input
-                placeholder="123456789 (General → App ID)"
-                value={discord.clientId}
-                onChange={(e) => setDiscord({ ...discord, clientId: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
-                Guild / Server ID
-              </label>
-              <Input
-                placeholder="123456789 (Server Settings → Widget)"
-                value={discord.guildId}
-                onChange={(e) => setDiscord({ ...discord, guildId: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
-                Channel ID
-              </label>
-              <Input
-                placeholder="123456789 (Right-click channel → Copy ID)"
-                value={discord.channelId}
-                onChange={(e) => setDiscord({ ...discord, channelId: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
-                Seu User ID
-              </label>
-              <Input
-                placeholder="123456789 (Right-click seu nome → Copy ID)"
-                value={discord.userId}
-                onChange={(e) => setDiscord({ ...discord, userId: e.target.value })}
-              />
-            </div>
-            {discordStatus === 'error' && discordError && (
-              <p className="text-xs text-[var(--color-danger)]">{discordError}</p>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={testDiscord}
-              disabled={discordStatus === 'loading' || !discord.botToken}
-              className="w-full"
-            >
-              {discordStatus === 'loading' && <Loader2 className="h-3 w-3 animate-spin mr-2" />}
-              {discordStatus === 'ok' ? '✓ Bot online' : 'Testar Discord'}
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {!canContinue && (supabaseStatus !== 'idle' || openrouterStatus !== 'idle') && (
+      {!canContinue && (openrouterStatus !== 'idle' || discordStatus !== 'idle') && (
         <p className="text-xs text-[var(--color-text-muted)] text-center">
-          Teste as conexões de Supabase e OpenRouter para continuar.
+          Preencha o Discord e teste o OpenRouter para continuar.
         </p>
       )}
 
@@ -501,7 +331,7 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
           ← Voltar
         </Button>
         <Button onClick={handleSubmit} disabled={!canContinue}>
-          Próximo →
+          Proximo →
         </Button>
       </div>
     </div>
