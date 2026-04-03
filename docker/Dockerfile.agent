@@ -27,7 +27,6 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/agent ./apps/agent
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/scripts ./scripts
 
 EXPOSE 3001
 CMD ["bun", "run", "apps/agent/src/index.ts"]
