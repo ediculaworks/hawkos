@@ -1,0 +1,32 @@
+FROM oven/bun:1.3.10-slim AS builder
+WORKDIR /app
+
+COPY package.json bun.lock turbo.json ./
+COPY apps/agent/package.json apps/agent/
+COPY packages/db/package.json packages/db/
+COPY packages/shared/package.json packages/shared/
+COPY packages/admin/package.json packages/admin/
+COPY packages/auth/package.json packages/auth/
+COPY packages/context-engine/package.json packages/context-engine/
+COPY packages/extensions/package.json packages/extensions/
+COPY packages/modules/ packages/modules/
+
+RUN bun install --frozen-lockfile
+
+COPY . .
+
+# ── Runtime ───────────────────────────────────────────────────
+FROM oven/bun:1.3.10-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+RUN apt-get update -qq && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/apps/agent ./apps/agent
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/scripts ./scripts
+
+EXPOSE 3001
+CMD ["bun", "run", "apps/agent/src/index.ts"]

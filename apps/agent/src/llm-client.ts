@@ -45,7 +45,7 @@ export function getWorkerClient(): OpenAI {
 /** Model name for worker tasks — Ollama model or OpenRouter free model */
 export const WORKER_MODEL = process.env.OLLAMA_BASE_URL
   ? 'qwen2.5:3b'
-  : (process.env.MEMORY_WORKER_MODEL ?? 'sourceful/riverflow-v2-fast');
+  : (process.env.MEMORY_WORKER_MODEL ?? 'nvidia/nemotron-nano-9b-v2:free');
 
 export function isOllamaAvailable(): boolean {
   return !!process.env.OLLAMA_BASE_URL;

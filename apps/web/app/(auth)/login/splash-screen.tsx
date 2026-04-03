@@ -1,5 +1,6 @@
 'use client';
 
+import ShinyText from '@/components/react-bits/text/shiny-text';
 import { EASE } from '@/lib/animations/constants';
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
@@ -32,10 +33,14 @@ export function SplashScreen({ onComplete }: { onComplete: () => void }) {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: EASE.outQuart }}
-        className="text-4xl font-bold tracking-tight text-[var(--color-text-primary)]"
-        style={{ animation: 'logo-glow 2s ease-in-out infinite' }}
+        className="text-4xl font-bold tracking-tight"
       >
-        Hawk OS
+        <ShinyText
+          text="Hawk OS"
+          speed={2}
+          color="var(--color-text-primary)"
+          shineColor="var(--color-accent)"
+        />
       </motion.h1>
 
       {/* Progress bar */}

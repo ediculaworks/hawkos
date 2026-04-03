@@ -2,18 +2,12 @@
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { extractProjectRef } from '@/lib/onboarding/utils';
-import { createBrowserClient } from '@supabase/ssr';
 import { AlertTriangle, Check, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface Step5ConfigureProps {
   formData: {
     workspaceLabel?: string;
-    supabaseUrl?: string;
-    anonKey?: string;
-    serviceRoleKey?: string;
-    supabaseAccessToken?: string;
     name: string;
     email?: string;
     password?: string;
@@ -44,10 +38,8 @@ interface ConfigStep {
 type Phase = 'confirm' | 'running' | 'account-exists' | 'done';
 
 const INITIAL_STEPS: ConfigStep[] = [
-  { label: 'Validando credenciais', status: 'pending' },
-  { label: 'Preparando Admin Supabase', status: 'pending' },
-  { label: 'Criando tenant no Admin', status: 'pending' },
-  { label: 'Resetando e migrando banco', status: 'pending' },
+  { label: 'Criando tenant', status: 'pending' },
+  { label: 'Aplicando migrações', status: 'pending' },
   { label: 'Criando conta de usuário', status: 'pending' },
   { label: 'Realizando login', status: 'pending' },
   { label: 'Verificando instalação', status: 'pending' },
@@ -122,66 +114,15 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
 
     const run = async () => {
       try {
-        const adminUrl = process.env.NEXT_PUBLIC_ADMIN_SUPABASE_URL || '';
-        const adminRef = extractProjectRef(adminUrl) || 'mglzbxtiyzgqeszscppy';
-        const tenantRef = extractProjectRef(formData.supabaseUrl || '') || '';
-
-        // ── Step 1: Validate credentials ─────────────────────────────────
+        // ── Step 1: Create tenant ──────────────────────────────────────
         setStepStatus(0, 'loading');
         setProgress((0.5 / total) * 100);
-
-        const validateRes = await fetch('/api/admin/validate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            supabaseUrl: formData.supabaseUrl,
-            supabaseAnonKey: formData.anonKey,
-            supabaseServiceKey: formData.serviceRoleKey,
-            discordBotToken: formData.discord?.botToken,
-          }),
-        });
-        const validateResult = await validateRes.json();
-        if (!validateResult.valid) {
-          throw new Error(validateResult.error || 'Falha na validação das credenciais');
-        }
-        setStepStatus(0, 'done');
-        setProgress((1 / total) * 100);
-
-        // ── Step 2: Apply admin schema ────────────────────────────────────
-        setStepStatus(1, 'loading');
-        setProgress((1.5 / total) * 100);
-
-        const adminMigRes = await fetch('/api/admin/apply-migrations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectRef: adminRef, target: 'admin' }),
-        });
-        if (adminMigRes.status === 501) {
-          setStepStatus(1, 'done', 'pulado (sem SUPABASE_ACCESS_TOKEN)');
-        } else {
-          let adminDone = false;
-          await readNdjsonStream(adminMigRes, (event) => {
-            if (event.type === 'done') adminDone = true;
-            if (event.type === 'error')
-              throw new Error(String(event.error || 'Erro Admin Supabase'));
-          });
-          if (!adminDone) throw new Error('Erro ao preparar Admin Supabase');
-          setStepStatus(1, 'done');
-        }
-        setProgress((2 / total) * 100);
-
-        // ── Step 3: Create tenant in admin Supabase ───────────────────────
-        setStepStatus(2, 'loading');
-        setProgress((2.5 / total) * 100);
 
         const tenantRes = await fetch('/api/admin/tenants', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             label: formData.workspaceLabel || formData.name,
-            supabaseUrl: formData.supabaseUrl,
-            supabaseAnonKey: formData.anonKey,
-            supabaseServiceKey: formData.serviceRoleKey,
             discordConfig: formData.discord
               ? {
                   bot_token: formData.discord.botToken,
@@ -200,55 +141,31 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
         if (!tenantResult.tenant) {
           throw new Error(tenantResult.error || 'Erro ao criar tenant');
         }
-        setStepStatus(2, 'done');
-        setProgress((3 / total) * 100);
+        setStepStatus(0, 'done');
+        setProgress((1 / total) * 100);
 
-        // ── Step 4: Reset DB + apply tenant migrations ────────────────────
-        setStepStatus(3, 'loading');
-        setProgress((3.5 / total) * 100);
+        // ── Step 2: Apply migrations to tenant schema ─────────────────
+        setStepStatus(1, 'loading');
+        setProgress((1.5 / total) * 100);
 
-        if (tenantRef) {
-          const tenantMigRes = await fetch('/api/admin/apply-migrations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              projectRef: tenantRef,
-              target: 'tenant',
-              tenantAccessToken: formData.supabaseAccessToken,
-            }),
-          });
-          if (tenantMigRes.status === 501) {
-            setStepStatus(3, 'done', 'pulado (sem SUPABASE_ACCESS_TOKEN)');
-          } else {
-            let migDone = false;
-            await readNdjsonStream(tenantMigRes, (event) => {
-              if (event.type === 'status') {
-                setStepStatus(3, 'loading', String(event.msg || ''));
-              } else if (event.type === 'file') {
-                setStepStatus(3, 'loading', String(event.msg || ''));
-                if (typeof event.progress === 'number') {
-                  setProgress(((3 + event.progress / 100) / total) * 100);
-                }
-              } else if (event.type === 'done') {
-                migDone = true;
-              } else if (event.type === 'error') {
-                throw new Error(String(event.error || 'Erro ao aplicar migrações'));
-              }
-            });
-            if (!migDone) throw new Error('Migrações não foram concluídas');
-            setStepStatus(3, 'done');
-          }
-        } else {
-          setStepStatus(3, 'done');
+        const migRes = await fetch('/api/admin/apply-migrations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenantSlug: tenantResult.tenant.slug,
+            schemaName: tenantResult.tenant.schema_name,
+          }),
+        });
+        if (!migRes.ok) {
+          const migResult = await migRes.json();
+          throw new Error(migResult.error || 'Erro ao aplicar migrações');
         }
-        setProgress((4 / total) * 100);
+        setStepStatus(1, 'done');
+        setProgress((2 / total) * 100);
 
-        // Brief pause to allow PostgREST schema cache to reload after migrations
-        await new Promise((r) => setTimeout(r, 2000));
-
-        // ── Step 5: Create user account + profile ─────────────────────────
-        setStepStatus(4, 'loading');
-        setProgress((4.5 / total) * 100);
+        // ── Step 3: Create user account + profile ─────────────────────
+        setStepStatus(2, 'loading');
+        setProgress((2.5 / total) * 100);
 
         const setupRes = await fetch('/api/admin/setup-account', {
           method: 'POST',
@@ -260,8 +177,7 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
             cpf: formData.cpf,
             birthDate: formData.birthDate,
             tenantSlot: tenantResult.tenant.slug,
-            supabaseUrl: formData.supabaseUrl,
-            supabaseServiceKey: formData.serviceRoleKey,
+            schemaName: tenantResult.tenant.schema_name,
             modules: formData.modules,
             timezone: formData.timezone,
             agents: formData.agents,
@@ -272,8 +188,7 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
         const setupResult = await setupRes.json();
 
         if (setupRes.status === 409) {
-          // Account exists — ask user to confirm deletion
-          setStepStatus(4, 'error', 'conta existente');
+          setStepStatus(2, 'error', 'conta existente');
           setPhase('account-exists');
           return;
         }
@@ -281,47 +196,38 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
         if (!setupResult.success) {
           throw new Error(setupResult.error || 'Erro ao criar conta de usuário');
         }
-        setStepStatus(4, 'done');
-        setProgress((5 / total) * 100);
+        setStepStatus(2, 'done');
+        setProgress((3 / total) * 100);
 
-        // ── Step 6: Sign in via browser client ────────────────────────────
-        setStepStatus(5, 'loading');
-        setProgress((5.5 / total) * 100);
+        // ── Step 4: Sign in via API ───────────────────────────────────
+        setStepStatus(3, 'loading');
+        setProgress((3.5 / total) * 100);
 
-        if (formData.email && formData.password && formData.supabaseUrl && formData.anonKey) {
-          const supabase = createBrowserClient(formData.supabaseUrl, formData.anonKey);
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: formData.email,
-            password: formData.password,
+        if (formData.email && formData.password) {
+          const loginRes = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: formData.email,
+              password: formData.password,
+              tenantSlug: tenantResult.tenant.slug,
+            }),
           });
-          if (signInError) throw signInError;
-          // Set hawk_tenant cookie server-side (HttpOnly) — never use document.cookie for this
-          if (signInData.session?.access_token) {
-            const cookieRes = await fetch('/api/auth/set-tenant', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                tenantSlug: tenantResult.tenant.slug,
-                accessToken: signInData.session.access_token,
-              }),
-            });
-            if (!cookieRes.ok) throw new Error('Erro ao configurar sessão do tenant');
-          }
+          if (!loginRes.ok) throw new Error('Erro ao realizar login');
         }
-        setStepStatus(5, 'done');
-        setProgress((6 / total) * 100);
+        setStepStatus(3, 'done');
+        setProgress((4 / total) * 100);
 
-        // ── Step 7: Verify installation ───────────────────────────────────
-        setStepStatus(6, 'loading');
-        setProgress((6.5 / total) * 100);
+        // ── Step 5: Verify installation ───────────────────────────────
+        setStepStatus(4, 'loading');
+        setProgress((4.5 / total) * 100);
 
         const verifyRes = await fetch('/api/admin/verify-install', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             tenantSlug: tenantResult.tenant.slug,
-            supabaseUrl: formData.supabaseUrl,
-            supabaseServiceKey: formData.serviceRoleKey,
+            schemaName: tenantResult.tenant.schema_name,
             email: formData.email,
           }),
         });
@@ -341,7 +247,7 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
           throw new Error(`Verificação falhou — ${details}`);
         }
 
-        setStepStatus(6, 'done');
+        setStepStatus(4, 'done');
         setProgress(100);
         onComplete(tenantResult.envContent || '', tenantResult.tenant.slug);
       } catch (err) {
@@ -367,9 +273,6 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
         body: JSON.stringify({
           email: formData.email,
           password: resetPassword,
-          supabaseUrl: formData.supabaseUrl,
-          supabaseAnonKey: formData.anonKey,
-          supabaseServiceKey: formData.serviceRoleKey,
         }),
       });
       const data = await res.json();
@@ -410,7 +313,7 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
           <div className="flex items-start gap-3">
             <Check className="h-4 w-4 text-[var(--color-success)] mt-0.5 shrink-0" />
             <p className="text-sm text-[var(--color-text-primary)]">
-              Um tenant será criado no Admin Supabase
+              Um workspace será criado no banco de dados
             </p>
           </div>
           <div className="flex items-start gap-3">

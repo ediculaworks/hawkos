@@ -4,7 +4,7 @@ import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { Providers } from './providers';
 import './globals.css';
 
@@ -35,6 +35,8 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const headerStore = await headers();
+  const nonce = headerStore.get('x-nonce') ?? '';
   const cookieStore = await cookies();
   const tenantSlug = cookieStore.get('hawk_tenant')?.value;
   const tenant = tenantSlug ? await getTenantPrivateBySlug(tenantSlug) : null;
@@ -51,7 +53,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           slug: tenant.slug,
           supabaseUrl: tenant.supabaseUrl,
           supabaseAnonKey: tenant.supabaseAnonKey,
-          agentApiPort: tenant.agentApiPort,
+          agentApiPort: tenant.agentApiPort, // needed for WebSocket connection
         })};`
       : '',
   ]
@@ -64,8 +66,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable}`}
     >
-      {/* biome-ignore lint/security/noDangerouslySetInnerHtml: tenant config injection into window globals */}
-      {tenantScript ? <script dangerouslySetInnerHTML={{ __html: tenantScript }} /> : null}
+      {tenantScript ? (
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: tenant config injection into window globals
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: tenantScript }} />
+      ) : null}
       <body>
         <ErrorBoundary>
           <NextIntlClientProvider locale={defaultLocale} messages={messages}>

@@ -1,6 +1,6 @@
 import { db } from '@hawk/db';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
 import { z } from 'zod';
-import { createLogger, HawkError, ValidationError } from '@hawk/shared';
 
 const logger = createLogger('objectives');
 
@@ -106,7 +106,9 @@ export async function getObjectiveWithTasks(id: string): Promise<ObjectiveWithTa
 export async function createObjective(input: CreateObjectiveInput): Promise<Objective> {
   const parsed = CreateObjectiveSchema.safeParse(input);
   if (!parsed.success) {
-    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid input: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const { data, error } = await db
     .from('objectives')
@@ -222,7 +224,9 @@ export async function listOverdueTasks(): Promise<Task[]> {
 export async function createTask(input: CreateTaskInput): Promise<Task> {
   const parsed = CreateTaskSchema.safeParse(input);
   if (!parsed.success) {
-    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid input: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const { data, error } = await db
     .from('tasks')
@@ -359,7 +363,10 @@ export async function unlinkTaskFromObjective(taskId: string, objectiveId: strin
 
   if (error) {
     logger.error({ error: error.message }, 'Failed to unlink task from objective');
-    throw new HawkError(`Failed to unlink task from objective: ${error.message}`, 'DB_QUERY_FAILED');
+    throw new HawkError(
+      `Failed to unlink task from objective: ${error.message}`,
+      'DB_QUERY_FAILED',
+    );
   }
 }
 
@@ -377,12 +384,17 @@ export async function getObjectivesForTask(taskId: string): Promise<Objective[]>
     throw new HawkError(`Failed to get objectives for task: ${error.message}`, 'DB_QUERY_FAILED');
   }
 
-  const ids = (data ?? []).map((r) => r.objective_id).filter((id): id is string => Boolean(id));
+  const ids = (data ?? [])
+    .map((r: any) => r.objective_id)
+    .filter((id: any): id is string => Boolean(id));
   if (ids.length === 0) return [];
 
   const { data: objectives, error: objErr } = await db.from('objectives').select('*').in('id', ids);
 
-  if (objErr) { logger.error({ error: objErr.message }, 'Failed to get objectives'); throw new HawkError(`Failed to get objectives: ${objErr.message}`, 'DB_QUERY_FAILED'); }
+  if (objErr) {
+    logger.error({ error: objErr.message }, 'Failed to get objectives');
+    throw new HawkError(`Failed to get objectives: ${objErr.message}`, 'DB_QUERY_FAILED');
+  }
   return (objectives ?? []) as Objective[];
 }
 
@@ -544,14 +556,20 @@ export async function getCycleWithTasks(cycleId: string): Promise<CycleWithTasks
     .select('*')
     .eq('id', cycleId)
     .single();
-  if (cErr) { logger.error({ error: cErr.message }, 'Failed to get cycle'); throw new HawkError(`Failed to get cycle: ${cErr.message}`, 'DB_QUERY_FAILED'); }
+  if (cErr) {
+    logger.error({ error: cErr.message }, 'Failed to get cycle');
+    throw new HawkError(`Failed to get cycle: ${cErr.message}`, 'DB_QUERY_FAILED');
+  }
 
   // biome-ignore lint/suspicious/noExplicitAny: cycle_tasks not in generated types
   const { data: cycleTasks, error: ctErr } = await (db as any)
     .from('cycle_tasks')
     .select('task_id')
     .eq('cycle_id', cycleId);
-  if (ctErr) { logger.error({ error: ctErr.message }, 'Failed to get cycle tasks'); throw new HawkError(`Failed to get cycle tasks: ${ctErr.message}`, 'DB_QUERY_FAILED'); }
+  if (ctErr) {
+    logger.error({ error: ctErr.message }, 'Failed to get cycle tasks');
+    throw new HawkError(`Failed to get cycle tasks: ${ctErr.message}`, 'DB_QUERY_FAILED');
+  }
 
   // biome-ignore lint/suspicious/noExplicitAny: cycle_tasks not in generated types
   const taskIds = (cycleTasks ?? []).map((ct: any) => ct.task_id);
@@ -559,7 +577,10 @@ export async function getCycleWithTasks(cycleId: string): Promise<CycleWithTasks
 
   if (taskIds.length > 0) {
     const { data: taskData, error: tErr } = await db.from('tasks').select('*').in('id', taskIds);
-    if (tErr) { logger.error({ error: tErr.message }, 'Failed to get tasks'); throw new HawkError(`Failed to get tasks: ${tErr.message}`, 'DB_QUERY_FAILED'); }
+    if (tErr) {
+      logger.error({ error: tErr.message }, 'Failed to get tasks');
+      throw new HawkError(`Failed to get tasks: ${tErr.message}`, 'DB_QUERY_FAILED');
+    }
     tasks = (taskData ?? []) as Task[];
   }
 

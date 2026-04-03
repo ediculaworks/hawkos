@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 // ── Mock db using same pattern as agent-resolver tests ─────────────────────
-const { mockFrom } = vi.hoisted(() => ({ mockFrom: vi.fn() }));
+const mockFrom = vi.fn();
 
 vi.mock('../../../../packages/db/src/client.ts', () => ({
   db: { from: mockFrom },
@@ -9,18 +9,21 @@ vi.mock('../../../../packages/db/src/client.ts', () => ({
   createTenantClient: vi.fn(),
 }));
 
-vi.mock('@hawk/shared', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    }),
-  };
-});
+vi.mock('@hawk/shared', () => ({
+  HawkError: class HawkError extends Error {
+    code: string;
+    constructor(message: string, code: string) {
+      super(message);
+      this.code = code;
+    }
+  },
+  createLogger: () => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  }),
+}));
 
 import { getLinkedMemories } from '../queries.ts';
 
@@ -35,8 +38,12 @@ function makeChain(finalValue: unknown) {
     (chain as Record<string, unknown>)[m] = vi.fn().mockReturnValue(chain);
   }
   // Terminal calls also resolve correctly
-  ((chain as Record<string, unknown>).maybeSingle as ReturnType<typeof vi.fn>).mockResolvedValue(finalValue);
-  ((chain as Record<string, unknown>).single as ReturnType<typeof vi.fn>).mockResolvedValue(finalValue);
+  ((chain as Record<string, unknown>).maybeSingle as ReturnType<typeof vi.fn>).mockResolvedValue(
+    finalValue,
+  );
+  ((chain as Record<string, unknown>).single as ReturnType<typeof vi.fn>).mockResolvedValue(
+    finalValue,
+  );
 
   return chain;
 }
@@ -52,7 +59,9 @@ describe('getLinkedMemories — BFS multi-hop', () => {
     mockFrom.mockImplementation((table: string) => {
       if (table === 'memory_links') {
         return makeChain({
-          data: [{ source_id: 'mem-1', target_id: 'mem-2', relation_type: 'related_to', strength: 0.9 }],
+          data: [
+            { source_id: 'mem-1', target_id: 'mem-2', relation_type: 'related_to', strength: 0.9 },
+          ],
           error: null,
         });
       }
@@ -90,7 +99,14 @@ describe('getLinkedMemories — BFS multi-hop', () => {
         linkCalls++;
         if (linkCalls === 1) {
           return makeChain({
-            data: [{ source_id: 'mem-1', target_id: 'mem-2', relation_type: 'related_to', strength: 0.8 }],
+            data: [
+              {
+                source_id: 'mem-1',
+                target_id: 'mem-2',
+                relation_type: 'related_to',
+                strength: 0.8,
+              },
+            ],
             error: null,
           });
         }
@@ -126,8 +142,18 @@ describe('getLinkedMemories — BFS multi-hop', () => {
         if (hop === 1) {
           return makeChain({
             data: [
-              { source_id: 'mem-1', target_id: 'mem-2', relation_type: 'related_to', strength: 0.8 },
-              { source_id: 'mem-1', target_id: 'mem-3', relation_type: 'related_to', strength: 0.7 },
+              {
+                source_id: 'mem-1',
+                target_id: 'mem-2',
+                relation_type: 'related_to',
+                strength: 0.8,
+              },
+              {
+                source_id: 'mem-1',
+                target_id: 'mem-3',
+                relation_type: 'related_to',
+                strength: 0.7,
+              },
             ],
             error: null,
           });
@@ -136,7 +162,12 @@ describe('getLinkedMemories — BFS multi-hop', () => {
           // Cycle back to mem-1 (already visited as root)
           return makeChain({
             data: [
-              { source_id: 'mem-2', target_id: 'mem-1', relation_type: 'related_to', strength: 0.5 },
+              {
+                source_id: 'mem-2',
+                target_id: 'mem-1',
+                relation_type: 'related_to',
+                strength: 0.5,
+              },
             ],
             error: null,
           });
@@ -146,8 +177,22 @@ describe('getLinkedMemories — BFS multi-hop', () => {
       if (table === 'agent_memories') {
         return makeChain({
           data: [
-            { id: 'mem-2', content: 'M2', category: 'fact', memory_type: 'entity', importance: 5, created_at: '2026-03-29T00:00:00Z' },
-            { id: 'mem-3', content: 'M3', category: 'fact', memory_type: 'entity', importance: 4, created_at: '2026-03-29T00:00:00Z' },
+            {
+              id: 'mem-2',
+              content: 'M2',
+              category: 'fact',
+              memory_type: 'entity',
+              importance: 5,
+              created_at: '2026-03-29T00:00:00Z',
+            },
+            {
+              id: 'mem-3',
+              content: 'M3',
+              category: 'fact',
+              memory_type: 'entity',
+              importance: 4,
+              created_at: '2026-03-29T00:00:00Z',
+            },
           ],
           error: null,
         });
@@ -164,9 +209,7 @@ describe('getLinkedMemories — BFS multi-hop', () => {
   });
 
   it('throws HawkError when DB returns error', async () => {
-    mockFrom.mockReturnValue(
-      makeChain({ data: null, error: { message: 'connection timeout' } }),
-    );
+    mockFrom.mockReturnValue(makeChain({ data: null, error: { message: 'connection timeout' } }));
     await expect(getLinkedMemories('mem-1', 1)).rejects.toThrow('connection timeout');
   });
 });

@@ -2,12 +2,11 @@
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { createClient } from '@/lib/supabase/client';
 import { AlertTriangle, Database, Download, Loader2, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
 
-const EXPORT_TABLES = [
+const _EXPORT_TABLES = [
   'profile',
   'finance_transactions',
   'finance_accounts',
@@ -43,19 +42,8 @@ export function SectionData() {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const supabase = createClient();
-      const exportData: Record<string, unknown[]> = {};
-
-      for (const table of EXPORT_TABLES) {
-        try {
-          const { data } = await supabase.from(table).select('*').limit(10000);
-          if (data && data.length > 0) {
-            exportData[table] = data;
-          }
-        } catch {
-          // Table may not exist for this tenant — skip
-        }
-      }
+      const res = await fetch('/api/export', { method: 'GET' });
+      const exportData = await res.json();
 
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -64,8 +52,7 @@ export function SectionData() {
       a.download = `hawk-export-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Export failed:', err);
+    } catch (_err) {
     } finally {
       setExporting(false);
     }
@@ -74,8 +61,7 @@ export function SectionData() {
   const isConfirmed = confirmation === CONFIRMATION_PHRASE;
 
   const handleSignOutAndRedirect = useCallback(async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/onboarding');
     router.refresh();
   }, [router]);

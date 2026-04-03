@@ -1,14 +1,12 @@
 import { createDecipheriv, createHash } from 'node:crypto';
-import { createClient } from '@supabase/supabase-js';
+import { getPool } from '@hawk/db';
 
 const ALGORITHM = 'aes-256-gcm';
 const TAG_LENGTH = 16;
 const LEGACY_SALT = 'hawk-os-admin-salt-v1';
 
 interface TenantCredentials {
-  supabaseUrl: string;
-  supabaseAnonKey: string;
-  supabaseServiceKey: string;
+  schemaName: string;
   keySalt: string | null;
   discordConfig?: {
     bot_token?: string;
@@ -62,29 +60,23 @@ function decryptJson<T>(
 }
 
 export async function loadTenantCredentials(slot: string): Promise<TenantCredentials> {
-  const adminUrl = process.env.ADMIN_SUPABASE_URL;
-  const adminKey = process.env.ADMIN_SUPABASE_SERVICE_KEY || process.env.ADMIN_SUPABASE_ANON_KEY;
-  const masterKey = process.env.ADMIN_SUPABASE_SERVICE_KEY || '';
+  const masterKey = process.env.ADMIN_MASTER_KEY || process.env.JWT_SECRET || '';
 
-  if (!adminUrl || !adminKey) {
-    throw new Error(
-      'ADMIN_SUPABASE_URL and ADMIN_SUPABASE_SERVICE_KEY are required when AGENT_SLOT is set',
-    );
+  if (!masterKey) {
+    throw new Error('ADMIN_MASTER_KEY or JWT_SECRET is required when AGENT_SLOT is set');
   }
 
-  // Use service key to bypass RLS on tenants table
-  const supabase = createClient(adminUrl, adminKey, {
-    auth: { persistSession: false },
+  const sql = getPool();
+
+  // Query admin schema for tenant by slug
+  const rows = await sql.begin(async (tx) => {
+    await tx.unsafe('SET LOCAL search_path TO admin, public');
+    return tx.unsafe('SELECT * FROM tenants WHERE slug = $1 LIMIT 1', [slot.toLowerCase()]);
   });
 
-  const { data: tenant, error } = await supabase
-    .from('tenants')
-    .select('*')
-    .eq('slug', slot.toLowerCase())
-    .single();
-
-  if (error || !tenant) {
-    throw new Error(`Tenant '${slot}' not found in Admin Supabase`);
+  const tenant = rows[0] as Record<string, unknown> | undefined;
+  if (!tenant) {
+    throw new Error(`Tenant '${slot}' not found in admin database`);
   }
 
   if (tenant.status !== 'active') {
@@ -93,48 +85,32 @@ export async function loadTenantCredentials(slot: string): Promise<TenantCredent
     );
   }
 
-  // Per-tenant salt (NULL = legacy static salt for backward compat)
-  const salt = tenant.key_salt ?? null;
+  const salt = (tenant.key_salt as string) ?? null;
 
-  const serviceKey = decrypt(
-    tenant.supabase_service_key_encrypted,
-    tenant.supabase_service_key_iv,
-    masterKey,
-    salt,
-  );
-
-  // Decrypt Discord config (new encrypted format or legacy plain JSONB)
+  // Decrypt Discord config
   let discordConfig: TenantCredentials['discordConfig'];
   if (tenant.discord_config_encrypted && tenant.discord_config_iv) {
     discordConfig = decryptJson(
-      tenant.discord_config_encrypted,
-      tenant.discord_config_iv,
+      tenant.discord_config_encrypted as string,
+      tenant.discord_config_iv as string,
       masterKey,
       salt,
     );
-  } else if (tenant.discord_config && !tenant.discord_config._encrypted) {
-    // Legacy: plain JSONB (pre-encryption migration)
-    discordConfig = tenant.discord_config;
   }
 
-  // Decrypt OpenRouter config (new encrypted format or legacy plain JSONB)
+  // Decrypt OpenRouter config
   let openrouterConfig: TenantCredentials['openrouterConfig'];
   if (tenant.openrouter_config_encrypted && tenant.openrouter_config_iv) {
     openrouterConfig = decryptJson(
-      tenant.openrouter_config_encrypted,
-      tenant.openrouter_config_iv,
+      tenant.openrouter_config_encrypted as string,
+      tenant.openrouter_config_iv as string,
       masterKey,
       salt,
     );
-  } else if (tenant.openrouter_config && !tenant.openrouter_config._encrypted) {
-    // Legacy: plain JSONB (pre-encryption migration)
-    openrouterConfig = tenant.openrouter_config;
   }
 
   return {
-    supabaseUrl: tenant.supabase_url,
-    supabaseAnonKey: tenant.supabase_anon_key,
-    supabaseServiceKey: serviceKey,
+    schemaName: tenant.schema_name as string,
     keySalt: salt,
     discordConfig,
     openrouterConfig,
@@ -142,11 +118,8 @@ export async function loadTenantCredentials(slot: string): Promise<TenantCredent
 }
 
 export function applyTenantCredentials(credentials: TenantCredentials): void {
-  process.env.SUPABASE_URL = credentials.supabaseUrl;
-  process.env.SUPABASE_ANON_KEY = credentials.supabaseAnonKey;
-  process.env.SUPABASE_SERVICE_ROLE_KEY = credentials.supabaseServiceKey;
-  process.env.NEXT_PUBLIC_SUPABASE_URL = credentials.supabaseUrl;
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = credentials.supabaseAnonKey;
+  // Set schema for the db compat layer
+  process.env.TENANT_SCHEMA = credentials.schemaName;
 
   if (credentials.discordConfig) {
     if (credentials.discordConfig.bot_token) {
@@ -175,10 +148,12 @@ export function applyTenantCredentials(credentials: TenantCredentials): void {
     }
   }
 
-  console.log('[credential-manager] Applied tenant credentials from Admin Supabase');
+  console.log(
+    `[credential-manager] Applied tenant credentials — schema: ${credentials.schemaName}`,
+  );
 }
 
-// ── Integration loading from tenant_integrations table ─────────────────────
+// ── Integration loading from admin.tenant_integrations ───────────────────
 
 interface IntegrationRow {
   provider: string;
@@ -195,37 +170,38 @@ const ENV_MAP: Record<string, Record<string, string>> = {
 };
 
 export async function loadTenantIntegrations(slot: string): Promise<IntegrationRow[]> {
-  const adminUrl = process.env.ADMIN_SUPABASE_URL;
-  const adminKey = process.env.ADMIN_SUPABASE_SERVICE_KEY;
-  if (!adminUrl || !adminKey) return [];
+  const sql = getPool();
 
-  const supabase = createClient(adminUrl, adminKey, {
-    auth: { persistSession: false },
-  });
+  try {
+    const rows = await sql.begin(async (tx) => {
+      await tx.unsafe('SET LOCAL search_path TO admin, public');
 
-  // Get tenant ID from slug
-  const { data: tenant } = await supabase
-    .from('tenants')
-    .select('id')
-    .eq('slug', slot.toLowerCase())
-    .single();
+      // Get tenant ID from slug
+      const tenants = await tx.unsafe('SELECT id FROM tenants WHERE slug = $1 LIMIT 1', [
+        slot.toLowerCase(),
+      ]);
+      const tenant = tenants[0] as Record<string, unknown> | undefined;
+      if (!tenant) return [];
 
-  if (!tenant) return [];
+      return tx.unsafe(
+        `SELECT provider, config_encrypted, config_iv, enabled
+         FROM tenant_integrations
+         WHERE tenant_id = $1 AND enabled = true`,
+        [tenant.id as string],
+      );
+    });
 
-  const { data: integrations } = await supabase
-    .from('tenant_integrations')
-    .select('provider, config_encrypted, config_iv, enabled')
-    .eq('tenant_id', tenant.id)
-    .eq('enabled', true);
-
-  return (integrations as IntegrationRow[] | null) || [];
+    return (rows as IntegrationRow[]) || [];
+  } catch {
+    return [];
+  }
 }
 
 export function applyIntegrationCredentials(
   integrations: IntegrationRow[],
   salt?: string | null,
 ): void {
-  const masterKey = process.env.ADMIN_SUPABASE_SERVICE_KEY || '';
+  const masterKey = process.env.ADMIN_MASTER_KEY || process.env.JWT_SECRET || '';
 
   for (const row of integrations) {
     if (!row.config_encrypted || !row.config_iv) continue;
@@ -253,13 +229,13 @@ export function applyIntegrationCredentials(
 
   if (integrations.length > 0) {
     console.log(
-      `[credential-manager] Applied ${integrations.length} integration(s) from tenant_integrations`,
+      `[credential-manager] Applied ${integrations.length} integration(s) from admin.tenant_integrations`,
     );
   }
 }
 
 /**
- * Reload all credentials from Admin Supabase (tenants + tenant_integrations).
+ * Reload all credentials from admin schema.
  * Called by the /reload-credentials endpoint after dashboard changes.
  */
 export async function refreshCredentials(): Promise<boolean> {
@@ -283,9 +259,10 @@ export async function refreshCredentials(): Promise<boolean> {
 
 // ── Initialization ────────────────────────────────────────────────────────────
 
-const RETRY_INTERVAL_MS = 30 * 60_000; // 30 minutes between retries (idle agents sleep)
+const RETRY_INTERVAL_MS = 30 * 60_000; // 30 minutes between retries
+const MAX_RETRIES = 5;
 
-export async function initializeFromAdminSupabase(): Promise<void> {
+export async function initializeFromAdminDb(): Promise<void> {
   const slot = process.env.AGENT_SLOT;
   if (!slot) {
     console.log('[credential-manager] AGENT_SLOT not set, using local environment variables');
@@ -294,13 +271,12 @@ export async function initializeFromAdminSupabase(): Promise<void> {
 
   console.log(`[credential-manager] Loading credentials for slot: ${slot}`);
 
-  let loggedWaiting = false;
-  while (true) {
+  let retries = 0;
+  while (retries < MAX_RETRIES) {
     try {
       const credentials = await loadTenantCredentials(slot);
       applyTenantCredentials(credentials);
 
-      // Also load additional integrations from tenant_integrations
       const integrations = await loadTenantIntegrations(slot);
       applyIntegrationCredentials(integrations, credentials.keySalt);
 
@@ -310,17 +286,19 @@ export async function initializeFromAdminSupabase(): Promise<void> {
       const isMissing = msg.includes('not found');
 
       if (isMissing) {
-        if (!loggedWaiting) {
-          console.log(
-            `[credential-manager] Tenant '${slot}' not registered — sleeping (check every 30min)`,
+        retries++;
+        console.warn(
+          `[credential-manager] Tenant '${slot}' not registered — retry ${retries}/${MAX_RETRIES} (next in 30min)`,
+        );
+        if (retries >= MAX_RETRIES) {
+          throw new Error(
+            `Tenant '${slot}' not found after ${MAX_RETRIES} retries. Check AGENT_SLOT value.`,
           );
-          loggedWaiting = true;
         }
         await new Promise((r) => setTimeout(r, RETRY_INTERVAL_MS));
         continue;
       }
 
-      // Non-recoverable error (bad credentials, network, etc.)
       console.error(`[credential-manager] Failed to load credentials: ${error}`);
       throw error;
     }

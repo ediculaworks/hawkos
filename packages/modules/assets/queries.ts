@@ -1,4 +1,6 @@
 import { db } from '@hawk/db';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
+import { z } from 'zod';
 import type {
   Asset,
   AssetType,
@@ -9,8 +11,6 @@ import type {
   UpdateAssetInput,
   UpdateDocumentInput,
 } from './types';
-import { createLogger, HawkError, ValidationError } from '@hawk/shared';
-import { z } from 'zod';
 const logger = createLogger('assets');
 
 const CreateAssetSchema = z.object({ name: z.string().min(1) });
@@ -18,7 +18,9 @@ const CreateAssetSchema = z.object({ name: z.string().min(1) });
 export async function createAsset(input: CreateAssetInput): Promise<Asset> {
   const parsed = CreateAssetSchema.safeParse(input);
   if (!parsed.success) {
-    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid input: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const { data, error } = await db
     .from('assets')
@@ -161,7 +163,7 @@ export async function getTotalAssetValue(): Promise<number> {
     logger.error({ error: error.message }, 'Failed to get asset value');
     throw new HawkError(`Failed to get asset value: ${error.message}`, 'DB_UPDATE_FAILED');
   }
-  return (data ?? []).reduce((sum, row) => sum + (row.value ?? 0), 0);
+  return (data ?? []).reduce((sum: any, row: any) => sum + (row.value ?? 0), 0);
 }
 
 // ============================================================
@@ -199,7 +201,10 @@ export async function getUncategorizedDocuments(limit = 20): Promise<Document[]>
 
   if (error) {
     logger.error({ error: error.message }, 'Failed to get uncategorized documents');
-    throw new HawkError(`Failed to get uncategorized documents: ${error.message}`, 'DB_QUERY_FAILED');
+    throw new HawkError(
+      `Failed to get uncategorized documents: ${error.message}`,
+      'DB_QUERY_FAILED',
+    );
   }
   return (data ?? []) as unknown as Document[];
 }

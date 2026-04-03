@@ -27,7 +27,8 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   });
 
   const embedding = response.data[0]?.embedding;
-  if (!embedding) throw new HawkError('Failed to generate embedding: empty response', 'EMBEDDING_FAILED');
+  if (!embedding)
+    throw new HawkError('Failed to generate embedding: empty response', 'EMBEDDING_FAILED');
   return embedding;
 }
 
@@ -81,6 +82,72 @@ export async function semanticSearchMemories(
     content: string;
     memory_type: string;
     similarity: number;
+  }>;
+}
+
+/**
+ * Hybrid search: combines vector similarity (pgvector) + keyword relevance (pg_trgm).
+ * Falls back to vector-only search if the hybrid RPC doesn't exist.
+ */
+export async function hybridSearchMemories(
+  query: string,
+  limit = 10,
+  options?: {
+    memoryType?: string;
+    vectorWeight?: number;
+    keywordWeight?: number;
+    minScore?: number;
+  },
+): Promise<
+  Array<{
+    id: string;
+    content: string;
+    memory_type: string;
+    module: string | null;
+    importance: number;
+    access_count: number;
+    vector_score: number;
+    keyword_score: number;
+    combined_score: number;
+  }>
+> {
+  const queryEmbedding = await generateEmbedding(query);
+  const vectorStr = `[${queryEmbedding.join(',')}]`;
+
+  const { data, error } = await db.rpc('hybrid_search_memories', {
+    query_embedding: vectorStr,
+    query_text: query,
+    match_count: limit,
+    vector_weight: options?.vectorWeight ?? 0.5,
+    keyword_weight: options?.keywordWeight ?? 0.5,
+    min_score: options?.minScore ?? 0.1,
+    filter_type: options?.memoryType ?? null,
+  });
+
+  // Fallback to vector-only if hybrid RPC doesn't exist yet
+  if (error) {
+    const fallback = await semanticSearchMemories(query, limit, options?.memoryType);
+    return fallback.map((m) => ({
+      ...m,
+      module: null,
+      importance: 5,
+      access_count: 0,
+      vector_score: m.similarity,
+      keyword_score: 0,
+      combined_score: m.similarity,
+    }));
+  }
+
+  return (data ?? []) as Array<{
+    id: string;
+    content: string;
+    memory_type: string;
+    module: string | null;
+    importance: number;
+    access_count: number;
+    vector_score: number;
+    keyword_score: number;
+    combined_score: number;
   }>;
 }
 

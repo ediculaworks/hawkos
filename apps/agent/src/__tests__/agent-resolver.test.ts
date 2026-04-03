@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 // ── Mock the db client directly to avoid env var requirements ─────────────────
-// vi.mock is hoisted, so we must use vi.hoisted() for variables referenced in factory.
-
-const { mockFrom } = vi.hoisted(() => ({ mockFrom: vi.fn() }));
+const mockFrom = vi.fn();
 
 vi.mock('../../../../packages/db/src/client.ts', () => {
   return {

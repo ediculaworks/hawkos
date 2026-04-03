@@ -11,14 +11,27 @@ vi.mock('../module-embeddings.ts', () => ({
 // which modules are detected, so we import the internal scorer via the assembler.
 // Instead, we test the public assembleContext return value (modulesLoaded).
 
+import type { ModuleId } from '@hawk/shared';
 // Stub modules so assembleContext doesn't blow up when trying to call getL0/getL1/getL2
 import { registerModule } from '../assembler.ts';
-import type { ModuleId } from '@hawk/shared';
 
 const ALL_MODULE_IDS: ModuleId[] = [
-  'finances', 'health', 'people', 'career', 'objectives', 'knowledge',
-  'routine', 'assets', 'entertainment', 'legal', 'social', 'spirituality',
-  'housing', 'security', 'calendar', 'journal',
+  'finances',
+  'health',
+  'people',
+  'career',
+  'objectives',
+  'knowledge',
+  'routine',
+  'assets',
+  'entertainment',
+  'legal',
+  'social',
+  'spirituality',
+  'housing',
+  'security',
+  'calendar',
+  'journal',
 ];
 
 for (const id of ALL_MODULE_IDS) {

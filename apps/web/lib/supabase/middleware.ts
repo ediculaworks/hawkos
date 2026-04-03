@@ -1,106 +1,75 @@
 import { getTenantBySlug } from '@/lib/tenants/cache';
-import type { Database } from '@hawk/db/types';
-import { createServerClient } from '@supabase/ssr';
+import { verifyToken } from '@hawk/auth/jwt';
+import { getPool } from '@hawk/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+  const response = NextResponse.next({ request });
 
   const tenantSlug = request.cookies.get('hawk_tenant')?.value;
+  const sessionToken = request.cookies.get('hawk_session')?.value;
   const path = request.nextUrl.pathname;
   const isAuthRoute = path === '/login' || path.startsWith('/auth/');
   const isProtectedRoute = path.startsWith('/dashboard');
 
-  // ── Resolve Supabase credentials ──────────────────────────────────────
-  let supabaseUrl: string | undefined;
-  let supabaseAnonKey: string | undefined;
+  // ── Resolve tenant ──────────────────────────────────────────────────
+  let tenant: { slug: string; label: string; schemaName: string } | null = null;
 
   if (tenantSlug) {
-    const tenant = await getTenantBySlug(tenantSlug);
-    if (tenant) {
-      supabaseUrl = tenant.supabaseUrl;
-      supabaseAnonKey = tenant.supabaseAnonKey;
-    } else {
+    tenant = await getTenantBySlug(tenantSlug);
+    if (!tenant) {
       // Invalid tenant slug — clear cookie, redirect to login
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = '/login';
-      const response = NextResponse.redirect(loginUrl);
-      response.cookies.delete('hawk_tenant');
-      return response;
+      const redirect = NextResponse.redirect(loginUrl);
+      redirect.cookies.delete('hawk_tenant');
+      return redirect;
     }
-  } else {
-    // No tenant cookie — fallback to env vars (single-tenant / backwards compat)
-    supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   }
 
   // No tenant selected and trying to access protected route → login
-  if (!supabaseUrl || !supabaseAnonKey) {
-    if (isProtectedRoute) {
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = '/login';
-      return NextResponse.redirect(loginUrl);
-    }
-    return supabaseResponse;
+  if (!tenant && isProtectedRoute) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = '/login';
+    return NextResponse.redirect(loginUrl);
   }
 
-  // ── Create tenant-aware Supabase SSR client ───────────────────────────
-  const supabase = createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll: () => request.cookies.getAll(),
-      setAll: (
-        cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>,
-      ) => {
-        for (const { name, value } of cookiesToSet) {
-          request.cookies.set(name, value);
-        }
-        supabaseResponse = NextResponse.next({ request });
-        for (const { name, value, options } of cookiesToSet) {
-          supabaseResponse.cookies.set(name, value, options);
-        }
-      },
-    },
-  });
+  // ── Verify JWT session ──────────────────────────────────────────────
+  let user: { sub: string; email: string; tenant: string } | null = null;
 
-  // Refresh session — this keeps the auth cookie alive
-  let user = null;
-  try {
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
-  } catch {
-    // Invalid/expired refresh token — treat as unauthenticated
+  if (sessionToken) {
+    const payload = await verifyToken(sessionToken);
+    if (payload) {
+      user = {
+        sub: payload.sub,
+        email: payload.email,
+        tenant: payload.tenant,
+      };
+    }
   }
 
-  // Validate that the authenticated user belongs to the tenant in the cookie.
-  // Prevents a user from swapping hawk_tenant to access another tenant's Supabase.
-  if (user && tenantSlug) {
-    const { data: profile } = (await supabase
-      .from('profile')
-      .select('tenant_slot')
-      .eq('id', user.id)
-      .maybeSingle()) as { data: { tenant_slot?: string } | null };
-
-    if (profile?.tenant_slot && profile.tenant_slot !== tenantSlug) {
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = '/login';
-      const response = NextResponse.redirect(loginUrl);
-      response.cookies.delete('hawk_tenant');
-      return response;
-    }
+  // Validate that the authenticated user's tenant matches the cookie
+  if (user && tenantSlug && user.tenant !== tenantSlug) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = '/login';
+    const redirect = NextResponse.redirect(loginUrl);
+    redirect.cookies.delete('hawk_tenant');
+    redirect.cookies.delete('hawk_session');
+    return redirect;
   }
 
   // Not authenticated and trying to access protected route → login
   if (!user && isProtectedRoute) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
-    const response = NextResponse.redirect(loginUrl);
-    // Clear stale auth cookies to break redirect loops
+    const redirect = NextResponse.redirect(loginUrl);
+    // Clear stale cookies
     for (const cookie of request.cookies.getAll()) {
-      if (cookie.name.startsWith('sb-') || cookie.name === 'hawk_onboarding') {
-        response.cookies.delete(cookie.name);
+      if (cookie.name === 'hawk_session' || cookie.name === 'hawk_onboarding') {
+        redirect.cookies.delete(cookie.name);
       }
     }
-    return response;
+    return redirect;
   }
 
   // Authenticated and on login page → dashboard
@@ -111,44 +80,49 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Check onboarding status for authenticated users accessing dashboard
-  if (user && isProtectedRoute) {
+  if (user && isProtectedRoute && tenant) {
     const isOnboardingRoute = path === '/onboarding';
     const onboardingCookie = request.cookies.get('hawk_onboarding')?.value;
 
-    // Check onboarding status — always query DB, cache for 24h only
     if (onboardingCookie === 'complete' && !isOnboardingRoute) {
-      // Fast path: cookie still valid — skip DB query
+      // Fast path: cookie still valid
     } else {
       // Check profile in DB
-      const { data: profile } = (await supabase
-        .from('profile')
-        .select('onboarding_complete')
-        .eq('id', user.id)
-        .maybeSingle()) as { data: { onboarding_complete?: boolean } | null };
-
-      const onboardingComplete = profile?.onboarding_complete ?? false;
-
-      if (onboardingComplete) {
-        // Cache for 24h (down from 30 days) — re-validates more frequently
-        supabaseResponse.cookies.set('hawk_onboarding', 'complete', {
-          path: '/',
-          maxAge: 86400,
-          httpOnly: true,
-          sameSite: 'strict',
+      try {
+        const sql = getPool();
+        const rows = await sql.begin(async (tx) => {
+          await tx.unsafe(`SET LOCAL search_path TO "${tenant!.schemaName}", public`);
+          return tx.unsafe('SELECT onboarding_complete FROM profile WHERE id = $1 LIMIT 1', [
+            user!.sub,
+          ]);
         });
-      } else if (!isOnboardingRoute) {
-        const onboardingUrl = request.nextUrl.clone();
-        onboardingUrl.pathname = '/onboarding';
-        return NextResponse.redirect(onboardingUrl);
-      }
 
-      if (onboardingComplete && isOnboardingRoute) {
-        const dashboardUrl = request.nextUrl.clone();
-        dashboardUrl.pathname = '/dashboard';
-        return NextResponse.redirect(dashboardUrl);
+        const profile = rows[0] as Record<string, unknown> | undefined;
+        const onboardingComplete = profile?.onboarding_complete ?? false;
+
+        if (onboardingComplete) {
+          response.cookies.set('hawk_onboarding', 'complete', {
+            path: '/',
+            maxAge: 86400,
+            httpOnly: true,
+            sameSite: 'strict',
+          });
+        } else if (!isOnboardingRoute) {
+          const onboardingUrl = request.nextUrl.clone();
+          onboardingUrl.pathname = '/onboarding';
+          return NextResponse.redirect(onboardingUrl);
+        }
+
+        if (onboardingComplete && isOnboardingRoute) {
+          const dashboardUrl = request.nextUrl.clone();
+          dashboardUrl.pathname = '/dashboard';
+          return NextResponse.redirect(dashboardUrl);
+        }
+      } catch {
+        // DB error — allow through, page will handle gracefully
       }
     }
   }
 
-  return supabaseResponse;
+  return response;
 }

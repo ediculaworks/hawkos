@@ -1,23 +1,29 @@
 import { checkRateLimit } from '@/lib/rate-limit';
 import { updateSession } from '@/lib/supabase/middleware';
-import { type NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-// Content Security Policy — allows Supabase, OpenRouter, and Vercel analytics
-const CSP_DIRECTIVES = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js requires unsafe-eval in dev
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://openrouter.ai https://vitals.vercel-insights.com",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-].join('; ');
+const IS_DEV = process.env.NODE_ENV === 'development';
 
-// Security headers applied to all responses
+/**
+ * Build CSP with per-request nonce for inline script protection.
+ * In dev mode, unsafe-eval is allowed for Next.js HMR/React Fast Refresh.
+ */
+export function buildCsp(nonce: string): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}'${IS_DEV ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://openrouter.ai https://vitals.vercel-insights.com",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ');
+}
+
+// Static security headers (CSP is dynamic, applied separately)
 const SECURITY_HEADERS: Record<string, string> = {
-  'Content-Security-Policy': CSP_DIRECTIVES,
   'X-Frame-Options': 'DENY',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -26,7 +32,8 @@ const SECURITY_HEADERS: Record<string, string> = {
   'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
 };
 
-function applySecurityHeaders(response: NextResponse): NextResponse {
+function applySecurityHeaders(response: NextResponse, csp: string): NextResponse {
+  response.headers.set('Content-Security-Policy', csp);
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(key, value);
   }
@@ -35,6 +42,10 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Generate per-request nonce for CSP
+  const nonce = crypto.randomUUID();
+  const csp = buildCsp(nonce);
 
   // Rate limit API routes
   if (pathname.startsWith('/api/')) {
@@ -55,12 +66,17 @@ export async function middleware(request: NextRequest) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
-    return applySecurityHeaders(NextResponse.next());
+    return applySecurityHeaders(NextResponse.next(), csp);
   }
 
-  // Page routes — session management + security headers
-  const response = await updateSession(request);
-  return applySecurityHeaders(response);
+  // Page routes — pass nonce via request header for layout.tsx to read
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+
+  const response = await updateSession(
+    new NextRequest(request.url, { headers: requestHeaders, method: request.method }),
+  );
+  return applySecurityHeaders(response, csp);
 }
 
 export const config = {

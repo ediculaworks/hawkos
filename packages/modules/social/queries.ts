@@ -1,5 +1,5 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
 import { z } from 'zod';
 
 const logger = createLogger('social');
@@ -20,7 +20,9 @@ import type {
 export async function createPost(input: CreatePostInput): Promise<SocialPost> {
   const parsed = CreatePostSchema.safeParse(input);
   if (!parsed.success) {
-    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid input: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const { data, error } = await db
     .from('social_posts')
@@ -124,8 +126,8 @@ export async function getSocialStats(): Promise<{
 }> {
   const { data: posts } = await db.from('social_posts').select('platform, status, published_at');
 
-  const published = posts?.filter((p) => p.status === 'published') ?? [];
-  const pending = posts?.filter((p) => p.status !== 'published') ?? [];
+  const published = posts?.filter((p: Record<string, unknown>) => p.status === 'published') ?? [];
+  const pending = posts?.filter((p: Record<string, unknown>) => p.status !== 'published') ?? [];
 
   const platformCounts = new Map<string, number>();
   for (const p of published) {
@@ -135,8 +137,8 @@ export async function getSocialStats(): Promise<{
   // Calculate streak (consecutive days with published post)
   const publishedDates = new Set(
     published
-      .filter((p) => p.published_at)
-      .map((p) => p.published_at?.split('T')[0])
+      .filter((p: Record<string, unknown>) => p.published_at)
+      .map((p: Record<string, unknown>) => (p.published_at as string)?.split('T')[0])
       .filter(Boolean) as string[],
   );
 
@@ -180,10 +182,18 @@ export async function getPostsWithContext(
   }
 
   // Fetch related data
-  const objectiveIds = [...new Set(posts?.map((p) => p.objective_id).filter(Boolean))] as string[];
-  const taskIds = [...new Set(posts?.map((p) => p.task_id).filter(Boolean))] as string[];
-  const projectIds = [...new Set(posts?.map((p) => p.project_id).filter(Boolean))] as string[];
-  const personIds = [...new Set(posts?.map((p) => p.person_id).filter(Boolean))] as string[];
+  const objectiveIds = [
+    ...new Set(posts?.map((p: Record<string, unknown>) => p.objective_id).filter(Boolean)),
+  ] as string[];
+  const taskIds = [
+    ...new Set(posts?.map((p: Record<string, unknown>) => p.task_id).filter(Boolean)),
+  ] as string[];
+  const projectIds = [
+    ...new Set(posts?.map((p: Record<string, unknown>) => p.project_id).filter(Boolean)),
+  ] as string[];
+  const personIds = [
+    ...new Set(posts?.map((p: Record<string, unknown>) => p.person_id).filter(Boolean)),
+  ] as string[];
 
   const [objectives, tasks, projects, people] = await Promise.all([
     objectiveIds.length > 0
@@ -200,12 +210,16 @@ export async function getPostsWithContext(
       : Promise.resolve({ data: [] }),
   ]);
 
-  const objectiveMap = new Map(objectives.data?.map((o) => [o.id, o.title]) ?? []);
-  const taskMap = new Map(tasks.data?.map((t) => [t.id, t.title]) ?? []);
-  const projectMap = new Map(projects.data?.map((p) => [p.id, p.name]) ?? []);
-  const personMap = new Map(people.data?.map((p) => [p.id, p.name]) ?? []);
+  const objectiveMap = new Map(
+    objectives.data?.map((o: Record<string, unknown>) => [o.id, o.title]) ?? [],
+  );
+  const taskMap = new Map(tasks.data?.map((t: Record<string, unknown>) => [t.id, t.title]) ?? []);
+  const projectMap = new Map(
+    projects.data?.map((p: Record<string, unknown>) => [p.id, p.name]) ?? [],
+  );
+  const personMap = new Map(people.data?.map((p: Record<string, unknown>) => [p.id, p.name]) ?? []);
 
-  return (posts ?? []).map((p) => ({
+  return (posts ?? []).map((p: Record<string, unknown>) => ({
     ...p,
     objective_title: p.objective_id ? (objectiveMap.get(p.objective_id) ?? null) : null,
     task_title: p.task_id ? (taskMap.get(p.task_id) ?? null) : null,

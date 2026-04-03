@@ -34,7 +34,7 @@ export async function listPendingObligations(): Promise<ObligationWithDaysLeft[]
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  return (data ?? []).map((o) => {
+  return (data ?? []).map((o: any) => {
     const due = new Date(o.due_date as string);
     const daysLeft = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -158,7 +158,7 @@ export async function getExpiringContracts(
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  return (data ?? []).map((c) => ({
+  return (data ?? []).map((c: any) => ({
     ...(c as Contract),
     days_until_expiry: Math.round(
       (new Date(c.end_date as string).getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
@@ -219,7 +219,9 @@ const createObligationSchema = z.object({
 export async function createObligation(input: CreateObligationInput): Promise<LegalObligation> {
   const parsed = createObligationSchema.safeParse(input);
   if (!parsed.success) {
-    throw new ValidationError(`Invalid createObligation input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid createObligation input: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const { data, error } = await db
     .from('legal_obligations')

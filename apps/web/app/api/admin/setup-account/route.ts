@@ -1,5 +1,7 @@
 import { requireAdminAuth } from '@/lib/admin-auth';
-import { createClient } from '@supabase/supabase-js';
+import { createAdminClientFromEnv } from '@hawk/admin';
+import { createUser, deleteUser, listUsers, updateUser } from '@hawk/auth';
+import { getPool } from '@hawk/db';
 import { NextResponse } from 'next/server';
 
 interface SetupAccountRequest {
@@ -9,8 +11,7 @@ interface SetupAccountRequest {
   cpf?: string;
   birthDate?: string;
   tenantSlot: string;
-  supabaseUrl: string;
-  supabaseServiceKey: string;
+  schemaName: string;
   modules: string[];
   timezone?: string;
   agents?: string[];
@@ -40,8 +41,7 @@ export async function POST(request: Request) {
       cpf,
       birthDate,
       tenantSlot,
-      supabaseUrl,
-      supabaseServiceKey,
+      schemaName,
       modules,
       timezone,
       agents,
@@ -49,116 +49,134 @@ export async function POST(request: Request) {
       openrouter,
     } = body;
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { persistSession: false },
-    });
-
-    // 1. Create auth user — service key bypasses email confirmation
-    let userId: string;
-
-    const { data: createData, error: createError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    });
-
-    if (createError) {
-      // Supabase returns status 422 for "user already registered"
-      const isAlreadyExists =
-        ('status' in createError && createError.status === 422) ||
-        createError.message?.toLowerCase().includes('already');
-      if (isAlreadyExists) {
-        // Migrations already wiped the tables — just delete the stale auth user and recreate
-        const { data: listData } = await supabase.auth.admin.listUsers();
-        const existing = listData?.users.find((u) => u.email === email);
-        if (existing) {
-          const { error: delErr } = await supabase.auth.admin.deleteUser(existing.id);
-          if (delErr) throw delErr;
-        }
-        const { data: retryData, error: retryError } = await supabase.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-        });
-        if (retryError) throw retryError;
-        userId = retryData.user.id;
-      } else {
-        throw createError;
-      }
-    } else {
-      userId = createData.user.id;
+    if (!schemaName) {
+      return NextResponse.json({ error: 'schemaName is required' }, { status: 400 });
     }
 
-    // 1b. Ensure password is set (createUser can silently skip password in some conditions)
-    const { error: pwError } = await supabase.auth.admin.updateUserById(userId, { password });
-    if (pwError) console.warn('[setup-account] updateUser password failed:', pwError.message);
+    const sql = getPool();
+
+    // 1. Create auth user — if already exists, delete and recreate
+    let userId: string;
+
+    const { data: createData, error: createError } = await createUser(email, password, schemaName);
+
+    if (createError) {
+      const isAlreadyExists =
+        createError.toLowerCase().includes('already') ||
+        createError.toLowerCase().includes('duplicate');
+
+      if (isAlreadyExists) {
+        // Delete stale auth user and recreate
+        const { data: listData } = await listUsers(schemaName);
+        const existing = listData?.find((u) => u.email === email);
+        if (existing) {
+          await deleteUser(existing.id, schemaName);
+        }
+        const { data: retryData, error: retryError } = await createUser(
+          email,
+          password,
+          schemaName,
+        );
+        if (retryError) throw new Error(retryError);
+        if (!retryData) throw new Error('Failed to create user');
+        userId = retryData.id;
+      } else {
+        throw new Error(createError);
+      }
+    } else {
+      if (!createData) throw new Error('Failed to create user');
+      userId = createData.id;
+    }
+
+    // 1b. Ensure password is set (belt-and-suspenders)
+    const { error: pwError } = await updateUser(userId, { password }, schemaName);
+    if (pwError) console.warn('[setup-account] updateUser password failed:', pwError);
 
     // 2. Upsert profile with onboarding_complete = true
-    const { error: profileError } = await supabase.from('profile').upsert(
-      {
-        id: userId,
-        name,
-        cpf: cpf || null,
-        birth_date: birthDate || null,
-        onboarding_complete: true,
-        tenant_slot: tenantSlot,
-        metadata: {
-          timezone: timezone || 'America/Sao_Paulo',
-          enabled_agents: agents?.length ? agents : ['bull', 'wolf'],
-        },
-      },
-      { onConflict: 'id' },
-    );
-    if (profileError)
-      throw new Error(profileError.message || profileError.code || JSON.stringify(profileError));
+    await sql.begin(async (tx) => {
+      await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      await tx.unsafe(
+        `INSERT INTO profile (id, name, cpf, birth_date, onboarding_complete, tenant_slot, metadata)
+         VALUES ($1, $2, $3, $4, true, $5, $6)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           cpf = EXCLUDED.cpf,
+           birth_date = EXCLUDED.birth_date,
+           onboarding_complete = true,
+           tenant_slot = EXCLUDED.tenant_slot,
+           metadata = EXCLUDED.metadata`,
+        [
+          userId,
+          name,
+          cpf || null,
+          birthDate || null,
+          tenantSlot,
+          JSON.stringify({
+            timezone: timezone || 'America/Sao_Paulo',
+            enabled_agents: agents?.length ? agents : ['bull', 'wolf'],
+          }),
+        ],
+      );
+    });
 
     // 3. Enable selected modules
     if (modules?.length > 0) {
-      const { error: modulesError } = await supabase
-        .from('modules')
-        .upsert(modules.map((id: string) => ({ id, enabled: true })));
-      if (modulesError)
-        throw new Error(modulesError.message || modulesError.code || JSON.stringify(modulesError));
-    }
-
-    // 4. Save integration configs
-    const integrations: Array<{
-      profile_id: string;
-      provider: string;
-      config: Record<string, unknown>;
-      enabled: boolean;
-    }> = [];
-
-    if (discord?.botToken) {
-      integrations.push({
-        profile_id: userId,
-        provider: 'discord',
-        config: discord as unknown as Record<string, unknown>,
-        enabled: true,
+      await sql.begin(async (tx) => {
+        await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+        for (const id of modules) {
+          await tx.unsafe(
+            `INSERT INTO modules (id, enabled) VALUES ($1, true)
+             ON CONFLICT (id) DO UPDATE SET enabled = true`,
+            [id],
+          );
+        }
       });
     }
-    if (openrouter?.apiKey) {
-      integrations.push({
-        profile_id: userId,
-        provider: 'openrouter',
-        config: openrouter as unknown as Record<string, unknown>,
-        enabled: true,
-      });
-    }
-    if (integrations.length > 0) {
-      const { error: intError } = await supabase
-        .from('integration_configs')
-        .upsert(integrations, { onConflict: 'profile_id,provider' });
-      if (intError) console.warn('[setup-account] integration_configs upsert failed:', intError);
+
+    // 4. Save integration configs via admin client
+    const admin = createAdminClientFromEnv();
+    const tenant = await admin.getTenantBySlug(tenantSlot);
+
+    if (tenant) {
+      if (discord?.botToken) {
+        await admin.upsertTenantIntegration(
+          tenant.id,
+          'discord',
+          {
+            bot_token: discord.botToken,
+            client_id: discord.clientId,
+            guild_id: discord.guildId,
+            channel_id: discord.channelId,
+            authorized_user_id: discord.userId,
+          },
+          true,
+        );
+      }
+      if (openrouter?.apiKey) {
+        await admin.upsertTenantIntegration(
+          tenant.id,
+          'openrouter',
+          {
+            api_key: openrouter.apiKey,
+            model: openrouter.model || 'openrouter/auto',
+          },
+          true,
+        );
+      }
+    } else {
+      console.warn('[setup-account] Tenant not found in admin DB — integrations not saved');
     }
 
     // 5. Save timezone to agent_settings singleton row
     if (timezone) {
-      const { error: settingsError } = await supabase
-        .from('agent_settings')
-        .upsert({ id: 'singleton', timezone }, { onConflict: 'id' });
-      if (settingsError)
-        console.warn('[setup-account] agent_settings upsert failed:', settingsError);
+      await sql.begin(async (tx) => {
+        await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+        await tx.unsafe(
+          `INSERT INTO agent_settings (id, timezone) VALUES ('singleton', $1)
+           ON CONFLICT (id) DO UPDATE SET timezone = EXCLUDED.timezone`,
+          [timezone],
+        );
+      });
     }
 
     return NextResponse.json({ success: true, userId });

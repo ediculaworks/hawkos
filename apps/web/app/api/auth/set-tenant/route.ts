@@ -1,18 +1,15 @@
 import { getTenantBySlug } from '@/lib/tenants/cache';
-import { createServerClient } from '@supabase/ssr';
+import { verifyToken } from '@hawk/auth/jwt';
 import { NextResponse } from 'next/server';
 
 interface SetTenantBody {
   tenantSlug: string;
-  accessToken: string;
+  sessionToken?: string;
 }
 
 /**
  * Sets the hawk_tenant cookie server-side with HttpOnly + Secure flags.
- * Called by the login page and onboarding wizard after successful Supabase auth.
- *
- * Validates that the provided access token is actually valid for the given tenant
- * before setting the cookie.
+ * Called by the login page and onboarding wizard after successful auth.
  */
 export async function POST(request: Request): Promise<Response> {
   let body: SetTenantBody;
@@ -22,13 +19,10 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { tenantSlug, accessToken } = body;
+  const { tenantSlug, sessionToken } = body;
 
   if (!tenantSlug || typeof tenantSlug !== 'string') {
     return NextResponse.json({ error: 'tenantSlug is required' }, { status: 400 });
-  }
-  if (!accessToken || typeof accessToken !== 'string') {
-    return NextResponse.json({ error: 'accessToken is required' }, { status: 400 });
   }
 
   // Validate tenant exists
@@ -37,24 +31,16 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
   }
 
-  // Validate the access token is genuine for this tenant's Supabase
-  const supabase = createServerClient(tenant.supabaseUrl, tenant.supabaseAnonKey, {
-    cookies: {
-      getAll: () => [],
-      setAll: () => {},
-    },
-    global: {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    },
-  });
-
-  const { data, error } = await supabase.auth.getUser(accessToken);
-  if (error || !data.user) {
-    return NextResponse.json({ error: 'Invalid or expired access token' }, { status: 401 });
+  // Require valid JWT — prevents tenant switching without proof of ownership
+  if (!sessionToken) {
+    return NextResponse.json({ error: 'sessionToken is required' }, { status: 401 });
+  }
+  const payload = await verifyToken(sessionToken);
+  if (!payload) {
+    return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
   }
 
   const response = NextResponse.json({ ok: true });
-
   const isProduction = process.env.NODE_ENV === 'production';
 
   response.cookies.set('hawk_tenant', tenantSlug, {

@@ -23,8 +23,22 @@ function sortInsights(insights: Insight[]): Insight[] {
 describe('Insights sorting', () => {
   it('sorts critical before warning before info', () => {
     const insights: Insight[] = [
-      { id: '1', type: 'suggestion', module: 'people', title: 'A', description: '', severity: 'info' },
-      { id: '2', type: 'alert', module: 'finances', title: 'B', description: '', severity: 'critical' },
+      {
+        id: '1',
+        type: 'suggestion',
+        module: 'people',
+        title: 'A',
+        description: '',
+        severity: 'info',
+      },
+      {
+        id: '2',
+        type: 'alert',
+        module: 'finances',
+        title: 'B',
+        description: '',
+        severity: 'critical',
+      },
       { id: '3', type: 'gap', module: 'health', title: 'C', description: '', severity: 'warning' },
     ];
     const sorted = sortInsights(insights);

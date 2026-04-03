@@ -1,25 +1,26 @@
-import type { Database } from '@hawk/db/types';
-import { createBrowserClient } from '@supabase/ssr';
+// Browser-side client — no longer uses Supabase.
+// This file is kept for backwards compatibility but the browser
+// no longer needs a direct database client. All data goes through
+// Server Actions (which use withTenant) or API routes.
 
-// Cache browser clients per Supabase URL to avoid recreating
-const clientCache = new Map<string, ReturnType<typeof createBrowserClient<Database>>>();
-
-export function createClient(): ReturnType<typeof createBrowserClient<Database>> {
-  // Multi-tenant: read from window globals injected by layout.tsx
-  const tenant = typeof window !== 'undefined' ? window.__HAWK_TENANT__ : undefined;
-  const url = tenant?.supabaseUrl ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = tenant?.supabaseAnonKey ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    throw new Error(
-      'Missing Supabase config — ensure hawk_tenant cookie is set (multi-tenant) or NEXT_PUBLIC_SUPABASE_URL env var exists (single-tenant)',
-    );
-  }
-
-  const cached = clientCache.get(url);
-  if (cached) return cached;
-
-  const client = createBrowserClient<Database>(url, key);
-  clientCache.set(url, client);
-  return client;
+export function createClient() {
+  console.warn(
+    '[supabase/client] createClient() is deprecated. Use Server Actions or API routes instead.',
+  );
+  return {
+    auth: {
+      signOut: async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        return { error: null };
+      },
+      getUser: async () => ({ data: { user: null }, error: null }),
+      signInWithPassword: async () => ({
+        data: null,
+        error: { message: 'Use /api/auth/login instead' },
+      }),
+    },
+    from: () => {
+      throw new Error('Browser-side DB access is no longer supported. Use Server Actions.');
+    },
+  };
 }

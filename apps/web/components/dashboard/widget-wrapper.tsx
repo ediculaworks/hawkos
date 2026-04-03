@@ -1,5 +1,6 @@
 'use client';
 
+import SpotlightCard from '@/components/react-bits/components/spotlight-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WidgetErrorBoundary } from '@/components/ui/widget-error';
 import { getModuleConfig } from '@/lib/modules';
@@ -35,9 +36,10 @@ export function WidgetWrapper({ instanceId, widgetId }: WidgetWrapperProps) {
   }
 
   return (
-    <div
-      className="h-full flex flex-col rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] overflow-hidden"
-      style={{ containerType: 'inline-size' }}
+    <SpotlightCard
+      className="h-full flex flex-col rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-1)]"
+      spotlightColor={mod?.colorVar ?? 'var(--color-accent)'}
+      spotlightOpacity={0.06}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-[var(--space-4)] py-[var(--space-2)] border-b border-[var(--color-border-subtle)]">
@@ -99,7 +101,7 @@ export function WidgetWrapper({ instanceId, widgetId }: WidgetWrapperProps) {
           </Suspense>
         </WidgetErrorBoundary>
       </div>
-    </div>
+    </SpotlightCard>
   );
 }
 

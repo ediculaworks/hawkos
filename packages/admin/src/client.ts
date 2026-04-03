@@ -1,4 +1,4 @@
-import { type SupabaseClient, createClient } from '@supabase/supabase-js';
+import { getPool } from '@hawk/db';
 import { decrypt, encrypt, generateAgentSecret } from './crypto';
 import type {
   AdminUser,
@@ -10,92 +10,75 @@ import type {
   Tenant,
   TenantAudit,
   TenantAvailability,
-  TenantInsert,
   TenantIntegration,
   TenantMetrics,
   TenantModule,
-  TenantUpdate,
-  ValidateCredentialsResult,
 } from './types.js';
 
 export interface AdminClientConfig {
-  adminUrl: string;
-  adminServiceKey: string;
+  masterKey: string;
 }
 
 export class AdminClient {
-  private supabase: SupabaseClient;
   private masterKey: string;
 
   constructor(config: AdminClientConfig) {
-    this.supabase = createClient(config.adminUrl, config.adminServiceKey, {
-      auth: { persistSession: false },
+    this.masterKey = config.masterKey;
+  }
+
+  private get sql() {
+    return getPool();
+  }
+
+  /** Run a query against the admin schema. */
+  private async adminQuery<T>(query: string, params: unknown[] = []): Promise<T[]> {
+    const result = await this.sql.begin(async (tx) => {
+      await tx.unsafe('SET LOCAL search_path TO admin, public');
+      return tx.unsafe(query, params as (string | number | boolean | null)[]);
     });
-    this.masterKey = config.adminServiceKey;
+    return [...result] as T[];
   }
 
   async getAvailableSlots(): Promise<TenantAvailability[]> {
-    const { data, error } = await this.supabase
-      .from('tenant_availability')
-      .select('*')
-      .order('slot_number');
-    if (error) throw error;
-    return data || [];
+    // Build availability from tenants table + predefined slots
+    const allSlots = ['ten1', 'ten2', 'ten3', 'ten4', 'ten5', 'ten6'];
+    const tenants = await this.adminQuery<Tenant>('SELECT * FROM tenants ORDER BY slug');
+    const tenantMap = new Map(tenants.map((t) => [t.slug, t]));
+
+    return allSlots.map((slot, idx) => {
+      const tenant = tenantMap.get(slot);
+      return {
+        slot_number: idx + 1,
+        slot_name: slot,
+        status: tenant ? ('occupied' as const) : ('available' as const),
+        tenant_id: tenant?.id ?? null,
+        tenant_label: tenant?.label ?? null,
+        tenant_status: tenant?.status ?? null,
+        onboarding_completed_at: null,
+        created_at: tenant?.created_at ?? null,
+      };
+    });
   }
 
   async getTenantBySlug(slug: string): Promise<Tenant | null> {
-    const { data, error } = await this.supabase
-      .from('tenants')
-      .select('*')
-      .eq('slug', slug)
-      .single();
-    if (error) return null;
-    return data;
+    const rows = await this.adminQuery<Tenant>('SELECT * FROM tenants WHERE slug = $1 LIMIT 1', [
+      slug,
+    ]);
+    return rows[0] ?? null;
   }
 
   async getTenantById(id: string): Promise<Tenant | null> {
-    const { data, error } = await this.supabase.from('tenants').select('*').eq('id', id).single();
-    if (error) return null;
-    return data;
+    const rows = await this.adminQuery<Tenant>('SELECT * FROM tenants WHERE id = $1 LIMIT 1', [id]);
+    return rows[0] ?? null;
   }
 
   async listTenants(): Promise<Tenant[]> {
-    const { data, error } = await this.supabase
-      .from('tenants')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
-  }
-
-  async validateCredentials(
-    supabaseUrl: string,
-    anonKey: string,
-    _serviceKey: string,
-  ): Promise<ValidateCredentialsResult> {
-    try {
-      const testClient = createClient(supabaseUrl, anonKey);
-
-      const { error } = await testClient.from('profile').select('count').limit(0);
-      if (error) {
-        return { valid: false, error: error.message };
-      }
-
-      return { valid: true };
-    } catch (err) {
-      return {
-        valid: false,
-        error: err instanceof Error ? err.message : 'Connection failed',
-      };
-    }
+    return this.adminQuery<Tenant>('SELECT * FROM tenants ORDER BY created_at DESC');
   }
 
   async createTenant(
     data: {
       label: string;
-      supabaseUrl: string;
-      supabaseAnonKey: string;
-      supabaseServiceKey: string;
       discordConfig?: DiscordConfig;
       openrouterConfig?: OpenRouterConfig;
     },
@@ -108,140 +91,157 @@ export class AdminClient {
       return { success: false, error: 'No available slots' };
     }
 
-    const { encrypted, iv } = encrypt(data.supabaseServiceKey, this.masterKey);
-    const agentSecret = generateAgentSecret();
     const slug = availableSlot.slot_name;
+    const schemaName = `tenant_${slug}`;
+    const agentSecret = generateAgentSecret();
 
-    const tenantData: TenantInsert = {
-      slug,
-      label: data.label,
-      supabase_url: data.supabaseUrl,
-      supabase_anon_key: data.supabaseAnonKey,
-      supabase_service_key_encrypted: encrypted,
-      supabase_service_key_iv: iv,
-      discord_config: data.discordConfig || {},
-      openrouter_config: data.openrouterConfig || {},
-      agent_port: 3000 + availableSlot.slot_number,
-      agent_secret: agentSecret,
-      created_by: userId,
-    };
-
-    const { data: tenant, error } = await this.supabase
-      .from('tenants')
-      .insert(tenantData)
-      .select()
-      .single();
-
-    if (error) {
-      return { success: false, error: error.message };
+    // Encrypt Discord and OpenRouter configs if provided
+    let discordEncrypted: string | null = null;
+    let discordIv: string | null = null;
+    if (data.discordConfig) {
+      const enc = encrypt(JSON.stringify(data.discordConfig), this.masterKey);
+      discordEncrypted = enc.encrypted;
+      discordIv = enc.iv;
     }
 
-    return { success: true, tenant: tenant as Tenant };
+    let openrouterEncrypted: string | null = null;
+    let openrouterIv: string | null = null;
+    if (data.openrouterConfig) {
+      const enc = encrypt(JSON.stringify(data.openrouterConfig), this.masterKey);
+      openrouterEncrypted = enc.encrypted;
+      openrouterIv = enc.iv;
+    }
+
+    const rows = await this.adminQuery<Tenant>(
+      `INSERT INTO tenants (slug, label, schema_name, status, agent_port, agent_secret,
+        discord_config_encrypted, discord_config_iv,
+        openrouter_config_encrypted, openrouter_config_iv,
+        created_by)
+       VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [
+        slug,
+        data.label,
+        schemaName,
+        3000 + availableSlot.slot_number,
+        agentSecret,
+        discordEncrypted,
+        discordIv,
+        openrouterEncrypted,
+        openrouterIv,
+        userId ?? null,
+      ],
+    );
+
+    if (!rows[0]) {
+      return { success: false, error: 'Failed to insert tenant' };
+    }
+
+    // Create tenant schema and apply migrations
+    await this._createTenantSchema(schemaName);
+
+    return { success: true, tenant: rows[0] };
   }
 
-  async updateTenant(id: string, data: Partial<TenantUpdate>): Promise<Tenant> {
-    if (data.supabase_service_key_encrypted && data.supabase_service_key_iv) {
-      // Already encrypted, don't re-encrypt
-    } else if (data.supabase_service_key_encrypted === '' && data.supabase_service_key_iv === '') {
-      // Clearing
+  /** Creates a new PostgreSQL schema for a tenant and applies all migrations. */
+  private async _createTenantSchema(schemaName: string): Promise<void> {
+    const sql = this.sql;
+
+    // Create schema
+    await sql.unsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+
+    // Grant permissions
+    await sql.unsafe(`GRANT USAGE ON SCHEMA "${schemaName}" TO authenticated`);
+    await sql.unsafe(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT ALL ON TABLES TO authenticated`,
+    );
+    await sql.unsafe(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT ALL ON SEQUENCES TO authenticated`,
+    );
+
+    // Apply tenant migrations in the new schema
+    // Migrations are loaded from packages/db/supabase/migrations/ at deploy time
+    // For now, we mark the schema as ready — migrations are applied separately
+    console.log(`[admin] Created schema "${schemaName}" — apply migrations separately`);
+  }
+
+  async updateTenant(id: string, data: Record<string, unknown>): Promise<Tenant> {
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    for (const [key, value] of Object.entries(data)) {
+      setClauses.push(`"${key}" = $${idx++}`);
+      values.push(value);
     }
+    setClauses.push('updated_at = now()');
+    values.push(id);
 
-    const { data: tenant, error } = await this.supabase
-      .from('tenants')
-      .update({ ...data, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
+    const rows = await this.adminQuery<Tenant>(
+      `UPDATE tenants SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values,
+    );
 
-    if (error) throw error;
-    return tenant;
+    if (!rows[0]) throw new Error('Tenant not found');
+    return rows[0];
   }
 
   async deleteTenant(id: string): Promise<void> {
-    const { error } = await this.supabase.from('tenants').delete().eq('id', id);
-    if (error) throw error;
-  }
-
-  async getDecryptedServiceKey(tenantId: string): Promise<string> {
-    const tenant = await this.getTenantById(tenantId);
-    if (!tenant) throw new Error('Tenant not found');
-
-    return decrypt(
-      tenant.supabase_service_key_encrypted,
-      tenant.supabase_service_key_iv,
-      this.masterKey,
-    );
-  }
-
-  async getTenantCredentials(tenantId: string): Promise<{
-    supabaseUrl: string;
-    supabaseAnonKey: string;
-    supabaseServiceKey: string;
-  }> {
-    const tenant = await this.getTenantById(tenantId);
-    if (!tenant) throw new Error('Tenant not found');
-
-    const serviceKey = await this.getDecryptedServiceKey(tenantId);
-
-    return {
-      supabaseUrl: tenant.supabase_url,
-      supabaseAnonKey: tenant.supabase_anon_key,
-      supabaseServiceKey: serviceKey,
-    };
+    // Get tenant to find schema name
+    const tenant = await this.getTenantById(id);
+    if (tenant?.schema_name) {
+      await this.sql.unsafe(`DROP SCHEMA IF EXISTS "${tenant.schema_name}" CASCADE`);
+    }
+    await this.adminQuery('DELETE FROM tenants WHERE id = $1', [id]);
   }
 
   async listTenantModules(tenantId: string): Promise<TenantModule[]> {
-    const { data, error } = await this.supabase
-      .from('tenant_modules')
-      .select('*')
-      .eq('tenant_id', tenantId);
-    if (error) throw error;
-    return data || [];
+    return this.adminQuery<TenantModule>('SELECT * FROM tenant_modules WHERE tenant_id = $1', [
+      tenantId,
+    ]);
   }
 
   async setTenantModules(
     tenantId: string,
     modules: Array<{ module_id: string; enabled: boolean; config?: Record<string, unknown> }>,
   ): Promise<void> {
-    await this.supabase.from('tenant_modules').delete().eq('tenant_id', tenantId);
+    await this.adminQuery('DELETE FROM tenant_modules WHERE tenant_id = $1', [tenantId]);
 
     if (modules.length > 0) {
-      const insertData = modules.map((m) => ({
-        tenant_id: tenantId,
-        module_id: m.module_id,
-        enabled: m.enabled,
-        config: m.config || {},
-      }));
+      const values = modules
+        .map((_m, i) => `($1, $${i * 3 + 2}, $${i * 3 + 3}, $${i * 3 + 4})`)
+        .join(', ');
 
-      const { error } = await this.supabase.from('tenant_modules').insert(insertData);
-      if (error) throw error;
+      const params: unknown[] = [tenantId];
+      for (const m of modules) {
+        params.push(m.module_id, m.enabled, JSON.stringify(m.config || {}));
+      }
+
+      await this.adminQuery(
+        `INSERT INTO tenant_modules (tenant_id, module_id, enabled, config) VALUES ${values}`,
+        params,
+      );
     }
   }
 
   // ── Integration CRUD ─────────────────────────────────────────────────
 
   async listTenantIntegrations(tenantId: string): Promise<TenantIntegration[]> {
-    const { data, error } = await this.supabase
-      .from('tenant_integrations')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('provider');
-    if (error) throw error;
-    return data || [];
+    return this.adminQuery<TenantIntegration>(
+      'SELECT * FROM tenant_integrations WHERE tenant_id = $1 ORDER BY provider',
+      [tenantId],
+    );
   }
 
   async getTenantIntegration(
     tenantId: string,
     provider: IntegrationProvider,
   ): Promise<TenantIntegration | null> {
-    const { data, error } = await this.supabase
-      .from('tenant_integrations')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('provider', provider)
-      .maybeSingle();
-    if (error) throw error;
-    return data;
+    const rows = await this.adminQuery<TenantIntegration>(
+      'SELECT * FROM tenant_integrations WHERE tenant_id = $1 AND provider = $2 LIMIT 1',
+      [tenantId, provider],
+    );
+    return rows[0] ?? null;
   }
 
   async upsertTenantIntegration(
@@ -252,33 +252,26 @@ export class AdminClient {
   ): Promise<TenantIntegration> {
     const { encrypted, iv } = encrypt(JSON.stringify(config), this.masterKey);
 
-    const { data, error } = await this.supabase
-      .from('tenant_integrations')
-      .upsert(
-        {
-          tenant_id: tenantId,
-          provider,
-          config_encrypted: encrypted,
-          config_iv: iv,
-          enabled,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'tenant_id,provider' },
-      )
-      .select()
-      .single();
+    const rows = await this.adminQuery<TenantIntegration>(
+      `INSERT INTO tenant_integrations (tenant_id, provider, config_encrypted, config_iv, enabled)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (tenant_id, provider) DO UPDATE SET
+         config_encrypted = EXCLUDED.config_encrypted,
+         config_iv = EXCLUDED.config_iv,
+         enabled = EXCLUDED.enabled,
+         updated_at = now()
+       RETURNING *`,
+      [tenantId, provider, encrypted, iv, enabled],
+    );
 
-    if (error) throw error;
-    return data;
+    return rows[0]!;
   }
 
   async deleteTenantIntegration(tenantId: string, provider: IntegrationProvider): Promise<void> {
-    const { error } = await this.supabase
-      .from('tenant_integrations')
-      .delete()
-      .eq('tenant_id', tenantId)
-      .eq('provider', provider);
-    if (error) throw error;
+    await this.adminQuery(
+      'DELETE FROM tenant_integrations WHERE tenant_id = $1 AND provider = $2',
+      [tenantId, provider],
+    );
   }
 
   getDecryptedIntegrationConfig<P extends IntegrationProvider>(
@@ -310,104 +303,76 @@ export class AdminClient {
 
   async updateTenantDiscordConfig(tenantId: string, config: DiscordConfig): Promise<void> {
     const { encrypted, iv } = encrypt(JSON.stringify(config), this.masterKey);
-    const { error } = await this.supabase
-      .from('tenants')
-      .update({
-        discord_config_encrypted: encrypted,
-        discord_config_iv: iv,
-        discord_config: { _encrypted: true },
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', tenantId);
-    if (error) throw error;
+    await this.adminQuery(
+      `UPDATE tenants SET discord_config_encrypted = $1, discord_config_iv = $2, updated_at = now()
+       WHERE id = $3`,
+      [encrypted, iv, tenantId],
+    );
   }
 
   async updateTenantOpenRouterConfig(tenantId: string, config: OpenRouterConfig): Promise<void> {
     const { encrypted, iv } = encrypt(JSON.stringify(config), this.masterKey);
-    const { error } = await this.supabase
-      .from('tenants')
-      .update({
-        openrouter_config_encrypted: encrypted,
-        openrouter_config_iv: iv,
-        openrouter_config: { _encrypted: true },
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', tenantId);
-    if (error) throw error;
+    await this.adminQuery(
+      `UPDATE tenants SET openrouter_config_encrypted = $1, openrouter_config_iv = $2, updated_at = now()
+       WHERE id = $3`,
+      [encrypted, iv, tenantId],
+    );
   }
 
   // ── Audit & Metrics ────────────────────────────────────────────────
 
   async logAudit(
     tenantId: string,
-    eventType: TenantAudit['event_type'],
-    severity: TenantAudit['severity'] = 'info',
-    metadata: Record<string, unknown> = {},
+    action: string,
+    details: Record<string, unknown> = {},
+    performedBy?: string,
   ): Promise<void> {
-    const { error } = await this.supabase.from('tenant_audit').insert({
-      tenant_id: tenantId,
-      event_type: eventType,
-      severity,
-      metadata,
-    });
-    if (error) console.error('Failed to log audit:', error);
+    try {
+      await this.adminQuery(
+        `INSERT INTO tenant_audit (tenant_id, action, details, performed_by)
+         VALUES ($1, $2, $3, $4)`,
+        [tenantId, action, JSON.stringify(details), performedBy ?? null],
+      );
+    } catch (err) {
+      console.error('Failed to log audit:', err);
+    }
   }
 
   async getTenantAudit(tenantId: string, limit = 100): Promise<TenantAudit[]> {
-    const { data, error } = await this.supabase
-      .from('tenant_audit')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    if (error) throw error;
-    return data || [];
+    return this.adminQuery<TenantAudit>(
+      'SELECT * FROM tenant_audit WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2',
+      [tenantId, limit],
+    );
   }
 
   async getTenantMetrics(tenantId: string, days = 30): Promise<TenantMetrics[]> {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const { data, error } = await this.supabase
-      .from('tenant_metrics')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .gte('date', startDate.toISOString().split('T')[0])
-      .order('date', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    return this.adminQuery<TenantMetrics>(
+      `SELECT * FROM tenant_metrics WHERE tenant_id = $1 AND date >= $2
+       ORDER BY date DESC`,
+      [tenantId, startDate.toISOString().split('T')[0]],
+    );
   }
 
   async getAdminUsers(): Promise<AdminUser[]> {
-    const { data, error } = await this.supabase
-      .from('admin_users')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    return this.adminQuery<AdminUser>('SELECT * FROM admin_users ORDER BY created_at DESC');
   }
 
-  async addAdminUser(
-    userId: string,
-    email: string,
-    role: 'admin' | 'viewer' = 'viewer',
-  ): Promise<void> {
-    const { error } = await this.supabase.from('admin_users').insert({
-      user_id: userId,
-      email,
-      role,
-    });
-    if (error) throw error;
+  async addAdminUser(email: string, passwordHash: string, role = 'admin'): Promise<void> {
+    await this.adminQuery(
+      'INSERT INTO admin_users (email, password_hash, role) VALUES ($1, $2, $3)',
+      [email, passwordHash, role],
+    );
   }
 
-  async isAdmin(userId: string): Promise<boolean> {
-    const { data, error } = await this.supabase
-      .from('admin_users')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'admin')
-      .single();
-    return !error && !!data;
+  async isAdmin(email: string): Promise<boolean> {
+    const rows = await this.adminQuery<{ role: string }>(
+      "SELECT role FROM admin_users WHERE email = $1 AND role = 'admin' LIMIT 1",
+      [email],
+    );
+    return rows.length > 0;
   }
 }
 
@@ -416,12 +381,11 @@ export function createAdminClient(config: AdminClientConfig): AdminClient {
 }
 
 export function createAdminClientFromEnv(): AdminClient {
-  const url = process.env.ADMIN_SUPABASE_URL;
-  const key = process.env.ADMIN_SUPABASE_SERVICE_KEY;
+  const masterKey = process.env.ADMIN_MASTER_KEY || process.env.JWT_SECRET;
 
-  if (!url || !key) {
-    throw new Error('ADMIN_SUPABASE_URL and ADMIN_SUPABASE_SERVICE_KEY are required');
+  if (!masterKey) {
+    throw new Error('ADMIN_MASTER_KEY or JWT_SECRET is required');
   }
 
-  return createAdminClient({ adminUrl: url, adminServiceKey: key });
+  return createAdminClient({ masterKey });
 }

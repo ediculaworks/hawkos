@@ -1,7 +1,6 @@
-import type { Database } from '@hawk/db';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseCompatClient } from '@hawk/db';
 
-type DbClient = SupabaseClient<Database>;
+type DbClient = SupabaseCompatClient;
 
 export async function handleAgentsRoute(
   path: string,
@@ -17,7 +16,8 @@ export async function handleAgentsRoute(
       .select('*')
       .order('created_at', { ascending: true });
 
-    const formatted = (agents ?? []).map((a) => ({
+    // biome-ignore lint/suspicious/noExplicitAny: DB query returns untyped rows
+    const formatted = (agents ?? []).map((a: any) => ({
       id: a.id,
       name: a.name,
       avatar: a.avatar_seed ?? 'robot',

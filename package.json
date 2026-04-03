@@ -17,8 +17,8 @@
     "test:e2e": "playwright test --config apps/web/playwright.config.ts",
     "clean": "turbo clean && rm -rf node_modules",
     "agent": "bun run --env-file=.env apps/agent/src/index.ts",
-    "db:migrate": "bun run --env-file=.env scripts/migrate.ts",
-    "db:types": "bun run --env-file=.env scripts/gen-types.ts",
+    "db:migrate": "bun run --env-file=.env scripts/apply-migrations.ts",
+    "db:types": "echo 'Type generation: run kysely-codegen or manually update packages/db/types/database.ts'",
     "setup": "bun scripts/setup.ts",
     "prepare": "git config core.hooksPath .husky"
   },

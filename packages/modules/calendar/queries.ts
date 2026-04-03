@@ -1,4 +1,6 @@
 import { db } from '@hawk/db';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
+import { z } from 'zod';
 import type {
   AvailabilitySchedule,
   CalendarAttendee,
@@ -7,8 +9,6 @@ import type {
   EventListOptions,
   FreeSlot,
 } from './types';
-import { z } from 'zod';
-import { createLogger, HawkError, ValidationError } from '@hawk/shared';
 const logger = createLogger('calendar');
 
 const CreateEventSchema = z.object({
@@ -23,7 +23,9 @@ const CreateEventSchema = z.object({
 export async function createEvent(input: CreateEventInput): Promise<CalendarEvent> {
   const parsed = CreateEventSchema.safeParse(input);
   if (!parsed.success) {
-    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid input: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const { data, error } = await db
     .from('calendar_events')

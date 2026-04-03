@@ -1,41 +1,14 @@
 import { TenantRepairActions } from '@/components/admin/tenant-repair-actions';
-import { createClient } from '@supabase/supabase-js';
-
-function getAdminClient() {
-  const url = process.env.ADMIN_SUPABASE_URL;
-  const key = process.env.ADMIN_SUPABASE_SERVICE_KEY;
-  if (!url || !key) {
-    throw new Error('Admin Supabase not configured');
-  }
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+import { createAdminClientFromEnv } from '@hawk/admin';
 
 async function getTenants() {
-  const supabase = getAdminClient();
-
-  const { data: tenants, error } = await supabase
-    .from('tenants')
-    .select('*, tenant_modules(count), tenant_metrics(*)')
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-
-  return (tenants || []).map((t) => ({
-    ...t,
-    supabase_service_key_encrypted: undefined,
-    supabase_service_key_iv: undefined,
-  }));
+  const admin = createAdminClientFromEnv();
+  return admin.listTenants();
 }
 
 async function getSlots() {
-  const supabase = getAdminClient();
-
-  const { data: slots } = await supabase
-    .from('tenant_availability')
-    .select('*')
-    .order('slot_number');
-
-  return slots || [];
+  const admin = createAdminClientFromEnv();
+  return admin.getAvailableSlots();
 }
 
 export default async function AdminPage() {

@@ -1,25 +1,6 @@
 import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
-import { createTenantClient, tenantStore } from '@hawk/db';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { withTenantSchema } from '@hawk/db';
 import { cookies } from 'next/headers';
-
-// Cache service-role clients per tenant slug (stateless, safe to reuse)
-const clientCache = new Map<string, SupabaseClient>();
-
-async function getServiceClient(slug: string): Promise<SupabaseClient | null> {
-  const cached = clientCache.get(slug);
-  if (cached) return cached;
-
-  const tenant = await getTenantPrivateBySlug(slug);
-  if (!tenant) {
-    console.warn(`[with-tenant] Tenant "${slug}" not found — falling back to default env vars`);
-    return null;
-  }
-
-  const client = createTenantClient(tenant.supabaseUrl, tenant.supabaseServiceRoleKey);
-  clientCache.set(slug, client);
-  return client;
-}
 
 /**
  * Returns the current tenant slug from cookies (or 'default' for single-tenant).
@@ -30,8 +11,8 @@ export async function getTenantSlug(): Promise<string> {
 }
 
 /**
- * Wraps a server action to run within the correct tenant's Supabase context.
- * All `db` queries inside `fn` will automatically route to the tenant's database
+ * Wraps a server action to run within the correct tenant's database schema.
+ * All `db` queries inside `fn` will automatically route to the tenant's schema
  * via the AsyncLocalStorage proxy in @hawk/db.
  */
 export async function withTenant<T>(fn: () => Promise<T>): Promise<T> {
@@ -39,14 +20,15 @@ export async function withTenant<T>(fn: () => Promise<T>): Promise<T> {
   const slug = cookieStore.get('hawk_tenant')?.value;
 
   if (!slug) {
-    // Single-tenant fallback — run without tenant context (uses env vars via default db)
+    // Single-tenant fallback — uses TENANT_SCHEMA env var or 'public'
     return fn();
   }
 
-  const client = await getServiceClient(slug);
-  if (!client) {
-    // Tenant not found in admin DB — fall back to default env vars
+  const tenant = await getTenantPrivateBySlug(slug);
+  if (!tenant) {
+    // Tenant not found — fall back to default schema
     return fn();
   }
-  return tenantStore.run(client, fn);
+
+  return withTenantSchema(tenant.schemaName, fn);
 }

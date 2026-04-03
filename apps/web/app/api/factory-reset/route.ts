@@ -1,8 +1,7 @@
 'use server';
 
 import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
-import { createTenantClient } from '@hawk/db';
-import { createClient } from '@supabase/supabase-js';
+import { db, withTenantSchema } from '@hawk/db';
 import { cookies } from 'next/headers';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -100,25 +99,13 @@ const TABLES_TO_WIPE = [
 ];
 
 export async function POST(request: NextRequest) {
-  // Multi-tenant: get Supabase from cookie
   const cookieStore = await cookies();
   const slug = cookieStore.get('hawk_tenant')?.value;
-  let supabase = null;
+  let schemaName = process.env.TENANT_SCHEMA ?? 'public';
+
   if (slug) {
     const tenant = await getTenantPrivateBySlug(slug);
-    if (tenant) supabase = createTenantClient(tenant.supabaseUrl, tenant.supabaseServiceRoleKey);
-  }
-  // Single-tenant fallback
-  if (!supabase) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !serviceKey) {
-      return NextResponse.json(
-        { error: 'Missing Supabase service role configuration' },
-        { status: 500 },
-      );
-    }
-    supabase = createClient(url, serviceKey);
+    if (tenant) schemaName = tenant.schemaName;
   }
 
   const body = await request.json();
@@ -130,7 +117,9 @@ export async function POST(request: NextRequest) {
   let wiped = 0;
 
   for (const table of TABLES_TO_WIPE) {
-    const { error } = await supabase.from(table).delete().gte('created_at', '1970-01-01');
+    const { error } = await withTenantSchema(schemaName, () =>
+      db.from(table).delete().gte('created_at', '1970-01-01'),
+    );
     if (error) {
       // Table may not exist yet (migration not applied) — skip silently
       if (!error.message.includes('does not exist')) {
@@ -142,52 +131,55 @@ export async function POST(request: NextRequest) {
   }
 
   // Reset profile to defaults (keep the row)
-  await supabase
-    .from('profile')
-    .update({
-      name: 'User',
-      birth_date: '2000-01-01',
-      metadata: {},
-      onboarding_complete: false,
-      cpf: null,
-    })
-    .not('name', 'is', null);
+  await withTenantSchema(schemaName, () =>
+    db
+      .from('profile')
+      .update({
+        name: 'User',
+        birth_date: '2000-01-01',
+        metadata: {},
+        onboarding_complete: false,
+        cpf: null,
+      })
+      .not('name', 'is', null),
+  );
 
   // Clear integration configs
-  await supabase
-    .from('integration_configs')
-    .delete()
-    .neq('id', '00000000-0000-0000-0000-000000000000');
+  await withTenantSchema(schemaName, () =>
+    db.from('integration_configs').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+  );
 
   // Reset agent_settings to defaults
-  await supabase.from('agent_settings').upsert(
-    {
-      id: 'singleton',
-      agent_name: 'Hawk',
-      tenant_name: 'My Agent',
-      llm_model: 'openrouter/auto',
-      temperature: 0.7,
-      max_tokens: 2048,
-      heartbeat_interval: 30,
-      offline_threshold: 60,
-      auto_restart: true,
-      enabled_channels: ['discord', 'web'],
-      timezone: 'America/Sao_Paulo',
-      language: 'pt-BR',
-      checkin_morning_enabled: true,
-      checkin_morning_time: '09:00',
-      checkin_evening_enabled: true,
-      checkin_evening_time: '22:00',
-      weekly_review_enabled: true,
-      weekly_review_time: '20:00',
-      alerts_enabled: true,
-      alerts_time: '08:00',
-      security_review_day: 1,
-      security_review_time: '10:00',
-      big_purchase_threshold: 500,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'id' },
+  await withTenantSchema(schemaName, () =>
+    db.from('agent_settings').upsert(
+      {
+        id: 'singleton',
+        agent_name: 'Hawk',
+        tenant_name: 'My Agent',
+        llm_model: 'openrouter/auto',
+        temperature: 0.7,
+        max_tokens: 2048,
+        heartbeat_interval: 30,
+        offline_threshold: 60,
+        auto_restart: true,
+        enabled_channels: ['discord', 'web'],
+        timezone: 'America/Sao_Paulo',
+        language: 'pt-BR',
+        checkin_morning_enabled: true,
+        checkin_morning_time: '09:00',
+        checkin_evening_enabled: true,
+        checkin_evening_time: '22:00',
+        weekly_review_enabled: true,
+        weekly_review_time: '20:00',
+        alerts_enabled: true,
+        alerts_time: '08:00',
+        security_review_day: 1,
+        security_review_time: '10:00',
+        big_purchase_threshold: 500,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' },
+    ),
   );
 
   // Re-seed modules as disabled
@@ -211,7 +203,9 @@ export async function POST(request: NextRequest) {
   ];
 
   for (const id of moduleIds) {
-    await supabase.from('modules').upsert({ id, enabled: false }, { onConflict: 'id' });
+    await withTenantSchema(schemaName, () =>
+      db.from('modules').upsert({ id, enabled: false }, { onConflict: 'id' }),
+    );
   }
 
   return NextResponse.json({

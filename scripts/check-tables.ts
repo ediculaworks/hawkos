@@ -1,10 +1,14 @@
 #!/usr/bin/env bun
-import { createClient } from '@supabase/supabase-js';
+import postgres from 'postgres';
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const DATABASE_URL = process.env.DATABASE_URL ?? '';
+if (!DATABASE_URL) {
+  console.error('Missing DATABASE_URL');
+  process.exit(1);
+}
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const sql = postgres(DATABASE_URL);
+const schema = process.argv[2] || process.env.TENANT_SCHEMA || 'public';
 
 async function checkTables() {
   const tables = [
@@ -15,16 +19,19 @@ async function checkTables() {
     'activity_log',
   ];
 
+  console.log(`Checking tables in schema: ${schema}\n`);
+
   for (const table of tables) {
-    const { error } = await supabase.from(table).select('*').limit(1);
-    if (error) {
-      // biome-ignore lint/suspicious/noConsole: CLI script needs console output
-      console.log(`❌ ${table}: ${error.message}`);
-    } else {
-      // biome-ignore lint/suspicious/noConsole: CLI script needs console output
-      console.log(`✅ ${table}: existe`);
+    try {
+      await sql.begin(async (tx) => {
+        await tx.unsafe(`SET LOCAL search_path TO "${schema}", public`);
+        await tx.unsafe(`SELECT 1 FROM "${table}" LIMIT 1`);
+      });
+      console.log(`✅ ${table}: exists`);
+    } catch {
+      console.log(`❌ ${table}: not found`);
     }
   }
 }
 
-checkTables();
+checkTables().finally(() => sql.end());

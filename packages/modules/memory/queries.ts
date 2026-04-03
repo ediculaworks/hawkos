@@ -1,6 +1,6 @@
-import { createLogger, HawkError, ValidationError } from '@hawk/shared';
-import { z } from 'zod';
 import { db } from '@hawk/db';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
+import { z } from 'zod';
 import type {
   AgentMemory,
   ConversationMessage,
@@ -24,7 +24,9 @@ const CreateMemorySchema = z.object({ content: z.string().min(1), category: z.st
 export async function createMemory(input: CreateMemoryInput): Promise<AgentMemory> {
   const parsed = CreateMemorySchema.safeParse(input);
   if (!parsed.success) {
-    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid input: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const { data, error } = await db
     .from('agent_memories')
@@ -218,10 +220,11 @@ export async function getMemoryStats(): Promise<{
     by_status[status] = (by_status[status] ?? 0) + 1;
   }
 
-  const importances = (importanceData ?? []).map((m) => (m.importance as number) ?? 5);
+  const importances = (importanceData ?? []).map((m: any) => (m.importance as number) ?? 5);
   const avg_importance =
     importances.length > 0
-      ? Math.round((importances.reduce((a, b) => a + b, 0) / importances.length) * 10) / 10
+      ? Math.round((importances.reduce((a: any, b: any) => a + b, 0) / importances.length) * 10) /
+        10
       : 5;
 
   return {
@@ -488,8 +491,15 @@ export async function linkMemories(
 export async function getLinkedMemories(
   memoryId: string,
   maxHops = 1,
-): Promise<Array<{ memory: AgentMemory; relation: MemoryRelationType; strength: number; hop: number }>> {
-  const results: Array<{ memory: AgentMemory; relation: MemoryRelationType; strength: number; hop: number }> = [];
+): Promise<
+  Array<{ memory: AgentMemory; relation: MemoryRelationType; strength: number; hop: number }>
+> {
+  const results: Array<{
+    memory: AgentMemory;
+    relation: MemoryRelationType;
+    strength: number;
+    hop: number;
+  }> = [];
   const visited = new Set<string>([memoryId]);
   let frontier = [memoryId];
 
@@ -513,8 +523,9 @@ export async function getLinkedMemories(
     if (!links || links.length === 0) break;
 
     // Filter out already-visited nodes
-    const newLinks = (links as { source_id: string; target_id: string; relation_type: string; strength: number }[])
-      .filter((l) => !visited.has(l.target_id));
+    const newLinks = (
+      links as { source_id: string; target_id: string; relation_type: string; strength: number }[]
+    ).filter((l) => !visited.has(l.target_id));
 
     if (newLinks.length === 0) break;
 
@@ -533,7 +544,7 @@ export async function getLinkedMemories(
       throw new HawkError(`Failed to fetch linked memories: ${memErr.message}`, 'DB_QUERY_FAILED');
     }
 
-    const memoryMap = new Map((memories ?? []).map((m) => [m.id, m]));
+    const memoryMap = new Map((memories ?? []).map((m: any) => [m.id, m]));
 
     for (const link of newLinks) {
       const mem = memoryMap.get(link.target_id);

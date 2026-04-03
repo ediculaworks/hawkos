@@ -1,0 +1,20 @@
+{
+  "name": "@hawk/auth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./jwt": "./src/jwt.ts",
+    "./passwords": "./src/passwords.ts"
+  },
+  "dependencies": {
+    "@hawk/db": "workspace:*",
+    "jose": "^6.0.0",
+    "@node-rs/bcrypt": "^1.10.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

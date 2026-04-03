@@ -70,4 +70,19 @@ describe('estimateCostUsd', () => {
     expect(cost).toBeGreaterThan(0);
     expect(cost).toBeLessThan(0.05); // sanity bound
   });
+
+  it('returns 0 for free models (ending in :free)', () => {
+    expect(estimateCostUsd(1_000_000, 'qwen/qwen3.6-plus:free')).toBe(0);
+    expect(estimateCostUsd(500_000, 'meta-llama/llama-3.3-70b-instruct:free')).toBe(0);
+    expect(estimateCostUsd(100_000, 'openrouter/free')).toBe(0);
+  });
+
+  it('charges normally for paid models', () => {
+    expect(estimateCostUsd(1_000_000, 'openrouter/auto')).toBeCloseTo(3.0, 4);
+    expect(estimateCostUsd(1_000_000, 'anthropic/claude-sonnet-4-6')).toBeCloseTo(3.0, 4);
+  });
+
+  it('charges normally when no model specified (backwards compatible)', () => {
+    expect(estimateCostUsd(1_000_000)).toBeCloseTo(3.0, 4);
+  });
 });

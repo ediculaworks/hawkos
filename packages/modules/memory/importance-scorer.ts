@@ -153,10 +153,10 @@ export async function learnImportanceWeights(): Promise<ScoringWeights> {
   }
 
   // Normalize access_count to 1-10 scale
-  const maxAccess = Math.max(...data.map((d) => d.access_count as number));
+  const maxAccess = Math.max(...data.map((d: any) => d.access_count as number));
   if (maxAccess === 0) return DEFAULT_WEIGHTS;
 
-  const samples = data.map((d) => ({
+  const samples = data.map((d: any) => ({
     features: extractFeatures(
       d.content as string,
       d.memory_type as string,
@@ -166,7 +166,7 @@ export async function learnImportanceWeights(): Promise<ScoringWeights> {
   }));
 
   // Compute mean of target
-  const targetMean = samples.reduce((s, d) => s + d.target, 0) / samples.length;
+  const targetMean = samples.reduce((s: any, d: any) => s + d.target, 0) / samples.length;
 
   // Compute correlation between each feature and target
   const featureKeys = Object.keys(DEFAULT_WEIGHTS).filter(
@@ -175,7 +175,7 @@ export async function learnImportanceWeights(): Promise<ScoringWeights> {
   const correlations: Record<string, number> = {};
 
   for (const key of featureKeys) {
-    const featureMean = samples.reduce((s, d) => s + d.features[key], 0) / samples.length;
+    const featureMean = samples.reduce((s: any, d: any) => s + d.features[key], 0) / samples.length;
 
     let cov = 0;
     let varFeature = 0;

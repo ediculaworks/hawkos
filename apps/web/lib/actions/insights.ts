@@ -22,8 +22,12 @@ export async function fetchInsights(): Promise<Insight[]> {
   return withTenant(async () => {
     const insights: Insight[] = [];
     const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
     const todayStr = now.toISOString().slice(0, 10);
     const monthStr = now.toISOString().slice(0, 7);
 
@@ -41,7 +45,8 @@ export async function fetchInsights(): Promise<Insight[]> {
             type: 'gap',
             module: 'health',
             title: 'Sem registro de sono',
-            description: 'Nenhum sono registrado nos últimos 3 dias. Registre para manter o histórico.',
+            description:
+              'Nenhum sono registrado nos últimos 3 dias. Registre para manter o histórico.',
             severity: 'warning',
             actionLabel: 'Registrar sono',
             actionHref: '/dashboard/health',

@@ -7,7 +7,7 @@
 **Hawk OS** é um sistema operacional de vida pessoal.
 - Agente AI via Discord como interface primária
 - Dashboard web Next.js para visualização
-- Supabase (PostgreSQL) como banco de dados
+- PostgreSQL self-hosted (Docker) como banco de dados
 - **11 módulos activos** na sidebar (16 no código)
 
 ## Documentacao
@@ -22,9 +22,9 @@
 
 ```bash
 bun install              # instalar dependências
+docker compose up -d postgres pgbouncer  # subir PostgreSQL + PgBouncer
+bun db:migrate           # aplicar migrations no PostgreSQL
 bun agent                # rodar o bot Discord localmente
-bun db:migrate           # aplicar migrations no Supabase
-bun db:types             # gerar tipos TypeScript do schema
 bun build                # build de todos os packages
 bun lint                 # checar código com Biome
 bun dev                  # rodar todos os apps em modo dev

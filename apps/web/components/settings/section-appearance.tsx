@@ -46,9 +46,7 @@ export function SectionAppearance() {
         const parsed = JSON.parse(ev.target?.result as string);
         if (!Array.isArray(parsed)) throw new Error('Invalid layout format');
         useLayoutStore.getState().updateLayout(parsed);
-      } catch {
-        console.error('[layout-import] Invalid layout file');
-      }
+      } catch {}
     };
     reader.readAsText(file);
     // Reset so the same file can be re-imported if needed

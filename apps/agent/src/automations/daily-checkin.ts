@@ -165,37 +165,47 @@ export async function sendEveningCheckin(): Promise<void> {
  * Inicializar crons de check-in (chamado no startup do bot)
  * Nota: tempos são lidos a cada execução para suportar mudanças em runtime
  */
+let _checkinRunning = false;
+
+function getLocalHour(timezone: string): { hours: number; minutes: number } {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric', minute: 'numeric',
+    hour12: false, timeZone: timezone,
+  }).formatToParts(now);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return { hours: get('hour'), minutes: get('minute') };
+}
+
 export function startCheckinCrons(): void {
   cron.schedule('0 * * * *', async () => {
-    const settings = await getAgentSettings();
-    const now = new Date();
-    const [mHours, mMinutes] = settings.checkin_morning_time.split(':').map(Number);
-    const [eHours, eMinutes] = settings.checkin_evening_time.split(':').map(Number);
+    if (_checkinRunning) return;
+    _checkinRunning = true;
+    try {
+      const settings = await getAgentSettings();
+      const now = getLocalHour(settings.timezone);
+      const [mHours, mMinutes] = settings.checkin_morning_time.split(':').map(Number);
+      const [eHours, eMinutes] = settings.checkin_evening_time.split(':').map(Number);
 
-    if (
-      settings.checkin_morning_enabled &&
-      now.getHours() === mHours &&
-      now.getMinutes() === mMinutes
-    ) {
-      sendMorningCheckin()
-        .then(() => markAutomationRun('daily-checkin-morning', 'success'))
-        .catch((err) => {
-          console.error('[daily-checkin] Morning failed:', err);
-          markAutomationRun('daily-checkin-morning', 'failure', String(err));
-        });
-    }
+      if (settings.checkin_morning_enabled && now.hours === mHours && now.minutes === mMinutes) {
+        await sendMorningCheckin()
+          .then(() => markAutomationRun('daily-checkin-morning', 'success'))
+          .catch((err) => {
+            console.error('[daily-checkin] Morning failed:', err);
+            markAutomationRun('daily-checkin-morning', 'failure', String(err));
+          });
+      }
 
-    if (
-      settings.checkin_evening_enabled &&
-      now.getHours() === eHours &&
-      now.getMinutes() === eMinutes
-    ) {
-      sendEveningCheckin()
-        .then(() => markAutomationRun('daily-checkin-evening', 'success'))
-        .catch((err) => {
-          console.error('[daily-checkin] Evening failed:', err);
-          markAutomationRun('daily-checkin-evening', 'failure', String(err));
-        });
+      if (settings.checkin_evening_enabled && now.hours === eHours && now.minutes === eMinutes) {
+        await sendEveningCheckin()
+          .then(() => markAutomationRun('daily-checkin-evening', 'success'))
+          .catch((err) => {
+            console.error('[daily-checkin] Evening failed:', err);
+            markAutomationRun('daily-checkin-evening', 'failure', String(err));
+          });
+      }
+    } finally {
+      _checkinRunning = false;
     }
   });
 }

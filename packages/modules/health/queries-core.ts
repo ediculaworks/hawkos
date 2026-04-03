@@ -1,5 +1,5 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
 import { z } from 'zod';
 import type {
   AddLabResultInput,
@@ -97,7 +97,10 @@ export async function deleteBodyMeasurement(id: string): Promise<void> {
 // ─────────────────────────────────────────────
 
 export async function logSubstance(input: LogSubstanceInput): Promise<SubstanceLog> {
-  const parsed = LogObservationSchema.safeParse({ code: input.substance, value: input.quantity ?? 0 });
+  const parsed = LogObservationSchema.safeParse({
+    code: input.substance,
+    value: input.quantity ?? 0,
+  });
   if (!parsed.success) {
     throw new ValidationError(`Invalid logSubstance input: ${parsed.error.message}`);
   }
@@ -355,10 +358,10 @@ export async function getMedicationAdherence(days = 30): Promise<
       .gte('scheduled_at', sinceStr),
   ]);
 
-  return (meds ?? []).map((med) => {
-    const medLogs = (logs ?? []).filter((l) => l.medication_id === med.id);
-    const taken = medLogs.filter((l) => l.taken).length;
-    const skipped = medLogs.filter((l) => !l.taken).length;
+  return (meds ?? []).map((med: any) => {
+    const medLogs = (logs ?? []).filter((l: any) => l.medication_id === med.id);
+    const taken = medLogs.filter((l: any) => l.taken).length;
+    const skipped = medLogs.filter((l: any) => !l.taken).length;
     const total = taken + skipped;
     return {
       medication: med as Medication,

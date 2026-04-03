@@ -22,7 +22,7 @@ import { discordChannel } from './channels/discord-adapter.js';
 import { sendToChannel } from './channels/discord.js';
 import { channelRegistry } from './channels/registry.js';
 import { setupContextModules } from './context-setup.js';
-import { initializeFromAdminSupabase } from './credential-manager.js';
+import { initializeFromAdminDb } from './credential-manager.js';
 import {
   hookRegistry,
   sessionEndMemoryHook,
@@ -30,6 +30,7 @@ import {
   toolCallWebSocketHook,
   toolLoggerHook,
 } from './hooks/index.js';
+import { loadDailyUsageFromDb } from './model-router.js';
 import { registerTriggers, setNotificationSender } from './triggers.js';
 
 const activeTasks: ScheduledTask[] = [];
@@ -37,7 +38,7 @@ let isShuttingDown = false;
 
 function validateEnv() {
   const required = ['DISCORD_BOT_TOKEN', 'DISCORD_AUTHORIZED_USER_ID', 'OPENROUTER_API_KEY'];
-  const warned = ['DISCORD_CHANNEL_GERAL', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+  const warned = ['DISCORD_CHANNEL_GERAL', 'DATABASE_URL'];
 
   // Fail-fast: reject placeholder values like 'not-set' or empty strings
   const missing = required.filter((k) => {
@@ -57,10 +58,11 @@ function validateEnv() {
 async function main() {
   console.log('[hawk] Starting Hawk OS agent...');
 
-  // Load tenant credentials from Admin Supabase if AGENT_SLOT is set
-  await initializeFromAdminSupabase();
+  // Load tenant credentials from admin schema if AGENT_SLOT is set
+  await initializeFromAdminDb();
 
   validateEnv();
+  await loadDailyUsageFromDb();
   setupContextModules();
 
   // Register built-in hooks
@@ -218,6 +220,8 @@ process.on('uncaughtException', (err) => {
 });
 process.on('unhandledRejection', (reason) => {
   console.error(`[unhandledRejection] ${reason}`);
+  forceExit();
+  gracefulShutdown('unhandledRejection');
 });
 
 main().catch((err) => {

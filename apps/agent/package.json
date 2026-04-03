@@ -33,7 +33,6 @@
     "@hawk/module-health": "workspace:*",
     "@hawk/module-memory": "workspace:*",
     "@hawk/shared": "workspace:*",
-    "@supabase/supabase-js": "^2.49.0",
     "discord.js": "^14.18.0",
     "node-cron": "^4.2.1",
     "openai": "^4.87.0",

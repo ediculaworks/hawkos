@@ -1,35 +1,26 @@
 import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
-import { createTenantClient } from '@hawk/db';
-import { createClient } from '@supabase/supabase-js';
+import { db, withTenantSchema } from '@hawk/db';
 import { cookies } from 'next/headers';
 import { type NextRequest, NextResponse } from 'next/server';
 
-async function getTenantSupabase() {
+async function getTenantSchema(): Promise<string> {
   const cookieStore = await cookies();
   const slug = cookieStore.get('hawk_tenant')?.value;
   if (slug) {
     const tenant = await getTenantPrivateBySlug(slug);
-    if (tenant) return createTenantClient(tenant.supabaseUrl, tenant.supabaseServiceRoleKey);
+    if (tenant) return tenant.schemaName;
   }
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key);
+  return process.env.TENANT_SCHEMA ?? 'public';
 }
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await getTenantSupabase();
-  if (!supabase) {
-    return NextResponse.json({ error: 'Missing Supabase config' }, { status: 500 });
-  }
+  const schemaName = await getTenantSchema();
 
   try {
     const { id } = await params;
-    const { data: agent, error } = await supabase
-      .from('agent_templates')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const { data: agent, error } = await withTenantSchema(schemaName, () =>
+      db.from('agent_templates').select('*').eq('id', id).single(),
+    );
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -65,10 +56,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await getTenantSupabase();
-  if (!supabase) {
-    return NextResponse.json({ error: 'Missing Supabase config' }, { status: 500 });
-  }
+  const schemaName = await getTenantSchema();
 
   try {
     const { id } = await params;
@@ -113,12 +101,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (memoryType !== undefined) updatePayload.memory_type = memoryType;
     if (isUserFacing !== undefined) updatePayload.is_user_facing = isUserFacing;
 
-    const { data: agent, error } = await supabase
-      .from('agent_templates')
-      .update(updatePayload)
-      .eq('id', id)
-      .select()
-      .single();
+    const { data: agent, error } = await withTenantSchema(schemaName, () =>
+      db.from('agent_templates').update(updatePayload).eq('id', id).select().single(),
+    );
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ agent });
@@ -132,18 +117,13 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const supabase = await getTenantSupabase();
-  if (!supabase) {
-    return NextResponse.json({ error: 'Missing Supabase config' }, { status: 500 });
-  }
+  const schemaName = await getTenantSchema();
 
   try {
     const { id } = await params;
-    const { error } = await supabase
-      .from('agent_templates')
-      .delete()
-      .eq('id', id)
-      .eq('is_system', false);
+    const { error } = await withTenantSchema(schemaName, () =>
+      db.from('agent_templates').delete().eq('id', id).eq('is_system', false),
+    );
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });

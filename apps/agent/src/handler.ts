@@ -1,17 +1,27 @@
 import { assembleContext } from '@hawk/context-engine';
+import { db as activityDb } from '@hawk/db';
 import { getSessionMessages, saveMessage } from '@hawk/module-memory/queries';
 import { retrieveMemories, trackMemoryAccess } from '@hawk/module-memory/retrieval';
 import { getLastSessionArchive } from '@hawk/module-memory/session-commit';
 import { HawkError, createLogger } from '@hawk/shared';
 import OpenAI from 'openai';
-import { activityDb, logActivity } from './activity-logger.js';
+import { logActivity } from './activity-logger.js';
 import type { ResolvedAgent } from './agent-resolver.js';
 import { buildSystemPrompt, resolveAgent } from './agent-resolver.js';
 import { addSession, updateSession } from './api/server.js';
 import { createSessionCost, estimateCostUsd, trackLLMCall, trackToolCall } from './cost-tracker.js';
 import { compressHistory, needsCompression } from './history-compressor.js';
 import { hookRegistry } from './hooks/index.js';
-import { classifyComplexity, getDailyUsage, selectModel, trackUsage } from './model-router.js';
+import {
+  classifyComplexity,
+  estimateTokenCount,
+  getContextLimit,
+  getDailyUsage,
+  persistUsage,
+  selectModel,
+  supportsToolChoice,
+  trackUsage,
+} from './model-router.js';
 import { checkRateLimit, getOrCreateSession, touchWebSession } from './session-manager.js';
 import { executeToolCall } from './tool-executor.js';
 import { getToolsForModules } from './tools/index.js';
@@ -175,7 +185,7 @@ When you are uncertain about information (no tool results, working from memory, 
 
   // 6b. History compression — silently compress old messages at 60k tokens
   const estimatedTokens = messages.reduce(
-    (sum, m) => sum + Math.ceil(((m as { content?: string }).content?.length ?? 0) / 4),
+    (sum, m) => sum + estimateTokenCount((m as { content?: string }).content ?? '', agent.model),
     0,
   );
 
@@ -206,7 +216,7 @@ When you are uncertain about information (no tool results, working from memory, 
   // 6c. Context compaction — warn agent to save memories if near token limit
   const COMPACTION_THRESHOLD = Number(process.env.COMPACTION_THRESHOLD_TOKENS) || 80_000;
   const estimatedTokensAfterCompression = messages.reduce(
-    (sum, m) => sum + Math.ceil(((m as { content?: string }).content?.length ?? 0) / 4),
+    (sum, m) => sum + estimateTokenCount((m as { content?: string }).content ?? '', agent.model),
     0,
   );
   if (estimatedTokensAfterCompression > COMPACTION_THRESHOLD) {
@@ -240,11 +250,17 @@ When you are uncertain about information (no tool results, working from memory, 
     base_model: agent.model,
   }).catch(() => {});
 
-  const FALLBACK_MODELS = [
-    'stepfun/step-3.5-flash:free',
+  // Fallback models split by tool_choice support — avoid sending tool_choice
+  // to models that don't support it, which causes 400 errors or silent failures.
+  const FALLBACK_MODELS_WITH_TOOL_CHOICE = [
+    'qwen/qwen3.6-plus:free',
+    'nvidia/nemotron-3-super-120b-a12b:free',
     'meta-llama/llama-3.3-70b-instruct:free',
-    'openrouter/free',
   ];
+  const FALLBACK_MODELS_NO_TOOL_CHOICE = ['stepfun/step-3.5-flash:free', 'openrouter/free'];
+  const FALLBACK_MODELS = hasTools
+    ? FALLBACK_MODELS_WITH_TOOL_CHOICE
+    : [...FALLBACK_MODELS_WITH_TOOL_CHOICE, ...FALLBACK_MODELS_NO_TOOL_CHOICE];
 
   async function callLLM(
     msgs: OpenAI.ChatCompletionMessageParam[],
@@ -287,12 +303,27 @@ When you are uncertain about information (no tool results, working from memory, 
     finishReason: string | null;
     usage?: { total_tokens?: number };
   }> {
+    // Validate estimated tokens against model's context window
+    const contextLimit = getContextLimit(model);
+    const msgTokens = msgs.reduce(
+      (sum, m) => sum + estimateTokenCount((m as { content?: string }).content ?? '', model),
+      0,
+    );
+    if (msgTokens > contextLimit * 0.9) {
+      logger.warn(
+        { model, estimatedTokens: msgTokens, contextLimit },
+        'Message tokens exceed 90% of model context window, may be truncated',
+      );
+    }
+
+    // Respect model's tool_choice capability
+    const useToolChoice = hasTools && supportsToolChoice(model);
     const opts = {
       model,
       max_tokens: agent.maxTokens,
       messages: msgs,
       tools: hasTools ? filteredTools : undefined,
-      tool_choice: hasTools ? 'auto' : undefined,
+      tool_choice: useToolChoice ? 'auto' : undefined,
     };
 
     if (stream && onChunk) {
@@ -366,14 +397,24 @@ When you are uncertain about information (no tool results, working from memory, 
         | undefined,
     );
   if (result.usage?.total_tokens) {
-    trackUsage(result.usage.total_tokens, estimateCostUsd(result.usage.total_tokens));
+    trackUsage(
+      result.usage.total_tokens,
+      estimateCostUsd(result.usage.total_tokens, selectedModel),
+    );
   }
 
   // Track which tools were actually called (for ML training data)
   const toolsActuallyUsed: string[] = [];
+  const MAX_TOOL_ROUNDS = 5;
+  let toolRound = 0;
 
   // 9. Handle tool calls (always non-streaming during tool loop)
-  while (result.finishReason === 'tool_calls' && result.toolCalls.length > 0) {
+  while (
+    result.finishReason === 'tool_calls' &&
+    result.toolCalls.length > 0 &&
+    toolRound < MAX_TOOL_ROUNDS
+  ) {
+    toolRound++;
     const toolMessages: OpenAI.ChatCompletionMessageParam[] = [
       ...messages,
       { role: 'assistant', content: result.content, tool_calls: result.toolCalls },
@@ -425,8 +466,15 @@ When you are uncertain about information (no tool results, working from memory, 
           | undefined,
       );
     if (result.usage?.total_tokens) {
-      trackUsage(result.usage.total_tokens, estimateCostUsd(result.usage.total_tokens));
+      trackUsage(
+        result.usage.total_tokens,
+        estimateCostUsd(result.usage.total_tokens, selectedModel),
+      );
     }
+  }
+
+  if (toolRound >= MAX_TOOL_ROUNDS) {
+    logger.warn({ sessionId, toolRound, tools: toolsActuallyUsed }, 'Hit max tool rounds limit');
   }
 
   const content = result.content;
@@ -460,7 +508,7 @@ When you are uncertain about information (no tool results, working from memory, 
     }).catch(() => {});
   }
 
-  // 11. Log session cost (if tracking enabled)
+  // 11. Log session cost (if tracking enabled) + persist to admin.tenant_metrics
   if (sessionCost) {
     logActivity(
       'session_cost',
@@ -472,6 +520,7 @@ When you are uncertain about information (no tool results, working from memory, 
         is_complex: isComplexQuery,
       },
     ).catch(() => {});
+    persistUsage().catch(() => {});
   }
 
   // Emit message:sent hook
@@ -523,7 +572,7 @@ export async function handleMessage(
     addSession(sessionId, channel);
     // Persist Discord session to DB so it appears in web chat
     Promise.resolve(
-      activityDb?.from('agent_conversations').upsert(
+      activityDb.from('agent_conversations').upsert(
         {
           session_id: sessionId,
           channel: 'discord',
@@ -557,7 +606,7 @@ export async function handleMessage(
   });
 
   // Auto-title Discord sessions from first user message
-  if (isNew && activityDb) {
+  if (isNew) {
     const autoTitle = userMessage.length > 50 ? `${userMessage.slice(0, 47)}...` : userMessage;
     Promise.resolve(
       activityDb
@@ -590,7 +639,7 @@ export async function handleStreamingMessage(
   if (isNew) {
     addSession(sessionId, channel);
     Promise.resolve(
-      activityDb?.from('agent_conversations').upsert(
+      activityDb.from('agent_conversations').upsert(
         {
           session_id: sessionId,
           channel: 'discord',
@@ -621,7 +670,7 @@ export async function handleStreamingMessage(
     attachments,
   });
 
-  if (isNew && activityDb) {
+  if (isNew) {
     const autoTitle = userMessage.length > 50 ? `${userMessage.slice(0, 47)}...` : userMessage;
     Promise.resolve(
       activityDb

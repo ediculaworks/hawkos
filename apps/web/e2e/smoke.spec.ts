@@ -30,10 +30,11 @@ test.describe('Security Headers', () => {
     expect(headers['strict-transport-security']).toContain('max-age=');
   });
 
-  test('CSP header is set', async ({ page }) => {
+  test('CSP header uses nonce for scripts', async ({ page }) => {
     const response = await page.goto('/login');
     const csp = response?.headers()['content-security-policy'] ?? '';
     expect(csp).toContain("default-src 'self'");
+    expect(csp).toMatch(/script-src[^;]*'nonce-/);
     expect(csp).toContain('frame-ancestors');
   });
 });

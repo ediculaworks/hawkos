@@ -233,8 +233,14 @@ export function AssetsList() {
       >
         <div className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-medium text-[var(--color-text-muted)]">Nome</label>
+            <label
+              htmlFor="edit-asset-name"
+              className="text-xs font-medium text-[var(--color-text-muted)]"
+            >
+              Nome
+            </label>
             <input
+              id="edit-asset-name"
               type="text"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
@@ -242,8 +248,14 @@ export function AssetsList() {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-[var(--color-text-muted)]">Tipo</label>
+            <label
+              htmlFor="edit-asset-type"
+              className="text-xs font-medium text-[var(--color-text-muted)]"
+            >
+              Tipo
+            </label>
             <Select
+              id="edit-asset-type"
               value={editType}
               onChange={(e) => setEditType(e.target.value as AssetType)}
               options={typeOptions}

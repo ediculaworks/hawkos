@@ -1,7 +1,6 @@
-import type { Database } from '@hawk/db';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseCompatClient } from '@hawk/db';
 
-type DbClient = SupabaseClient<Database>;
+type DbClient = SupabaseCompatClient;
 
 export async function handleLogsRoute(
   path: string,

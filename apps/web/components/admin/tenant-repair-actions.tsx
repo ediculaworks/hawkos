@@ -246,10 +246,14 @@ export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
           {status !== 'success' && (
             <>
               <div>
-                <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+                <label
+                  htmlFor="reset-email"
+                  className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+                >
                   Email
                 </label>
                 <Input
+                  id="reset-email"
                   placeholder="usuario@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -258,10 +262,14 @@ export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+                <label
+                  htmlFor="reset-password"
+                  className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+                >
                   Nova Senha
                 </label>
                 <Input
+                  id="reset-password"
                   type="password"
                   placeholder="••••••••"
                   value={password}
@@ -326,10 +334,14 @@ export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
           {status !== 'success' && (
             <>
               <div>
-                <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+                <label
+                  htmlFor="fix-profile-email"
+                  className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+                >
                   Email do Usuário
                 </label>
                 <Input
+                  id="fix-profile-email"
                   placeholder="usuario@example.com"
                   value={fixEmail}
                   onChange={(e) => setFixEmail(e.target.value)}
@@ -338,10 +350,14 @@ export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+                <label
+                  htmlFor="fix-profile-name"
+                  className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+                >
                   Nome (Opcional)
                 </label>
                 <Input
+                  id="fix-profile-name"
                   placeholder="Nome do usuário"
                   value={fixName}
                   onChange={(e) => setFixName(e.target.value)}
@@ -404,10 +420,14 @@ export function TenantRepairActions({ tenantSlug }: TenantRepairActionsProps) {
 
           {status !== 'success' && (
             <div>
-              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+              <label
+                htmlFor="remigrate-pat"
+                className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+              >
                 Personal Access Token (Supabase)
               </label>
               <Input
+                id="remigrate-pat"
                 type="password"
                 placeholder="sbp_..."
                 value={pat}

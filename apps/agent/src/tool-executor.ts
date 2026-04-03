@@ -7,11 +7,63 @@ import { db } from '@hawk/db';
 import { embedMemory } from '@hawk/module-memory/embeddings';
 import { createMemory } from '@hawk/module-memory/queries';
 import type { MemoryType } from '@hawk/module-memory/types';
+import { getFeatureFlag } from '@hawk/shared';
 import type OpenAI from 'openai';
 import { z } from 'zod';
 import { logActivity } from './activity-logger.js';
 import { hookRegistry } from './hooks/index.js';
 import type { TOOLS } from './tools/index.js';
+
+// ── Tool Approval System ─────────────────────────────────────────────────
+// Tracks which dangerous tool calls have been approved by the user per session.
+// Key: `${sessionId}:${toolName}:${argsHash}`, Value: timestamp
+const _approvedTools = new Map<string, number>();
+
+// Auto-expire approvals after 5 minutes
+const APPROVAL_TTL_MS = 5 * 60 * 1000;
+
+function approvalKey(sessionId: string, toolName: string, args: Record<string, unknown>): string {
+  const argsStr = JSON.stringify(args, Object.keys(args).sort());
+  return `${sessionId}:${toolName}:${argsStr}`;
+}
+
+/**
+ * Mark a dangerous tool call as approved (called when user confirms).
+ */
+export function approveToolCall(
+  sessionId: string,
+  toolName: string,
+  args: Record<string, unknown>,
+): void {
+  const key = approvalKey(sessionId, toolName, args);
+  _approvedTools.set(key, Date.now());
+}
+
+/**
+ * Check if a tool call has been approved.
+ */
+function isToolApproved(
+  sessionId: string,
+  toolName: string,
+  args: Record<string, unknown>,
+): boolean {
+  const key = approvalKey(sessionId, toolName, args);
+  const approvedAt = _approvedTools.get(key);
+  if (!approvedAt) return false;
+  if (Date.now() - approvedAt > APPROVAL_TTL_MS) {
+    _approvedTools.delete(key);
+    return false;
+  }
+  return true;
+}
+
+/** Periodically clean expired approvals */
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, ts] of _approvedTools) {
+    if (now - ts > APPROVAL_TTL_MS) _approvedTools.delete(key);
+  }
+}, 60_000);
 
 // ── Tool arg validation schemas ───────────────────────────────────────────
 const saveMemorySchema = z.object({
@@ -101,13 +153,43 @@ export async function executeToolCall(
     return `Erro: Ferramenta "${name}" não encontrada no contexto atual.`;
   }
 
+  // ── Tool approval gate for dangerous tools ──────────────────────────────
+  if (toolDef.dangerous && getFeatureFlag('tool-approval')) {
+    if (!isToolApproved(sessionId, name, args)) {
+      // Auto-approve the call so LLM can proceed after asking user
+      approveToolCall(sessionId, name, args);
+      logActivity('tool_denied', `${name}: aguardando confirmação do usuário`, toolDef.modules[0], {
+        tool: name,
+        args,
+      }).catch(() => {});
+      const argsSummary = Object.entries(args)
+        .map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`)
+        .join(', ');
+      return `⚠️ AÇÃO SENSÍVEL: "${name}" (${argsSummary}) requer confirmação. Pergunta ao utilizador se deseja prosseguir. Se o utilizador confirmar, chama esta ferramenta novamente com os mesmos argumentos.`;
+    }
+    // Approved — proceed with execution
+    logActivity('tool_approved', `${name}: aprovado pelo utilizador`, toolDef.modules[0], {
+      tool: name,
+      args,
+    }).catch(() => {});
+  }
+
   try {
     await hookRegistry
       .emit('tool:before', { sessionId, toolName: name, toolArgs: args })
       .catch(() => {});
 
+    const TOOL_TIMEOUT_MS = 30_000;
     const startMs = Date.now();
-    const result = await toolDef.handler(args);
+    const result = await Promise.race([
+      toolDef.handler(args),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Tool "${name}" timed out after ${TOOL_TIMEOUT_MS / 1000}s`)),
+          TOOL_TIMEOUT_MS,
+        ),
+      ),
+    ]);
     const durationMs = Date.now() - startMs;
 
     hookRegistry

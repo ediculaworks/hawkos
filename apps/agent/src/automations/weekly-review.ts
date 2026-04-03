@@ -145,21 +145,42 @@ export async function sendWeeklyReview(): Promise<void> {
   await sendToChannel(CHANNEL_ID, message);
 }
 
+let _weeklyRunning = false;
+
+function getLocalTime(timezone: string): { hours: number; minutes: number; dayOfWeek: number } {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric', minute: 'numeric', weekday: 'short',
+    hour12: false, timeZone: timezone,
+  }).formatToParts(now);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const weekday = parts.find((p) => p.type === 'weekday')?.value ?? '';
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return { hours: get('hour'), minutes: get('minute'), dayOfWeek: dayMap[weekday] ?? 0 };
+}
+
 export function startWeeklyReviewCron(): void {
   cron.schedule('0 * * * *', async () => {
-    const settings = await getWeeklyReviewSettings();
-    if (!settings.weekly_review_enabled) return;
+    if (_weeklyRunning) return;
+    _weeklyRunning = true;
+    try {
+      const settings = await getWeeklyReviewSettings();
+      if (!settings.weekly_review_enabled) return;
 
-    const now = new Date();
-    const [hours, minutes] = settings.weekly_review_time.split(':').map(Number);
+      const timezone = (settings as Record<string, unknown>).timezone as string ?? 'America/Sao_Paulo';
+      const now = getLocalTime(timezone);
+      const [hours, minutes] = settings.weekly_review_time.split(':').map(Number);
 
-    if (now.getDay() === 0 && now.getHours() === hours && now.getMinutes() === minutes) {
-      sendWeeklyReview()
-        .then(() => markAutomationRun('weekly-review', 'success'))
-        .catch((err) => {
-          console.error('[weekly-review] Failed:', err);
-          markAutomationRun('weekly-review', 'failure', String(err));
-        });
+      if (now.dayOfWeek === 0 && now.hours === hours && now.minutes === minutes) {
+        await sendWeeklyReview()
+          .then(() => markAutomationRun('weekly-review', 'success'))
+          .catch((err) => {
+            console.error('[weekly-review] Failed:', err);
+            markAutomationRun('weekly-review', 'failure', String(err));
+          });
+      }
+    } finally {
+      _weeklyRunning = false;
     }
   });
 }

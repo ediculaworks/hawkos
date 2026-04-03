@@ -1,15 +1,28 @@
 /**
  * Activity logging — writes events to activity_log table.
  * Extracted from handler.ts for reuse across agent components.
+ * Includes rate limiting to prevent DB spam on high-volume errors.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { db } from '@hawk/db';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const activityDb = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+const TENANT_SLUG = process.env.AGENT_SLOT ?? 'local';
 
-export { activityDb };
+// Rate limiting: max 10 writes per event_type per 10 seconds
+const _rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_WINDOW_MS = 10_000;
+
+function isRateLimited(eventType: string): boolean {
+  const now = Date.now();
+  const entry = _rateLimitMap.get(eventType);
+  if (!entry || now >= entry.resetAt) {
+    _rateLimitMap.set(eventType, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  entry.count++;
+  return entry.count > RATE_LIMIT_MAX;
+}
 
 export async function logActivity(
   eventType: string,
@@ -22,23 +35,16 @@ export async function logActivity(
     console.error(logLine);
   }
 
-  if (!activityDb) return;
+  if (isRateLimited(eventType)) return;
 
   try {
-    await (
-      activityDb as unknown as {
-        from: (table: string) => {
-          insert: (data: Record<string, unknown>) => Promise<{ error: Error | null }>;
-        };
-      }
-    )
-      .from('activity_log')
-      .insert({
-        event_type: eventType,
-        module: moduleName ?? undefined,
-        summary,
-        metadata: metadata ?? {},
-      });
+    await db.from('activity_log').insert({
+      event_type: eventType,
+      module: moduleName ?? undefined,
+      summary,
+      metadata: metadata ?? {},
+      tenant_id: TENANT_SLUG,
+    });
   } catch (err) {
     console.error('[activity-logger] Failed to write:', err);
   }

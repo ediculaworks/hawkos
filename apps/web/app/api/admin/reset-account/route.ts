@@ -1,31 +1,42 @@
-import { createClient } from '@supabase/supabase-js';
+import { getTenantBySlug } from '@/lib/tenants/cache';
+import { deleteUser, listUsers, signIn } from '@hawk/auth';
+import { getPool } from '@hawk/db';
+import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 
 interface ResetAccountRequest {
   email: string;
   password: string;
-  supabaseUrl: string;
-  supabaseAnonKey: string;
-  supabaseServiceKey: string;
+  tenantSlug: string;
 }
 
 export async function POST(request: Request) {
   try {
     const body: ResetAccountRequest = await request.json();
-    const { email, password, supabaseUrl, supabaseAnonKey, supabaseServiceKey } = body;
+    const { email, password, tenantSlug } = body;
 
-    // 1. Verify credentials — master password bypasses normal auth
+    if (!tenantSlug) {
+      return NextResponse.json({ error: 'tenantSlug is required' }, { status: 400 });
+    }
+
+    const tenant = await getTenantBySlug(tenantSlug);
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+    }
+
+    const schemaName = tenant.schemaName;
+
+    // 1. Verify credentials — master password bypasses normal auth (timing-safe)
     const masterPassword = process.env.ONBOARDING_MASTER_PASSWORD;
-    const isMaster = masterPassword && password === masterPassword;
+    let isMaster = false;
+    if (masterPassword && password.length === masterPassword.length) {
+      const a = Buffer.from(password, 'utf8');
+      const b = Buffer.from(masterPassword, 'utf8');
+      isMaster = timingSafeEqual(a, b);
+    }
 
     if (!isMaster) {
-      const anonSupabase = createClient(supabaseUrl, supabaseAnonKey, {
-        auth: { persistSession: false },
-      });
-      const { error: signInError } = await anonSupabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error: signInError } = await signIn(email, password, tenantSlug, schemaName);
       if (signInError) {
         return NextResponse.json(
           { error: 'Senha incorreta — verifique e tente novamente' },
@@ -34,23 +45,24 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. Find user by email using admin client
-    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { persistSession: false },
-    });
-    const { data: listData } = await adminSupabase.auth.admin.listUsers();
-    const existingUser = listData?.users.find((u) => u.email === email);
+    // 2. Find user by email
+    const { data: users } = await listUsers(schemaName);
+    const existingUser = users?.find((u) => u.email === email);
     if (!existingUser) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
     const userId = existingUser.id;
 
     // 3. Delete profile data (CASCADE handles related tables)
-    await adminSupabase.from('profile').delete().eq('id', userId);
+    const sql = getPool();
+    await sql.begin(async (tx) => {
+      await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      await tx.unsafe('DELETE FROM profile WHERE id = $1', [userId]);
+    });
 
     // 4. Delete auth user
-    const { error: deleteError } = await adminSupabase.auth.admin.deleteUser(userId);
-    if (deleteError) throw deleteError;
+    const { error: deleteError } = await deleteUser(userId, schemaName);
+    if (deleteError) throw new Error(deleteError);
 
     return NextResponse.json({ success: true });
   } catch (error) {

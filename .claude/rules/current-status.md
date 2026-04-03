@@ -2,6 +2,75 @@
 
 **Ultima atualizacao:** 2026-04-03
 
+## Wave 4 — Reference Repo Patterns (2026-04-03)
+**Status: [✅ Completo]**
+
+Adoção de padrões inspirados por 6 repos de referência (TaxHacker, OpenClaw, Hermes Agent, Onyx, fff.nvim, prompts.chat). Score estimado subiu de ~97 para ~98/100.
+
+### O que foi implementado:
+
+| Area | O que mudou |
+|------|------------|
+| Feature Flags | Per-tenant feature flags via `tenants.feature_flags` JSONB. Defaults em `@hawk/shared/feature-flags.ts`. Flags para Wave 4-7 definidas. |
+| Tool Approval | Tools com `dangerous: true` agora requerem confirmação: primeira chamada retorna aviso, segunda executa. `tool_approved`/`tool_denied` events no activity_log. |
+| Hybrid Search | pg_trgm + pgvector: `hybrid_search_memories()` RPC combina keyword similarity + vector cosine. GIN trigram index em `agent_memories.content`. Fallback para vector-only se RPC não existir. |
+| Frecency Scoring | `module_access_log` table + `module_frecency` materialized view. Sidebar ordena módulos por score (1d×10 + 7d×3 + 30d×1). Hook `useModuleFrecency` + server action `trackModuleAccess`. |
+| Activity Log | Novos event types: `tool_approved`, `tool_denied`. Constraint expandida. |
+| Migration | `20260414000000_wave4_feature_flags_hybrid_search_frecency.sql`: feature_flags column, pg_trgm extension, hybrid search RPC, frecency tables + materialized view, pruning function. |
+
+### Ficheiros novos/modificados:
+
+| Ficheiro | Tipo |
+|----------|------|
+| `packages/shared/src/feature-flags.ts` | Novo — feature flag utility |
+| `packages/db/supabase/migrations/20260414000000_wave4_*.sql` | Novo — migration |
+| `apps/web/lib/actions/frecency.ts` | Novo — server action |
+| `apps/web/lib/hooks/use-module-frecency.ts` | Novo — React hook |
+| `apps/agent/src/tool-executor.ts` | Modificado — tool approval gate |
+| `packages/modules/memory/embeddings.ts` | Modificado — hybridSearchMemories() |
+| `packages/modules/memory/retrieval.ts` | Modificado — hybrid search integration |
+| `apps/web/components/shell/sidebar.tsx` | Modificado — frecency sorting + tracking |
+
+## Agent Audit 360° — Model Agnosticism (2026-04-03)
+**Status: [✅ Completo]**
+
+Auditoria completa do sistema de agentes com foco em compatibilidade com modelos free do OpenRouter. Score estimado de robustez subiu de ~95 para ~97/100.
+
+### O que foi implementado:
+
+| Area | O que mudou |
+|------|------------|
+| Fallback Chain | Tool-aware: separa modelos com/sem `tool_choice`, evita enviar tool_choice a modelos incompatíveis (stepfun, minimax) |
+| Context Window | Validação per-model: mapa de context limits (12 modelos), warning quando >90% do limite |
+| Token Estimation | Per-model: multilingual models (Qwen, GLM) usam ~3 chars/token vs 4 chars/token padrão |
+| Model Routing | Fallback atualizado: Qwen 3.6 Plus (1M ctx), Nemotron 120B (262K), Llama 3.3 70B (65K) |
+| Max Tool Rounds | Limite de 5 rounds no tool loop, previne loops infinitos com modelos menores |
+| Worker Models | Default atualizado de `sourceful/riverflow-v2-fast` para `nvidia/nemotron-nano-9b-v2:free` (llm-client, session-commit, deduplicator) |
+| Cost Tracker | Free models ($0): `estimateCostUsd()` retorna 0 para modelos `:free`, evita budget falso-positivo |
+| .env.example | Novas variáveis documentadas: MODEL_TIER_*, MEMORY_WORKER_MODEL, DEDUP_WORKER_MODEL |
+| Tests | 93 testes agent (0 falhas), +12 testes novos (getContextLimit, supportsToolChoice, estimateTokenCount, free model cost) |
+
+## Production Hardening (2026-04-03)
+**Status: [✅ Completo]**
+
+Hardening para deploy em VPS Hostinger KVM4. Score estimado subiu de ~90 para ~95/100.
+
+### O que foi implementado:
+
+| Area | O que mudou |
+|------|------------|
+| HTTPS | Caddy reverse proxy com HTTPS automatico (Let's Encrypt), HTTP/3, headers de seguranca |
+| VPS Setup | setup-vps.sh reescrito: user hawk, SSH key-only, fail2ban, swap 2GB, UFW (22/80/443), unattended-upgrades, logrotate |
+| Deploy | deploy.sh: git pull → backup → migrations → build → health check → resumo (flags: --skip-backup, --no-pull) |
+| Dockerfile | Agent multi-stage build (deps cacheadas, imagem menor) |
+| Cost Tracking | Persistencia em admin.tenant_metrics (sobrevive restarts), load do DB no startup |
+| Health Checks | /health verifica DB (latencia), ?deep=true verifica OpenRouter + Discord, retorna 503 se DB down |
+| Security | Removido dev-login endpoint, removido NODE_ENV bypass em admin-auth |
+| Tenant Isolation | 7 testes (AsyncLocalStorage, schema leak, SQL injection), validateSchemaName() em rawQuery |
+| Dashboard | Widgets cost-history (gastos 14d com trend) e error-summary (top erros por componente) |
+| Backups | Verificacao de integridade pos-upload, limite 200k rows (era 50k), alertas de truncamento |
+| Organizacao | Dockerfiles em docker/, scripts legado em scripts/legacy/, .env.example consolidado |
+
 ## Wave 3 Improvements (2026-04-01 → 2026-04-03)
 **Status: [✅ Completo]**
 

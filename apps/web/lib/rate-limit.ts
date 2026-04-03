@@ -27,11 +27,7 @@ function cleanupStale() {
  * Check if a request is within rate limits.
  * @returns true if allowed, false if rate limited
  */
-export function checkRateLimit(
-  key: string,
-  limit: number,
-  windowMs: number,
-): boolean {
+export function checkRateLimit(key: string, limit: number, windowMs: number): boolean {
   cleanupStale();
 
   const now = Date.now();
@@ -48,7 +44,7 @@ export function checkRateLimit(
 
 /** Per-route rate limit configurations */
 export const RATE_LIMITS: Record<string, { limit: number; windowMs: number }> = {
-  factoryReset: { limit: 1, windowMs: 60 * 60 * 1000 },   // 1/hour
-  agentApi: { limit: 60, windowMs: 60 * 1000 },            // 60/min
-  default: { limit: 100, windowMs: 60 * 1000 },            // 100/min
+  factoryReset: { limit: 1, windowMs: 60 * 60 * 1000 }, // 1/hour
+  agentApi: { limit: 60, windowMs: 60 * 1000 }, // 60/min
+  default: { limit: 100, windowMs: 60 * 1000 }, // 100/min
 };

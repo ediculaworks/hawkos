@@ -1,6 +1,6 @@
-import { z } from 'zod';
-import { createLogger, HawkError, ValidationError } from '@hawk/shared';
 import { db } from '@hawk/db';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
+import { z } from 'zod';
 
 const CreateNoteSchema = z.object({
   title: z.string().min(1),
@@ -23,7 +23,9 @@ const logger = createLogger('knowledge');
 export async function createNote(input: CreateNoteInput): Promise<KnowledgeNote> {
   const parsed = CreateNoteSchema.safeParse(input);
   if (!parsed.success) {
-    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid input: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   // Se tem URL, extrair tags do conteúdo automaticamente
   const inlineTags = input.content ? extractTagsFromContent(input.content) : [];

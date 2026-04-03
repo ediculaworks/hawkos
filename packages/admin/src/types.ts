@@ -25,20 +25,15 @@ export interface Tenant {
   id: string;
   slug: string;
   label: string;
-  supabase_url: string;
-  supabase_anon_key: string;
-  supabase_service_key_encrypted: string;
-  supabase_service_key_iv: string;
-  discord_config: DiscordConfig;
-  openrouter_config: OpenRouterConfig;
+  schema_name: string;
   discord_config_encrypted: string | null;
   discord_config_iv: string | null;
   openrouter_config_encrypted: string | null;
   openrouter_config_iv: string | null;
+  key_salt: string | null;
   agent_port: number;
   agent_secret: string | null;
   status: TenantStatus;
-  onboarding_completed_at: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -47,12 +42,11 @@ export interface Tenant {
 export interface TenantInsert {
   slug: string;
   label: string;
-  supabase_url: string;
-  supabase_anon_key: string;
-  supabase_service_key_encrypted: string;
-  supabase_service_key_iv: string;
-  discord_config?: DiscordConfig;
-  openrouter_config?: OpenRouterConfig;
+  schema_name: string;
+  discord_config_encrypted?: string;
+  discord_config_iv?: string;
+  openrouter_config_encrypted?: string;
+  openrouter_config_iv?: string;
   agent_port: number;
   agent_secret?: string;
   created_by?: string;
@@ -60,15 +54,12 @@ export interface TenantInsert {
 
 export interface TenantUpdate {
   label?: string;
-  supabase_url?: string;
-  supabase_anon_key?: string;
-  supabase_service_key_encrypted?: string;
-  supabase_service_key_iv?: string;
-  discord_config?: DiscordConfig;
-  openrouter_config?: OpenRouterConfig;
+  discord_config_encrypted?: string;
+  discord_config_iv?: string;
+  openrouter_config_encrypted?: string;
+  openrouter_config_iv?: string;
   agent_secret?: string;
   status?: TenantStatus;
-  onboarding_completed_at?: string;
 }
 
 export interface DiscordConfig {

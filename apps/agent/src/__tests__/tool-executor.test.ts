@@ -69,7 +69,11 @@ describe('executeToolCall — Zod validation', () => {
 
   it('accepts valid save_memory args and calls createMemory', async () => {
     const result = await executeToolCall(
-      makeToolCall('save_memory', { content: 'Test memory', memory_type: 'profile', importance: 7 }),
+      makeToolCall('save_memory', {
+        content: 'Test memory',
+        memory_type: 'profile',
+        importance: 7,
+      }),
       new Map(),
       SESSION,
     );
@@ -149,18 +153,18 @@ describe('executeToolCall — routing', () => {
   const SESSION = 'session-test';
 
   it('returns error for unknown tool', async () => {
-    const result = await executeToolCall(
-      makeToolCall('nonexistent_tool', {}),
-      new Map(),
-      SESSION,
-    );
+    const result = await executeToolCall(makeToolCall('nonexistent_tool', {}), new Map(), SESSION);
     expect(result).toContain('não encontrada');
   });
 
   it('calls handler and returns result', async () => {
     const handler = vi.fn().mockResolvedValue('ok result');
     const toolMap = makeToolMap(handler);
-    const result = await executeToolCall(makeToolCall('some_tool', { foo: 'bar' }), toolMap, SESSION);
+    const result = await executeToolCall(
+      makeToolCall('some_tool', { foo: 'bar' }),
+      toolMap,
+      SESSION,
+    );
     expect(result).toBe('ok result');
     expect(handler).toHaveBeenCalledWith({ foo: 'bar' });
   });

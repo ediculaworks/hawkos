@@ -55,7 +55,7 @@ function logDedupDecision(
 }
 
 // Worker model: free model for deduplication decisions
-const MODEL = process.env.DEDUP_WORKER_MODEL ?? 'sourceful/riverflow-v2-fast';
+const MODEL = process.env.DEDUP_WORKER_MODEL ?? 'nvidia/nemotron-nano-9b-v2:free';
 
 // ── Types ──────────────────────────────────────────────────
 

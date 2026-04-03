@@ -1,86 +1,39 @@
-// Node.js runtime only — uses node:crypto. Do NOT import from middleware.
-import { createDecipheriv, createHash } from 'node:crypto';
-import { createClient } from '@supabase/supabase-js';
+// Node.js runtime only — for server components/actions that need full tenant details.
+// Simplified: no more encrypted service keys since we use schema-per-tenant.
+
+import { getPool } from '@hawk/db';
 import { type CachedTenantPrivate, privateCache } from './cache';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const ALGORITHM = 'aes-256-gcm';
-const TAG_LENGTH = 16;
-const LEGACY_SALT = 'hawk-os-admin-salt-v1';
 
-function deriveKey(masterKey: string, salt?: string | null): Buffer {
-  return createHash('sha256')
-    .update(masterKey + (salt || LEGACY_SALT))
-    .digest();
+async function adminQuery<T>(query: string, params: unknown[] = []): Promise<T[]> {
+  const sql = getPool();
+  return sql.begin(async (tx) => {
+    await tx.unsafe('SET LOCAL search_path TO admin, public');
+    return tx.unsafe(query, params) as Promise<T[]>;
+  });
 }
 
-function decryptServiceKey(
-  encryptedData: string,
-  iv: string,
-  masterKey: string,
-  salt?: string | null,
-): string {
-  const key = deriveKey(masterKey, salt);
-  const ivBuffer = Buffer.from(iv, 'base64');
-  const combined = Buffer.from(encryptedData, 'base64');
-  const encrypted = combined.slice(0, -TAG_LENGTH);
-  const tag = combined.slice(-TAG_LENGTH);
-
-  const decipher = createDecipheriv(ALGORITHM, key, ivBuffer);
-  decipher.setAuthTag(tag);
-
-  let decrypted = decipher.update(encrypted, undefined, 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-}
-
-function getAdminClient() {
-  const url = process.env.ADMIN_SUPABASE_URL;
-  const key = process.env.ADMIN_SUPABASE_SERVICE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
-}
-
-/** Fetch tenant with decrypted secrets — for server components / actions only. */
+/** Fetch tenant with all details — for server components / actions only. */
 export async function getTenantPrivateBySlug(slug: string): Promise<CachedTenantPrivate | null> {
   const now = Date.now();
   const cached = privateCache.get(slug);
   if (cached && cached.expiresAt > now) return cached.tenant;
 
-  const admin = getAdminClient();
-  if (!admin) return null;
-
-  const masterKey = process.env.ADMIN_SUPABASE_SERVICE_KEY || '';
-
-  const { data } = await admin
-    .from('tenants')
-    .select(
-      'slug, label, supabase_url, supabase_anon_key, supabase_service_key_encrypted, supabase_service_key_iv, agent_port, agent_secret',
-    )
-    .eq('slug', slug)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (!data) return null;
-
-  // key_salt column may not exist yet (migration pending) — fall back to legacy salt
-  const salt = (data as Record<string, unknown>).key_salt as string | null | undefined;
-
-  const serviceKey = decryptServiceKey(
-    data.supabase_service_key_encrypted,
-    data.supabase_service_key_iv,
-    masterKey,
-    salt ?? null,
+  const rows = await adminQuery<Record<string, unknown>>(
+    "SELECT slug, label, schema_name, agent_port, agent_secret FROM tenants WHERE slug = $1 AND status = 'active' LIMIT 1",
+    [slug],
   );
 
+  const data = rows[0];
+  if (!data) return null;
+
   const tenant: CachedTenantPrivate = {
-    slug: data.slug,
-    label: data.label,
-    supabaseUrl: data.supabase_url,
-    supabaseAnonKey: data.supabase_anon_key,
-    supabaseServiceRoleKey: serviceKey,
-    agentApiPort: data.agent_port,
-    agentApiSecret: data.agent_secret,
+    slug: data.slug as string,
+    label: data.label as string,
+    schemaName: data.schema_name as string,
+    agentApiPort: data.agent_port as number,
+    agentApiSecret: data.agent_secret as string,
   };
 
   privateCache.set(slug, { tenant, expiresAt: now + CACHE_TTL_MS });

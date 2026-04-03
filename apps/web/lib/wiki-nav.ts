@@ -31,7 +31,7 @@ export const WIKI_NAV: WikiCategory[] = [
       { slug: 'modules/people', title: 'Pessoas (CRM)' },
       { slug: 'modules/career', title: 'Carreira' },
       { slug: 'modules/objectives', title: 'Objetivos' },
-{ slug: 'modules/routine', title: 'Rotina' },
+      { slug: 'modules/routine', title: 'Rotina' },
       { slug: 'modules/assets', title: 'Patrimônio' },
       { slug: 'modules/entertainment', title: 'Lazer' },
       { slug: 'modules/legal', title: 'Jurídico' },

@@ -36,7 +36,9 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith('hawk-') && key !== STATIC_CACHE && key !== DYNAMIC_CACHE)
+            .filter(
+              (key) => key.startsWith('hawk-') && key !== STATIC_CACHE && key !== DYNAMIC_CACHE,
+            )
             .map((key) => caches.delete(key)),
         ),
       )
@@ -54,7 +56,7 @@ self.addEventListener('fetch', (event) => {
     request.method !== 'GET' ||
     url.origin !== self.location.origin ||
     url.pathname.startsWith('/api/') ||
-    url.pathname.startsWith('/_next/') && url.pathname.includes('webpack')
+    (url.pathname.startsWith('/_next/') && url.pathname.includes('webpack'))
   ) {
     return;
   }

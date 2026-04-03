@@ -1,5 +1,6 @@
 'use client';
 
+import CountUp from '@/components/react-bits/components/count-up';
 import { EmptyState } from '@/components/ui/empty-state';
 import { fetchWeekSummary } from '@/lib/actions/routine';
 import { useQuery } from '@tanstack/react-query';
@@ -33,7 +34,12 @@ export default function StreaksWidget() {
         <div key={item.habit.id} className="flex items-center gap-[var(--space-3)]">
           <div className="flex items-center gap-1 text-[var(--color-warning)] w-10 flex-shrink-0">
             <Zap className="h-3 w-3" />
-            <span className="text-xs font-medium">{item.habit.current_streak}</span>
+            <CountUp
+              to={item.habit.current_streak}
+              from={0}
+              duration={1}
+              className="text-xs font-medium"
+            />
           </div>
           <div className="flex-1 min-w-0">
             <span className="text-sm text-[var(--color-text-secondary)] truncate block">

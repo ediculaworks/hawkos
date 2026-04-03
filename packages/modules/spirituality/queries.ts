@@ -103,9 +103,11 @@ export async function getWeeklyMoodAverage(): Promise<number | null> {
     throw new HawkError(`Failed to get mood average: ${error.message}`, 'DB_QUERY_FAILED');
   }
 
-  const moods = (data ?? []).map((r) => r.mood as number).filter((m) => m > 0);
+  const moods = (data ?? [])
+    .map((r: Record<string, unknown>) => r.mood as number)
+    .filter((m: number) => m > 0);
   if (moods.length === 0) return null;
-  return Math.round((moods.reduce((a, b) => a + b, 0) / moods.length) * 10) / 10;
+  return Math.round((moods.reduce((a: number, b: number) => a + b, 0) / moods.length) * 10) / 10;
 }
 
 export async function getCombinedMoodAverage(days = 7): Promise<number | null> {
@@ -119,8 +121,8 @@ export async function getCombinedMoodAverage(days = 7): Promise<number | null> {
   ]);
 
   const allMoods = [
-    ...(journalMoods.data ?? []).map((e) => e.mood as number),
-    ...(spiritMoods.data ?? []).map((r) => r.mood as number),
+    ...(journalMoods.data ?? []).map((e: Record<string, unknown>) => e.mood as number),
+    ...(spiritMoods.data ?? []).map((r: Record<string, unknown>) => r.mood as number),
   ].filter((m) => m > 0);
 
   if (allMoods.length === 0) return null;
@@ -146,7 +148,7 @@ export async function getUnifiedTimeline(days = 30): Promise<UnifiedTimelineEntr
   ]);
 
   const unified: UnifiedTimelineEntry[] = [
-    ...(journalEntries.data ?? []).map((e) => ({
+    ...(journalEntries.data ?? []).map((e: Record<string, unknown>) => ({
       date: e.date,
       source: 'journal' as const,
       id: e.id,
@@ -156,7 +158,7 @@ export async function getUnifiedTimeline(days = 30): Promise<UnifiedTimelineEntr
       tags: e.tags ?? [],
       created_at: e.created_at ?? new Date().toISOString(),
     })),
-    ...(reflections.data ?? []).map((r) => ({
+    ...(reflections.data ?? []).map((r: Record<string, unknown>) => ({
       date: r.logged_at,
       source: 'spirituality' as const,
       id: r.id,
@@ -202,7 +204,9 @@ export async function getObjectivesByValue(valueName: string): Promise<Objective
     .select('objective_id, status')
     .contains('tags', [tagFilter]);
 
-  const objectivesWithTag = new Set((tasksWithTag ?? []).map((t) => t.objective_id));
+  const objectivesWithTag = new Set(
+    (tasksWithTag ?? []).map((t: Record<string, unknown>) => t.objective_id),
+  );
 
   const result: ObjectiveWithValue[] = [];
   for (const obj of objectives ?? []) {

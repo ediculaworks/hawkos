@@ -1,7 +1,9 @@
 'use client';
 
+import ShinyText from '@/components/react-bits/text/shiny-text';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { sortByFrecency, useModuleFrecency } from '@/lib/hooks/use-module-frecency';
 import { useSidebarBadges } from '@/lib/hooks/use-sidebar-badges';
 import { MODULE_CONFIG } from '@/lib/modules';
 import { useUIStore } from '@/lib/stores/ui-store';
@@ -20,6 +22,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useMemo } from 'react';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -28,6 +31,21 @@ export function Sidebar() {
   const sidebarMobileOpen = useUIStore((s) => s.sidebarMobileOpen);
   const setSidebarMobileOpen = useUIStore((s) => s.setSidebarMobileOpen);
   const badges = useSidebarBadges();
+  const { scores: frecencyScores, track: trackAccess } = useModuleFrecency();
+
+  // Sort life modules by frecency (most used first)
+  const sortedModules = useMemo(
+    () => sortByFrecency(MODULE_CONFIG, frecencyScores),
+    [frecencyScores],
+  );
+
+  // Track module page views on navigation
+  useEffect(() => {
+    const moduleMatch = pathname.match(/^\/dashboard\/(\w+)/);
+    if (moduleMatch?.[1]) {
+      trackAccess(moduleMatch[1]);
+    }
+  }, [pathname, trackAccess]);
 
   // Close mobile sidebar on navigation
   const handleNavClick = () => {
@@ -62,9 +80,13 @@ export function Sidebar() {
         {/* Header */}
         <div className="flex h-[var(--topbar-height)] items-center justify-between px-[var(--space-4)] border-b border-[var(--color-border-subtle)]">
           {!sidebarCollapsed && (
-            <span className="text-sm font-semibold tracking-tight text-[var(--color-text-primary)]">
-              Hawk OS
-            </span>
+            <ShinyText
+              text="Hawk OS"
+              speed={5}
+              color="var(--color-text-primary)"
+              shineColor="var(--color-accent)"
+              className="text-sm font-semibold tracking-tight"
+            />
           )}
           {/* Desktop only: sidebar collapse toggle */}
           <Button
@@ -140,7 +162,7 @@ export function Sidebar() {
 
             {/* Life Modules Section */}
             <div className="my-[var(--space-2)] h-px bg-[var(--color-border-subtle)] mx-[var(--space-2)]" />
-            {MODULE_CONFIG.map((mod) => (
+            {sortedModules.map((mod) => (
               <SidebarLink
                 key={mod.id}
                 href={mod.href}

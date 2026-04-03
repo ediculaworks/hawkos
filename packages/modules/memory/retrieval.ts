@@ -1,9 +1,9 @@
 import { db } from '@hawk/db';
-import { HawkError, createLogger } from '@hawk/shared';
+import { HawkError, createLogger, getFeatureFlag } from '@hawk/shared';
 import { getAdaptiveHalfLife } from './adaptive';
 
 const logger = createLogger('memory');
-import { semanticSearchMemories } from './embeddings';
+import { hybridSearchMemories, semanticSearchMemories } from './embeddings';
 import type { AgentMemory } from './types';
 
 // ── Scoring Constants (OpenViking-inspired) ────────────────
@@ -62,8 +62,14 @@ type ScoredMemory = AgentMemory & { score: number; display_content: string };
  * Returns deduplicated top-N memories ranked by combined score.
  */
 export async function retrieveMemories(query: string, limit = 10): Promise<ScoredMemory[]> {
-  const [semanticResults, hotResults, importantResults] = await Promise.all([
-    semanticSearchMemories(query, limit * 2).catch(() => []),
+  const useHybrid = getFeatureFlag('hybrid-search');
+
+  const [searchResults, hotResults, importantResults] = await Promise.all([
+    useHybrid
+      ? hybridSearchMemories(query, limit * 2).catch(() =>
+          semanticSearchMemories(query, limit * 2).catch(() => []),
+        )
+      : semanticSearchMemories(query, limit * 2).catch(() => []),
     getHottestMemories(limit),
     getTopByImportance(limit),
   ]);
@@ -71,16 +77,19 @@ export async function retrieveMemories(query: string, limit = 10): Promise<Score
   // Build score map: memory_id → accumulated score
   const scoreMap = new Map<string, { memory: AgentMemory; score: number }>();
 
-  // Semantic results: weight 0.5 (similarity already 0-1)
-  for (const result of semanticResults) {
+  // Search results: weight 0.5 (combined_score or similarity already 0-1)
+  for (const result of searchResults) {
+    const similarity =
+      'combined_score' in result
+        ? (result as { combined_score: number }).combined_score
+        : (result as { similarity: number }).similarity;
     const existing = scoreMap.get(result.id);
     if (existing) {
-      existing.score += result.similarity * SEMANTIC_WEIGHT;
+      existing.score += similarity * SEMANTIC_WEIGHT;
     } else {
-      // We'll need to fetch full memory data for semantic-only results
       scoreMap.set(result.id, {
         memory: { id: result.id, content: result.content } as AgentMemory,
-        score: result.similarity * SEMANTIC_WEIGHT,
+        score: similarity * SEMANTIC_WEIGHT,
       });
     }
   }

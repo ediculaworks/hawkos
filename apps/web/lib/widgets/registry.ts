@@ -237,6 +237,26 @@ export const WIDGET_REGISTRY: Record<string, WidgetEntry> = {
     maxSize: { w: 6, h: 8 },
     component: () => import('@/components/widgets/agent/observability'),
   },
+  'cost-history': {
+    id: 'cost-history',
+    moduleId: 'memory',
+    title: 'Custos',
+    icon: DollarSign,
+    defaultSize: { w: 4, h: 3 },
+    minSize: { w: 3, h: 3 },
+    maxSize: { w: 6, h: 5 },
+    component: () => import('@/components/widgets/agent/cost-history'),
+  },
+  'error-summary': {
+    id: 'error-summary',
+    moduleId: 'memory',
+    title: 'Erros',
+    icon: Zap,
+    defaultSize: { w: 3, h: 3 },
+    minSize: { w: 2, h: 2 },
+    maxSize: { w: 4, h: 5 },
+    component: () => import('@/components/widgets/agent/error-summary'),
+  },
 };
 
 export function getWidgetDef(widgetId: string): WidgetEntry | undefined {

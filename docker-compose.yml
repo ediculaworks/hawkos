@@ -13,7 +13,7 @@
 x-agent-defaults: &agent-defaults
   build:
     context: .
-    dockerfile: Dockerfile.agent
+    dockerfile: docker/Dockerfile.agent
   env_file: .env
   restart: unless-stopped
   extra_hosts:
@@ -87,18 +87,45 @@ services:
         max-size: "5m"
         max-file: "2"
 
+  # ── Caddy (reverse proxy + automatic HTTPS) ────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
   # ── Next.js Dashboard (shared by all tenants) ──────────────────────────
   web:
     build:
       context: .
-      dockerfile: Dockerfile.web
+      dockerfile: docker/Dockerfile.web
     env_file: .env
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "80:3000"
+    expose:
+      - "3000"
     environment:
       - HOSTNAME=0.0.0.0
     deploy:
@@ -203,4 +230,8 @@ volumes:
   pgdata:
     driver: local
   backups:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local

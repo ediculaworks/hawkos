@@ -34,11 +34,12 @@ import type {
  * Buscar pessoa por nome (parcial)
  */
 export async function findPersonByName(name: string): Promise<Person | null> {
+  const safeName = name.slice(0, 100);
   const { data, error } = await db
     .from('people')
     .select('*')
     .eq('active', true)
-    .ilike('name', `%${name}%`)
+    .ilike('name', `%${safeName}%`)
     .limit(1)
     .maybeSingle();
 
@@ -53,20 +54,18 @@ export async function findPersonByName(name: string): Promise<Person | null> {
  * Obter pessoa por ID com histórico de interações
  */
 export async function getPersonWithInteractions(id: string): Promise<PersonWithLastInteraction> {
-  const { data: person, error } = await db.from('people').select('*').eq('id', id).single();
+  const [personResult, interactionsResult] = await Promise.all([
+    db.from('people').select('*').eq('id', id).single(),
+    db.from('interactions').select('*').eq('person_id', id).order('date', { ascending: false }).limit(10),
+  ]);
 
+  const { data: person, error } = personResult;
   if (error) {
     logger.error({ error: error.message }, 'Failed to get person');
     throw new HawkError(`Failed to get person: ${error.message}`, 'DB_QUERY_FAILED');
   }
 
-  const { data: interactions, error: intError } = await db
-    .from('interactions')
-    .select('*')
-    .eq('person_id', id)
-    .order('date', { ascending: false })
-    .limit(10);
-
+  const { data: interactions, error: intError } = interactionsResult;
   if (intError) {
     logger.error({ error: intError.message }, 'Failed to get interactions');
     throw new HawkError(`Failed to get interactions: ${intError.message}`, 'DB_QUERY_FAILED');
@@ -131,7 +130,7 @@ export async function listUpcomingBirthdays(
   today.setHours(0, 0, 0, 0);
 
   const upcoming = (data ?? [])
-    .map((p) => {
+    .map((p: any) => {
       const birthday = new Date(p.birthday as string);
       // Calcular aniversário deste ano
       const thisYear = new Date(today.getFullYear(), birthday.getMonth(), birthday.getDate());
@@ -140,8 +139,8 @@ export async function listUpcomingBirthdays(
       const daysUntil = Math.round((thisYear.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       return { ...(p as Person), days_until: daysUntil };
     })
-    .filter((p) => p.days_until <= days)
-    .sort((a, b) => a.days_until - b.days_until);
+    .filter((p: any) => p.days_until <= days)
+    .sort((a: any, b: any) => a.days_until - b.days_until);
 
   return upcoming;
 }
@@ -275,7 +274,7 @@ export async function listRecentInteractions(limit = 20): Promise<InteractionWit
     throw new HawkError(`Failed to list recent interactions: ${error.message}`, 'DB_QUERY_FAILED');
   }
 
-  return (data ?? []).map((row) => {
+  return (data ?? []).map((row: any) => {
     const person = (row as Record<string, unknown>).people as {
       name: string;
       relationship: string | null;
@@ -309,10 +308,10 @@ export async function getNetworkStats(): Promise<NetworkStats> {
 
   const active = people ?? [];
   const withFrequency = active.filter(
-    (p) => p.contact_frequency && p.contact_frequency !== 'as_needed',
+    (p: any) => p.contact_frequency && p.contact_frequency !== 'as_needed',
   );
   const overdue = active.filter(
-    (p) => p.next_contact_reminder && p.next_contact_reminder <= todayStr,
+    (p: any) => p.next_contact_reminder && p.next_contact_reminder <= todayStr,
   );
   const onSchedule =
     withFrequency.length > 0 ? (withFrequency.length - overdue.length) / withFrequency.length : 1;
@@ -331,7 +330,7 @@ export async function getNetworkStats(): Promise<NetworkStats> {
     .select('sentiment')
     .gte('date', monthAgo.toISOString());
 
-  const sentimentValues: number[] = (monthInteractions ?? []).map((i) =>
+  const sentimentValues: number[] = (monthInteractions ?? []).map((i: any) =>
     i.sentiment === 'positive' ? 1 : i.sentiment === 'negative' ? -1 : 0,
   );
   const avgSentiment =
@@ -352,11 +351,12 @@ export async function getNetworkStats(): Promise<NetworkStats> {
  * Buscar pessoas por nome (para @mentions — retorna múltiplos)
  */
 export async function searchPeople(query: string, limit = 5): Promise<Person[]> {
+  const safeQuery = query.slice(0, 100);
   const { data, error } = await db
     .from('people')
     .select('*')
     .eq('active', true)
-    .ilike('name', `%${query}%`)
+    .ilike('name', `%${safeQuery}%`)
     .limit(limit);
 
   if (error) {

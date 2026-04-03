@@ -1,5 +1,5 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
 import { z } from 'zod';
 import type {
   CreateHobbyLogInput,
@@ -23,7 +23,9 @@ const createMediaSchema = z.object({
 export async function createMedia(input: CreateMediaInput): Promise<MediaItem> {
   const parsed = createMediaSchema.safeParse(input);
   if (!parsed.success) {
-    throw new ValidationError(`Invalid createMedia input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid createMedia input: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const { data, error } = await db
     .from('media_items')

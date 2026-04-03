@@ -30,11 +30,11 @@ class HookRegistry {
 
   async emit(event: HookEvent, ctx: HookContext): Promise<void> {
     const hooks = this.hooks.get(event) ?? [];
-    for (const hook of hooks) {
-      try {
-        await hook.handler(ctx);
-      } catch (err) {
-        console.error(`[hooks] Error in hook "${hook.name}" for event "${event}":`, err);
+    const results = await Promise.allSettled(hooks.map((hook) => hook.handler(ctx)));
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result && result.status === 'rejected') {
+        console.error(`[hooks] Error in hook "${hooks[i]?.name}" for event "${event}":`, result.reason);
       }
     }
   }

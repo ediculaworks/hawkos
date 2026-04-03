@@ -1,5 +1,6 @@
 'use client';
 
+import CountUp from '@/components/react-bits/components/count-up';
 import { fetchLifeScore } from '@/lib/actions/life-score';
 import { useQuery } from '@tanstack/react-query';
 
@@ -49,7 +50,12 @@ function ScoreRing({ score, size = 80 }: { score: number; size?: number }) {
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-base font-bold text-[var(--color-text-primary)]">{score}</span>
+        <CountUp
+          to={score}
+          from={0}
+          duration={1.5}
+          className="text-base font-bold text-[var(--color-text-primary)]"
+        />
       </div>
     </div>
   );

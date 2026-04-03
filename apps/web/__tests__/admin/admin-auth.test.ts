@@ -82,10 +82,11 @@ describe('requireAdminAuth', () => {
     expect((result as { status: number }).status).toBe(401);
   });
 
-  it('should allow all requests in development mode', () => {
+  it('should block unauthenticated requests even in development mode', () => {
     process.env.NODE_ENV = 'development';
     const req = makeRequest();
     const result = requireAdminAuth(req);
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect((result as { status: number }).status).toBe(401);
   });
 });

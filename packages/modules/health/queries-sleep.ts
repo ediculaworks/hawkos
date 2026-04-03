@@ -1,5 +1,5 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError, ValidationError, DateStringSchema } from '@hawk/shared';
+import { DateStringSchema, HawkError, ValidationError, createLogger } from '@hawk/shared';
 import { z } from 'zod';
 import type { LogSleepInput, SleepSession } from './types';
 
@@ -16,10 +16,15 @@ const LogSleepSchema = z.object({
 // ─────────────────────────────────────────────
 
 export async function logSleep(input: LogSleepInput): Promise<SleepSession> {
-  const parsed = LogSleepSchema.safeParse({ ...input, date: input.date ?? new Date().toISOString().split('T')[0] });
+  const parsed = LogSleepSchema.safeParse({
+    ...input,
+    date: input.date ?? new Date().toISOString().split('T')[0],
+  });
   if (!parsed.success) {
     logger.warn({ errors: parsed.error.flatten() }, 'Invalid sleep input');
-    throw new ValidationError(`Invalid sleep: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid sleep: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const date = input.date ?? (new Date().toISOString().split('T')[0] as string);
 

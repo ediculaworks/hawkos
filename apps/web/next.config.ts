@@ -41,6 +41,8 @@ const nextConfig: NextConfig = {
     'remark-breaks',
   ],
   async headers() {
+    // Note: CSP is set dynamically in middleware.ts (with per-request nonces)
+    // Static security headers are also set in middleware but duplicated here for static assets
     const securityHeaders = [
       { key: 'X-Frame-Options', value: 'DENY' },
       { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -51,23 +53,11 @@ const nextConfig: NextConfig = {
         key: 'Strict-Transport-Security',
         value: 'max-age=31536000; includeSubDomains',
       },
-      {
-        key: 'Content-Security-Policy',
-        value: [
-          "default-src 'self'",
-          "script-src 'self' 'unsafe-inline'",
-          "style-src 'self' 'unsafe-inline'",
-          "img-src 'self' data: blob:",
-          "connect-src 'self' wss: https://*.supabase.co",
-          "font-src 'self'",
-          "frame-ancestors 'none'",
-        ].join('; '),
-      },
     ];
 
     return [
       {
-        // Security headers on all routes
+        // Security headers on all routes (CSP handled by middleware)
         source: '/:path*',
         headers: securityHeaders,
       },

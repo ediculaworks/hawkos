@@ -1,13 +1,7 @@
-// @ts-expect-error optional dependency
-import { createClient } from '@supabase/supabase-js';
+import { db } from '@hawk/db';
 // @ts-expect-error optional dependency
 import { type calendar_v3, google } from 'googleapis';
 import type { CalendarEvent } from './types';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-);
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CALENDAR_CLIENT_ID,
@@ -44,7 +38,7 @@ export async function handleAuthorizationCode(code: string): Promise<void> {
     oauth2Client.setCredentials(tokens);
 
     // Salvar tokens no banco
-    const { error } = await supabase
+    const { error } = await db
       .from('calendar_sync_config')
       .update({
         access_token: tokens.access_token,
@@ -67,7 +61,7 @@ export async function handleAuthorizationCode(code: string): Promise<void> {
 export async function syncFromGoogleCalendar(): Promise<number> {
   try {
     // Restaurar credenciais do banco
-    const { data: config, error: configError } = await supabase
+    const { data: config, error: configError } = await db
       .from('calendar_sync_config')
       .select('access_token, refresh_token')
       .eq('calendar_id', 'personal')
@@ -105,7 +99,7 @@ export async function syncFromGoogleCalendar(): Promise<number> {
       const startTime = event.start?.dateTime || event.start?.date || new Date().toISOString();
       const endTime = event.end?.dateTime || event.end?.date || startTime;
 
-      const { error: upsertError } = await supabase.from('calendar_events').upsert(
+      const { error: upsertError } = await db.from('calendar_events').upsert(
         {
           google_event_id: event.id,
           title: event.summary,
@@ -126,7 +120,7 @@ export async function syncFromGoogleCalendar(): Promise<number> {
     }
 
     // Atualizar last_sync_at
-    await supabase
+    await db
       .from('calendar_sync_config')
       .update({ last_sync_at: new Date().toISOString() })
       .eq('calendar_id', 'personal');
@@ -142,7 +136,7 @@ export async function syncFromGoogleCalendar(): Promise<number> {
  */
 export async function pushToGoogleCalendar(event: CalendarEvent): Promise<string | null> {
   try {
-    const { data: config } = await supabase
+    const { data: config } = await db
       .from('calendar_sync_config')
       .select('access_token, refresh_token, google_calendar_id')
       .eq('calendar_id', 'personal')
@@ -178,7 +172,7 @@ export async function pushToGoogleCalendar(event: CalendarEvent): Promise<string
 
     if (response.data.id) {
       // Atualizar banco com google_event_id
-      await supabase
+      await db
         .from('calendar_events')
         .update({ google_event_id: response.data.id })
         .eq('id', event.id);

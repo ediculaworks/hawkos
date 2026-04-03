@@ -1,18 +1,22 @@
 'use client';
 
+import { ReactBitsGuard } from '@/components/react-bits/_adapter';
+import ShinyText from '@/components/react-bits/text/shiny-text';
+import TypingAnimation from '@/components/react-bits/text/typing-animation';
 import { EASE } from '@/lib/animations/constants';
-import { createClient } from '@/lib/supabase/client';
-import { createBrowserClient } from '@supabase/ssr';
 import { ChevronDown, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useState } from 'react';
 import { SplashScreen } from './splash-screen';
+
+const Aurora = dynamic(() => import('@/components/react-bits/backgrounds/aurora'), {
+  ssr: false,
+});
 
 interface TenantPublic {
   slug: string;
   label: string;
-  supabaseUrl: string;
-  supabaseAnonKey: string;
 }
 
 type Stage = 'form' | 'authenticating' | 'splash';
@@ -33,23 +37,18 @@ export default function LoginPage() {
 
   // Fetch available tenants on mount
   useEffect(() => {
-    // Clear any stale auth session to prevent redirect loops after deploys
-    const supabase = createClient();
-    supabase.auth.signOut().catch(() => {});
-
     fetch('/api/tenants')
       .then((res) => res.json())
       .then((data) => {
         if (data.tenants?.length > 0) {
           setTenants(data.tenants);
-          // Auto-select if only one tenant
           if (data.tenants.length === 1) {
             setSelectedTenant(data.tenants[0]);
           }
         }
       })
       .catch(() => {
-        // No tenants API — single-tenant mode, use env vars
+        // No tenants API — single-tenant mode
       });
   }, []);
 
@@ -59,46 +58,27 @@ export default function LoginPage() {
     setStage('authenticating');
 
     try {
-      let supabase: ReturnType<typeof createBrowserClient>;
-
-      if (selectedTenant) {
-        // Multi-tenant: create client for the selected tenant's Supabase
-        supabase = createBrowserClient(selectedTenant.supabaseUrl, selectedTenant.supabaseAnonKey);
-      } else {
-        // Single-tenant fallback: use env vars
-        supabase = createClient();
-      }
-
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // Authenticate via our custom API
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          tenantSlug: selectedTenant?.slug,
+        }),
       });
 
-      if (authError) {
+      const result = await res.json();
+
+      if (!res.ok || result.error) {
         setError(
-          authError.message === 'Invalid login credentials'
+          result.error === 'Invalid email or password'
             ? 'Email ou senha incorretos.'
-            : authError.message,
+            : result.error || 'Erro ao conectar.',
         );
         setStage('form');
         return;
-      }
-
-      // Set tenant cookie server-side (HttpOnly) — never use document.cookie for this
-      if (selectedTenant && authData.session?.access_token) {
-        const res = await fetch('/api/auth/set-tenant', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tenantSlug: selectedTenant.slug,
-            accessToken: authData.session.access_token,
-          }),
-        });
-        if (!res.ok) {
-          setError('Erro ao configurar sessão. Tente novamente.');
-          setStage('form');
-          return;
-        }
       }
 
       setStage('splash');
@@ -115,32 +95,20 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[var(--color-surface-0)]">
-      {/* Gradient blobs */}
-      <div className="pointer-events-none absolute inset-0">
-        <div
-          className="absolute top-1/4 left-1/4 h-[400px] w-[400px] rounded-full opacity-15"
-          style={{
-            background: 'var(--color-accent)',
-            filter: 'blur(120px)',
-            animation: 'blob-float-1 8s ease-in-out infinite',
-          }}
-        />
-        <div
-          className="absolute top-1/2 right-1/4 h-[350px] w-[350px] rounded-full opacity-10"
-          style={{
-            background: 'var(--color-mod-finances)',
-            filter: 'blur(120px)',
-            animation: 'blob-float-2 10s ease-in-out infinite',
-          }}
-        />
-        <div
-          className="absolute bottom-1/4 left-1/3 h-[300px] w-[300px] rounded-full opacity-10"
-          style={{
-            background: 'var(--color-mod-people)',
-            filter: 'blur(120px)',
-            animation: 'blob-float-3 12s ease-in-out infinite',
-          }}
-        />
+      {/* Aurora background */}
+      <div className="pointer-events-none absolute inset-0 opacity-15">
+        <ReactBitsGuard
+          fallback={
+            <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-accent)]/5 to-transparent" />
+          }
+        >
+          <Aurora
+            colorStops={['#4060ff', '#40c060', '#e040a0']}
+            amplitude={1.2}
+            blend={0.6}
+            speed={0.8}
+          />
+        </ReactBitsGuard>
       </div>
 
       {/* Content */}
@@ -164,20 +132,25 @@ export default function LoginPage() {
                   transition={{ duration: 0.5, delay: 0.1, ease: EASE.outQuart }}
                   className="text-center space-y-2"
                 >
-                  <h1
-                    className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight"
-                    style={{ animation: 'logo-glow 3s ease-in-out infinite' }}
-                  >
-                    Hawk OS
+                  <h1 className="text-3xl font-bold tracking-tight">
+                    <ShinyText
+                      text="Hawk OS"
+                      speed={3}
+                      color="var(--color-text-primary)"
+                      shineColor="var(--color-accent)"
+                    />
                   </h1>
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.4, delay: 0.3 }}
-                    className="text-sm text-[var(--color-text-muted)]"
-                  >
-                    Personal Life Operating System
-                  </motion.p>
+                  <div className="text-sm text-[var(--color-text-muted)]">
+                    <TypingAnimation
+                      text="Personal Life Operating System"
+                      typingSpeed={40}
+                      initialDelay={600}
+                      showCursor={true}
+                      cursorCharacter="▋"
+                      cursorClassName="text-[var(--color-accent)] opacity-70"
+                      loop={false}
+                    />
+                  </div>
                 </motion.div>
 
                 {/* Form */}

@@ -10,7 +10,7 @@ const logger = createLogger('memory');
 
 // Worker client + model injected from agent (Ollama local or OpenRouter)
 let _workerClient: (() => OpenAI) | null = null;
-let _workerModel = 'sourceful/riverflow-v2-fast';
+let _workerModel = process.env.MEMORY_WORKER_MODEL ?? 'nvidia/nemotron-nano-9b-v2:free';
 
 export function setWorkerLLM(clientFn: () => OpenAI, model: string): void {
   _workerClient = clientFn;
@@ -75,7 +75,7 @@ export async function findExpiredSessions(ttlMs = 30 * 60 * 1000): Promise<strin
   }
 
   // Deduplicate session IDs
-  const sessionIds = new Set((data ?? []).map((m) => m.session_id as string));
+  const sessionIds = new Set<string>((data ?? []).map((m: any) => m.session_id as string));
 
   // Filter out sessions that already have archives (batch query instead of N+1)
   const sessionIdArray = Array.from(sessionIds);
@@ -86,7 +86,7 @@ export async function findExpiredSessions(ttlMs = 30 * 60 * 1000): Promise<strin
     .select('session_id')
     .in('session_id', sessionIdArray);
 
-  const archivedIds = new Set((existingArchives ?? []).map((a) => a.session_id as string));
+  const archivedIds = new Set((existingArchives ?? []).map((a: any) => a.session_id as string));
   return sessionIdArray.filter((id) => !archivedIds.has(id));
 }
 

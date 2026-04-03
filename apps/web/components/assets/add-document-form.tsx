@@ -64,8 +64,11 @@ export function AddDocumentForm({ onSuccess }: AddDocumentFormProps) {
         options={typeOptions}
       />
       <div className="space-y-1">
-        <label className="text-xs text-[var(--color-text-muted)]">Validade (opcional)</label>
+        <label htmlFor="doc-expires-at" className="text-xs text-[var(--color-text-muted)]">
+          Validade (opcional)
+        </label>
         <input
+          id="doc-expires-at"
           type="date"
           value={expiresAt}
           onChange={(e) => setExpiresAt(e.target.value)}

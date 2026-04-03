@@ -1,7 +1,6 @@
-import type { Database } from '@hawk/db';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseCompatClient } from '@hawk/db';
 
-type DbClient = SupabaseClient<Database>;
+type DbClient = SupabaseCompatClient;
 
 export async function handleChatRoute(
   path: string,
@@ -29,33 +28,40 @@ export async function handleChatRoute(
       });
     }
 
-    const sessionList = await Promise.all(
-      allConversations.map(async (conv) => {
-        let agentName: string | undefined;
-        let agentAvatar: string | undefined;
+    // Batch-load agent templates to avoid N+1 queries
+    const templateIds = [
+      ...new Set(
+        // biome-ignore lint/suspicious/noExplicitAny: DB query returns untyped rows
+        allConversations.filter((c: any) => c.template_id).map((c: any) => c.template_id as string),
+      ),
+    ];
+    const agentMap = new Map<string, { name: string; avatar_seed?: string }>();
+    if (templateIds.length > 0) {
+      const { data: agents } = await requireSupabase()
+        .from('agent_templates')
+        .select('id, name, avatar_seed')
+        .in('id', templateIds);
+      for (const a of agents ?? []) {
+        // biome-ignore lint/suspicious/noExplicitAny: DB query returns untyped rows
+        const agent = a as any;
+        agentMap.set(agent.id, { name: agent.name, avatar_seed: agent.avatar_seed });
+      }
+    }
 
-        if (conv.template_id) {
-          const agent = await requireSupabase()
-            .from('agent_templates')
-            .select('name, avatar_seed')
-            .eq('id', conv.template_id)
-            .single();
-          agentName = agent.data?.name;
-          agentAvatar = agent.data?.avatar_seed ?? undefined;
-        }
-
-        return {
-          id: conv.session_id,
-          title: conv.title || 'Nova sessão',
-          lastActivity: conv.last_message_at,
-          agentId: conv.template_id,
-          agentName,
-          agentAvatar,
-          lastMessage: '',
-          channel: conv.channel ?? 'web',
-        };
-      }),
-    );
+    // biome-ignore lint/suspicious/noExplicitAny: DB query returns untyped rows
+    const sessionList = allConversations.map((conv: any) => {
+      const agent = conv.template_id ? agentMap.get(conv.template_id) : undefined;
+      return {
+        id: conv.session_id,
+        title: conv.title || 'Nova sessão',
+        lastActivity: conv.last_message_at,
+        agentId: conv.template_id,
+        agentName: agent?.name,
+        agentAvatar: agent?.avatar_seed ?? undefined,
+        lastMessage: '',
+        channel: conv.channel ?? 'web',
+      };
+    });
 
     return new Response(JSON.stringify({ sessions: sessionList }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

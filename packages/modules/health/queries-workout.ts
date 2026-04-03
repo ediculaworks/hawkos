@@ -1,5 +1,5 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
 import { z } from 'zod';
 import type {
   AddTemplateSetInput,
@@ -102,14 +102,20 @@ export async function getWorkoutWithSets(
     )
     .eq('id', workoutId)
     .single();
-  if (wErr) { logger.error({ error: wErr.message }, 'Failed to get workout'); throw new HawkError(`Failed to get workout: ${wErr.message}`, 'DB_QUERY_FAILED'); }
+  if (wErr) {
+    logger.error({ error: wErr.message }, 'Failed to get workout');
+    throw new HawkError(`Failed to get workout: ${wErr.message}`, 'DB_QUERY_FAILED');
+  }
 
   const { data: sets, error: sErr } = await db
     .from('workout_sets')
     .select('duration_s, exercise_name, id, notes, reps, rpe, set_number, weight_kg, workout_id')
     .eq('workout_id', workoutId)
     .order('set_number', { ascending: true });
-  if (sErr) { logger.error({ error: sErr.message }, 'Failed to get workout sets'); throw new HawkError(`Failed to get workout sets: ${sErr.message}`, 'DB_QUERY_FAILED'); }
+  if (sErr) {
+    logger.error({ error: sErr.message }, 'Failed to get workout sets');
+    throw new HawkError(`Failed to get workout sets: ${sErr.message}`, 'DB_QUERY_FAILED');
+  }
 
   return { ...(workout as WorkoutSession), sets: (sets ?? []) as WorkoutSet[] };
 }
@@ -173,7 +179,7 @@ export async function getExerciseProgress(
   }
   if (!sessions?.length) return [];
 
-  const sessionIds = sessions.map((s) => s.id);
+  const sessionIds = sessions.map((s: any) => s.id);
   const { data: sets, error: sErr } = await db
     .from('workout_sets')
     .select('workout_id, weight_kg, reps')
@@ -182,13 +188,16 @@ export async function getExerciseProgress(
     .not('weight_kg', 'is', null)
     .not('reps', 'is', null);
 
-  if (sErr) { logger.error({ error: sErr.message }, 'Failed to get sets'); throw new HawkError(`Failed to get sets: ${sErr.message}`, 'DB_QUERY_FAILED'); }
+  if (sErr) {
+    logger.error({ error: sErr.message }, 'Failed to get sets');
+    throw new HawkError(`Failed to get sets: ${sErr.message}`, 'DB_QUERY_FAILED');
+  }
 
-  const sessionMap = new Map(sessions.map((s) => [s.id, s.date]));
+  const sessionMap = new Map(sessions.map((s: any) => [s.id, s.date]));
   const bySession = new Map<string, { weight: number; reps: number }>();
 
   for (const set of sets ?? []) {
-    const date = sessionMap.get(set.workout_id);
+    const date = sessionMap.get(String(set.workout_id)) as string | undefined;
     if (!date || set.weight_kg == null || set.reps == null) continue;
     const current = bySession.get(date);
     const e1rm = estimate1RM(set.weight_kg, set.reps);
@@ -276,22 +285,25 @@ export async function getWeeklyVolume(
   }
   if (!sessions?.length) return [];
 
-  const sessionIds = sessions.map((s) => s.id);
+  const sessionIds = sessions.map((s: any) => s.id);
   const { data: sets, error: sErr } = await db
     .from('workout_sets')
     .select('workout_id, reps, weight_kg')
     .in('workout_id', sessionIds);
 
-  if (sErr) { logger.error({ error: sErr.message }, 'Failed to get sets'); throw new HawkError(`Failed to get sets: ${sErr.message}`, 'DB_QUERY_FAILED'); }
+  if (sErr) {
+    logger.error({ error: sErr.message }, 'Failed to get sets');
+    throw new HawkError(`Failed to get sets: ${sErr.message}`, 'DB_QUERY_FAILED');
+  }
 
-  const sessionMap = new Map(sessions.map((s) => [s.id, s.date]));
+  const sessionMap = new Map(sessions.map((s: any) => [s.id, s.date]));
   const byWeek = new Map<string, { volume: number; sessions: Set<string> }>();
 
   for (const set of sets ?? []) {
-    const date = sessionMap.get(set.workout_id);
+    const date = sessionMap.get(String(set.workout_id));
     if (!date) continue;
     // ISO week string: YYYY-Www
-    const d = new Date(date);
+    const d = new Date(date as string);
     const weekStart = new Date(d);
     weekStart.setDate(d.getDate() - d.getDay() + 1);
     const week = weekStart.toISOString().split('T')[0] as string;
@@ -431,7 +443,10 @@ export async function getWorkoutTemplateWithSets(
     .eq('id', id)
     .single();
 
-  if (tErr) { logger.error({ error: tErr.message }, 'Failed to get template'); throw new HawkError(`Failed to get template: ${tErr.message}`, 'DB_QUERY_FAILED'); }
+  if (tErr) {
+    logger.error({ error: tErr.message }, 'Failed to get template');
+    throw new HawkError(`Failed to get template: ${tErr.message}`, 'DB_QUERY_FAILED');
+  }
 
   const { data: sets, error: sErr } = await db
     .from('workout_template_sets')
@@ -441,10 +456,13 @@ export async function getWorkoutTemplateWithSets(
     .eq('template_id', id)
     .order('set_order', { ascending: true });
 
-  if (sErr) { logger.error({ error: sErr.message }, 'Failed to get template sets'); throw new HawkError(`Failed to get template sets: ${sErr.message}`, 'DB_QUERY_FAILED'); }
+  if (sErr) {
+    logger.error({ error: sErr.message }, 'Failed to get template sets');
+    throw new HawkError(`Failed to get template sets: ${sErr.message}`, 'DB_QUERY_FAILED');
+  }
 
   const setsWithExercises = await Promise.all(
-    (sets ?? []).map(async (set) => {
+    (sets ?? []).map(async (set: any) => {
       const exercise = await getExerciseById(set.exercise_id);
       if (!exercise) return { ...set, exercise: null };
       return { ...set, exercise };

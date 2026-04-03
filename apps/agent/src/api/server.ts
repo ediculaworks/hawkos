@@ -1,7 +1,6 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Database } from '@hawk/db';
-import { createClient } from '@supabase/supabase-js';
+import { db } from '@hawk/db';
 import { handleAgentsRoute } from './routes/agents.js';
 import { handleAutomationsRoute } from './routes/automations.js';
 import { handleChatRoute } from './routes/chat.js';
@@ -12,25 +11,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const WORKSPACE_DIR = join(__dirname, '../../../workspace');
 
 const PORT = Number.parseInt(process.env.AGENT_API_PORT || '3001');
-const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const WS_AUTH_TOKEN = process.env.AGENT_WS_TOKEN ?? '';
 const AGENT_API_SECRET = process.env.AGENT_API_SECRET ?? '';
 
-let _supabase: ReturnType<typeof createClient<Database>> | null = null;
-function getSupabase() {
-  if (!_supabase) {
-    const url = SUPABASE_URL || process.env.SUPABASE_URL;
-    const key = SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) return null;
-    _supabase = createClient<Database>(url, key);
-  }
-  return _supabase;
-}
-
+/** Returns the db compat client — drop-in replacement for requireSupabase(). */
 function requireSupabase() {
-  const db = getSupabase();
-  if (!db) throw new Error('Supabase not configured');
   return db;
 }
 
@@ -403,9 +388,56 @@ const agentServer = Bun.serve({
 
     // /health is public (monitoring)
     if (path === '/health') {
-      return new Response(JSON.stringify({ ok: true, timestamp: new Date().toISOString() }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      const deep = url.searchParams.get('deep') === 'true';
+      const checks: Record<string, { ok: boolean; latency_ms?: number; error?: string }> = {};
+
+      // Always check database
+      const dbStart = Date.now();
+      try {
+        await db.from('activity_log').select('id').limit(1);
+        checks.database = { ok: true, latency_ms: Date.now() - dbStart };
+      } catch (err) {
+        checks.database = { ok: false, latency_ms: Date.now() - dbStart, error: err instanceof Error ? err.message : 'unknown' };
+      }
+
+      if (deep) {
+        // Check OpenRouter
+        try {
+          const orRes = await fetch('https://openrouter.ai/api/v1/models', {
+            signal: AbortSignal.timeout(5000),
+          });
+          checks.openrouter = { ok: orRes.ok };
+        } catch (err) {
+          checks.openrouter = { ok: false, error: err instanceof Error ? err.message : 'timeout' };
+        }
+
+        // Check Discord
+        const discordToken = process.env.DISCORD_BOT_TOKEN;
+        if (discordToken) {
+          try {
+            const dcRes = await fetch('https://discord.com/api/v10/users/@me', {
+              headers: { Authorization: `Bot ${discordToken}` },
+              signal: AbortSignal.timeout(5000),
+            });
+            checks.discord = { ok: dcRes.ok };
+          } catch (err) {
+            checks.discord = { ok: false, error: err instanceof Error ? err.message : 'timeout' };
+          }
+        }
+      }
+
+      const allOk = Object.values(checks).every((c) => c.ok);
+      const status = checks.database?.ok ? 200 : 503;
+
+      return new Response(
+        JSON.stringify({
+          ok: allOk,
+          timestamp: new Date().toISOString(),
+          uptime_seconds: Math.floor(process.uptime()),
+          checks,
+        }),
+        { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
 
     // All other endpoints require auth

@@ -152,33 +152,52 @@ async function runMonthlySecurityReview(): Promise<void> {
   await sendToChannel(CHANNEL_ID, lines.join('\n'));
 }
 
+let _alertsRunning = false;
+
+function getLocalHour(timezone: string): { hours: number; minutes: number; date: number } {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric', minute: 'numeric', day: 'numeric',
+    hour12: false, timeZone: timezone,
+  }).formatToParts(now);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return { hours: get('hour'), minutes: get('minute'), date: get('day') };
+}
+
 export function startAlertsCron(): void {
   cron.schedule('0 * * * *', async () => {
-    const settings = await getAlertSettings();
-    const now = new Date();
-    const [aHours, aMinutes] = settings.alerts_time.split(':').map(Number);
-    const [sHours, sMinutes] = settings.security_review_time.split(':').map(Number);
+    if (_alertsRunning) return;
+    _alertsRunning = true;
+    try {
+      const settings = await getAlertSettings();
+      const timezone = (settings as Record<string, unknown>).timezone as string ?? 'America/Sao_Paulo';
+      const now = getLocalHour(timezone);
+      const [aHours, aMinutes] = settings.alerts_time.split(':').map(Number);
+      const [sHours, sMinutes] = settings.security_review_time.split(':').map(Number);
 
-    if (settings.alerts_enabled && now.getHours() === aHours && now.getMinutes() === aMinutes) {
-      runDailyAlerts()
-        .then(() => markAutomationRun('alerts-daily', 'success'))
-        .catch((err) => {
-          console.error('[alerts] Daily alerts failed:', err);
-          markAutomationRun('alerts-daily', 'failure', String(err));
-        });
-    }
+      if (settings.alerts_enabled && now.hours === aHours && now.minutes === aMinutes) {
+        await runDailyAlerts()
+          .then(() => markAutomationRun('alerts-daily', 'success'))
+          .catch((err) => {
+            console.error('[alerts] Daily alerts failed:', err);
+            markAutomationRun('alerts-daily', 'failure', String(err));
+          });
+      }
 
-    if (
-      now.getDate() === settings.security_review_day &&
-      now.getHours() === sHours &&
-      now.getMinutes() === sMinutes
-    ) {
-      runMonthlySecurityReview()
-        .then(() => markAutomationRun('alerts-monthly', 'success'))
-        .catch((err) => {
-          console.error('[alerts] Security review failed:', err);
-          markAutomationRun('alerts-monthly', 'failure', String(err));
-        });
+      if (
+        now.date === settings.security_review_day &&
+        now.hours === sHours &&
+        now.minutes === sMinutes
+      ) {
+        await runMonthlySecurityReview()
+          .then(() => markAutomationRun('alerts-monthly', 'success'))
+          .catch((err) => {
+            console.error('[alerts] Security review failed:', err);
+            markAutomationRun('alerts-monthly', 'failure', String(err));
+          });
+      }
+    } finally {
+      _alertsRunning = false;
     }
   });
 }

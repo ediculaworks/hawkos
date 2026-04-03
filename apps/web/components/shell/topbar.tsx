@@ -1,13 +1,14 @@
 'use client';
 
+import { ReactBitsGuard } from '@/components/react-bits/_adapter';
+import BlurText from '@/components/react-bits/text/blur-text';
 import { fetchProfileName } from '@/lib/actions/profile';
 import { useUIStore } from '@/lib/stores/ui-store';
-import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Command, LayoutGrid, LogOut, Menu, MessageSquare, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -35,6 +36,7 @@ export function TopBar() {
   const [refreshing, setRefreshing] = useState(false);
   const [greeting, setGreeting] = useState('');
   const [dateStr, setDateStr] = useState('');
+  const hasAnimated = useRef(false);
 
   useEffect(() => {
     setGreeting(getGreeting());
@@ -42,8 +44,7 @@ export function TopBar() {
   }, []);
 
   const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
     router.refresh();
   };
@@ -88,10 +89,31 @@ export function TopBar() {
         </button>
         <LayoutGrid className="hidden md:block h-4 w-4 text-[var(--color-text-muted)]" />
         <div>
-          <p className="text-sm font-medium text-[var(--color-text-primary)]">
-            {greeting ? `${greeting}, ` : ''}
-            {profileName ?? 'Usuário'}
-          </p>
+          {greeting && !hasAnimated.current ? (
+            <ReactBitsGuard
+              fallback={
+                <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                  {greeting}, {profileName ?? 'Usuário'}
+                </p>
+              }
+            >
+              <BlurText
+                text={`${greeting}, ${profileName ?? 'Usuário'}`}
+                delay={80}
+                className="text-sm font-medium text-[var(--color-text-primary)]"
+                animateBy="words"
+                direction="top"
+                onAnimationComplete={() => {
+                  hasAnimated.current = true;
+                }}
+              />
+            </ReactBitsGuard>
+          ) : (
+            <p className="text-sm font-medium text-[var(--color-text-primary)]">
+              {greeting ? `${greeting}, ` : ''}
+              {profileName ?? 'Usuário'}
+            </p>
+          )}
           {dateStr && (
             <p className="text-xs text-[var(--color-text-muted)] capitalize">{dateStr}</p>
           )}

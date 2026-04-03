@@ -1,50 +1,15 @@
-import { createDecipheriv, createHash } from 'node:crypto';
 import { requireAdminAuth } from '@/lib/admin-auth';
-import { extractProjectRef } from '@/lib/onboarding/utils';
-import { createClient } from '@supabase/supabase-js';
+import { createAdminClientFromEnv } from '@hawk/admin';
+import { createUser, listUsers, updateUser } from '@hawk/auth';
+import { getPool } from '@hawk/db';
 import { NextResponse } from 'next/server';
-
-const ALGORITHM = 'aes-256-gcm';
-const TAG_LENGTH = 16;
-const SALT = 'hawk-os-admin-salt-v1';
 
 interface RepairRequest {
   tenantSlug: string;
   action: 'reset-user' | 're-migrate' | 'fix-profile';
   email?: string;
   newPassword?: string;
-  supabaseAccessToken?: string;
   name?: string;
-}
-
-function deriveKey(masterKey: string): Buffer {
-  return createHash('sha256')
-    .update(masterKey + SALT)
-    .digest();
-}
-
-function decryptServiceKey(encryptedData: string, iv: string, masterKey: string): string {
-  const key = deriveKey(masterKey);
-  const ivBuffer = Buffer.from(iv, 'base64');
-  const combined = Buffer.from(encryptedData, 'base64');
-  const encrypted = combined.slice(0, -TAG_LENGTH);
-  const tag = combined.slice(-TAG_LENGTH);
-
-  const decipher = createDecipheriv(ALGORITHM, key, ivBuffer);
-  decipher.setAuthTag(tag);
-
-  let decrypted = decipher.update(encrypted, undefined, 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-}
-
-function getAdminClient() {
-  const url = process.env.ADMIN_SUPABASE_URL;
-  const key = process.env.ADMIN_SUPABASE_SERVICE_KEY;
-  if (!url || !key) {
-    throw new Error('Admin Supabase not configured');
-  }
-  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 export async function POST(request: Request) {
@@ -53,7 +18,7 @@ export async function POST(request: Request) {
 
   try {
     const body: RepairRequest = await request.json();
-    const { tenantSlug, action, email, newPassword, supabaseAccessToken, name } = body;
+    const { tenantSlug, action, email, newPassword, name } = body;
 
     if (!tenantSlug) {
       return NextResponse.json({ error: 'tenantSlug required' }, { status: 400 });
@@ -64,7 +29,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 're-migrate') {
-      return handleReMigrate(tenantSlug, supabaseAccessToken);
+      return handleReMigrate(tenantSlug);
     }
 
     if (action === 'fix-profile') {
@@ -81,6 +46,13 @@ export async function POST(request: Request) {
   }
 }
 
+async function getTenantSchema(tenantSlug: string): Promise<string> {
+  const admin = createAdminClientFromEnv();
+  const tenant = await admin.getTenantBySlug(tenantSlug);
+  if (!tenant) throw new Error('Tenant not found');
+  return tenant.schema_name;
+}
+
 async function handleResetUser(
   tenantSlug: string,
   email?: string,
@@ -90,48 +62,25 @@ async function handleResetUser(
     return NextResponse.json({ error: 'email and newPassword required' }, { status: 400 });
   }
 
-  const admin = getAdminClient();
-  const masterKey = process.env.ADMIN_SUPABASE_SERVICE_KEY || '';
-
-  // Fetch tenant and decrypt service key
-  const { data: tenant, error: tenantError } = await admin
-    .from('tenants')
-    .select('supabase_url, supabase_service_key_encrypted, supabase_service_key_iv')
-    .eq('slug', tenantSlug)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (tenantError || !tenant) {
-    return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-  }
-
-  const serviceKey = decryptServiceKey(
-    tenant.supabase_service_key_encrypted,
-    tenant.supabase_service_key_iv,
-    masterKey,
-  );
-
-  // Create client for tenant's Supabase
-  const tenantClient = createClient(tenant.supabase_url, serviceKey, {
-    auth: { persistSession: false },
-  });
+  const schemaName = await getTenantSchema(tenantSlug);
 
   // Look up user
-  const { data: users, error: listError } = await tenantClient.auth.admin.listUsers();
+  const { data: users, error: listError } = await listUsers(schemaName);
   if (listError) {
-    throw new Error(`Failed to list users: ${listError.message}`);
+    throw new Error(`Failed to list users: ${listError}`);
   }
 
-  const existingUser = users?.users.find((u) => u.email === email);
+  const existingUser = users?.find((u) => u.email === email);
 
   if (existingUser) {
     // Update password
-    const { error: updateError } = await tenantClient.auth.admin.updateUserById(existingUser.id, {
-      password: newPassword,
-      email_confirm: true,
-    });
+    const { error: updateError } = await updateUser(
+      existingUser.id,
+      { password: newPassword },
+      schemaName,
+    );
     if (updateError) {
-      throw new Error(`Failed to update user: ${updateError.message}`);
+      throw new Error(`Failed to update user: ${updateError}`);
     }
     return NextResponse.json({
       success: true,
@@ -139,55 +88,22 @@ async function handleResetUser(
       message: `Password reset for ${email}`,
     });
   }
+
   // Create new user
-  const { data: newUser, error: createError } = await tenantClient.auth.admin.createUser({
-    email,
-    password: newPassword,
-    email_confirm: true,
-  });
+  const { data: newUser, error: createError } = await createUser(email, newPassword, schemaName);
   if (createError) {
-    throw new Error(`Failed to create user: ${createError.message}`);
+    throw new Error(`Failed to create user: ${createError}`);
   }
   return NextResponse.json({
     success: true,
     action: 'created',
-    userId: newUser?.user?.id,
+    userId: newUser?.id,
     message: `User created: ${email}`,
   });
 }
 
-async function handleReMigrate(
-  tenantSlug: string,
-  supabaseAccessToken?: string,
-): Promise<NextResponse> {
-  if (!supabaseAccessToken) {
-    return NextResponse.json(
-      { error: 'supabaseAccessToken required for re-migration' },
-      { status: 400 },
-    );
-  }
-
-  const admin = getAdminClient();
-
-  // Fetch tenant URL
-  const { data: tenant, error: tenantError } = await admin
-    .from('tenants')
-    .select('supabase_url')
-    .eq('slug', tenantSlug)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (tenantError || !tenant) {
-    return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-  }
-
-  // Extract project ref
-  const projectRef = extractProjectRef(tenant.supabase_url);
-  if (!projectRef) {
-    return NextResponse.json({ error: 'Invalid Supabase URL' }, { status: 400 });
-  }
-
-  // Call apply-migrations internally with streaming response
+async function handleReMigrate(tenantSlug: string): Promise<NextResponse> {
+  // Call apply-migrations internally
   try {
     const migrateRes = await fetch(
       new URL(
@@ -198,12 +114,11 @@ async function handleReMigrate(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Admin-Secret': process.env.ADMIN_SUPABASE_SERVICE_KEY || '',
+          'X-Admin-Secret': process.env.ADMIN_MASTER_KEY || process.env.JWT_SECRET || '',
         },
         body: JSON.stringify({
-          projectRef,
           target: 'tenant',
-          tenantAccessToken: supabaseAccessToken,
+          tenantSlug,
         }),
       },
     );
@@ -237,56 +152,32 @@ async function handleFixProfile(
     return NextResponse.json({ error: 'email required for fix-profile' }, { status: 400 });
   }
 
-  const admin = getAdminClient();
-  const masterKey = process.env.ADMIN_SUPABASE_SERVICE_KEY || '';
-
-  // Fetch tenant and decrypt service key
-  const { data: tenant, error: tenantError } = await admin
-    .from('tenants')
-    .select('supabase_url, supabase_service_key_encrypted, supabase_service_key_iv')
-    .eq('slug', tenantSlug)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (tenantError || !tenant) {
-    return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-  }
-
-  const serviceKey = decryptServiceKey(
-    tenant.supabase_service_key_encrypted,
-    tenant.supabase_service_key_iv,
-    masterKey,
-  );
-
-  // Create client for tenant's Supabase
-  const tenantClient = createClient(tenant.supabase_url, serviceKey, {
-    auth: { persistSession: false },
-  });
+  const schemaName = await getTenantSchema(tenantSlug);
 
   // Look up user
-  const { data: users, error: listError } = await tenantClient.auth.admin.listUsers();
+  const { data: users, error: listError } = await listUsers(schemaName);
   if (listError) {
-    throw new Error(`Failed to list users: ${listError.message}`);
+    throw new Error(`Failed to list users: ${listError}`);
   }
 
-  const user = users?.users.find((u) => u.email === email);
+  const user = users?.find((u) => u.email === email);
   if (!user) {
     return NextResponse.json({ error: `User ${email} not found` }, { status: 404 });
   }
 
   // Create or update profile
-  const { error: upsertError } = await tenantClient.from('profile').upsert(
-    {
-      id: user.id,
-      name: name || email.split('@')[0],
-      onboarding_complete: true,
-    },
-    { onConflict: 'id' },
-  );
-
-  if (upsertError) {
-    throw new Error(`Failed to fix profile: ${upsertError.message}`);
-  }
+  const sql = getPool();
+  await sql.begin(async (tx) => {
+    await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+    await tx.unsafe(
+      `INSERT INTO profile (id, name, onboarding_complete)
+       VALUES ($1, $2, true)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         onboarding_complete = true`,
+      [user.id, name || email.split('@')[0]],
+    );
+  });
 
   return NextResponse.json({
     success: true,

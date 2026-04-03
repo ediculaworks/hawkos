@@ -14,7 +14,6 @@ function extractHost(value: string): string {
  * Allows requests if any of:
  * 1. X-Admin-Secret header matches ADMIN_SUPABASE_SERVICE_KEY
  * 2. Same-origin: Referer/Origin hostname matches Host header hostname
- * 3. NODE_ENV === 'development'
  */
 export function requireAdminAuth(request: Request): NextResponse | null {
   const secret = request.headers.get('x-admin-secret');
@@ -42,10 +41,6 @@ export function requireAdminAuth(request: Request): NextResponse | null {
     try {
       if (new URL(origin).hostname === serverHostname) return null;
     } catch {}
-  }
-
-  if (process.env.NODE_ENV === 'development') {
-    return null;
   }
 
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

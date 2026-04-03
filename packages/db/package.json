@@ -1,22 +1,19 @@
 {
   "name": "@hawk/db",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
-    "./types": "./types/database.ts"
-  },
-  "scripts": {
-    "types:gen": "supabase gen types typescript --linked > types/database.ts"
+    "./types": "./types/database.ts",
+    "./sql": "./src/sql.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.0"
+    "postgres": "^3.4.8"
   },
   "devDependencies": {
-    "supabase": "^2.79.0",
     "typescript": "^5.7.0"
   }
 }

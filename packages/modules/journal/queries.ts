@@ -1,5 +1,5 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError, ValidationError } from '@hawk/shared';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
 import { z } from 'zod';
 import type {
   CreateJournalEntryInput,
@@ -19,7 +19,9 @@ const UpsertJournalEntrySchema = z.object({ content: z.string().min(1) });
 export async function upsertJournalEntry(input: CreateJournalEntryInput): Promise<JournalEntry> {
   const parsed = UpsertJournalEntrySchema.safeParse(input);
   if (!parsed.success) {
-    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid input: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const date = input.date ?? (new Date().toISOString().split('T')[0] as string);
   const type = input.type ?? 'daily';
@@ -188,20 +190,26 @@ export async function getJournalStats(): Promise<JournalStats> {
 
   const entries = data ?? [];
   const total = entries.length;
-  const thisWeek = entries.filter((e) => e.date >= weekStr).length;
-  const thisMonth = entries.filter((e) => e.date >= monthStr).length;
+  const thisWeek = entries.filter((e: any) => e.date >= weekStr).length;
+  const thisMonth = entries.filter((e: any) => e.date >= monthStr).length;
 
-  const moodValues = entries.map((e) => e.mood).filter((m): m is number => m !== null);
-  const energyValues = entries.map((e) => e.energy).filter((e): e is number => e !== null);
+  const moodValues = entries.map((e: any) => e.mood).filter((m: any): m is number => m !== null);
+  const energyValues = entries
+    .map((e: any) => e.energy)
+    .filter((e: any): e is number => e !== null);
 
   const avgMood =
-    moodValues.length > 0 ? moodValues.reduce((a, b) => a + b, 0) / moodValues.length : null;
+    moodValues.length > 0
+      ? moodValues.reduce((a: any, b: any) => a + b, 0) / moodValues.length
+      : null;
   const avgEnergy =
-    energyValues.length > 0 ? energyValues.reduce((a, b) => a + b, 0) / energyValues.length : null;
+    energyValues.length > 0
+      ? energyValues.reduce((a: any, b: any) => a + b, 0) / energyValues.length
+      : null;
 
   // Calcular streak diário (dias consecutivos com pelo menos 1 entry)
   let streak = 0;
-  const dateSets = new Set(entries.map((e) => e.date));
+  const dateSets = new Set(entries.map((e: any) => e.date));
   const checkDate = new Date(today);
   while (dateSets.has(checkDate.toISOString().split('T')[0] as string)) {
     streak++;

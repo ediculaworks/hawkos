@@ -1,5 +1,4 @@
-import type { Database } from '@hawk/db';
-import type { createClient } from '@supabase/supabase-js';
+import type { SupabaseCompatClient } from '@hawk/db';
 
 export const AUTOMATIONS = [
   {
@@ -64,7 +63,7 @@ export async function handleAutomationsRoute(
   req: Request,
   state: { pendingAutomation: string | null },
   corsHeaders: Record<string, string>,
-  requireSupabase: () => ReturnType<typeof createClient<Database>>,
+  requireSupabase: () => SupabaseCompatClient,
   triggerAutomation: (name: string) => void,
   logActivity: (
     eventType: string,
@@ -81,7 +80,8 @@ export async function handleAutomationsRoute(
       ? await db.from('automation_configs').select('*').order('name')
       : { data: null };
     const merged = AUTOMATIONS.map((a) => {
-      const config = configs?.find((c) => c.id === a.name);
+      // biome-ignore lint/suspicious/noExplicitAny: DB query returns untyped rows
+      const config = configs?.find((c: any) => c.id === a.name);
       return {
         ...a,
         custom: false,
@@ -94,8 +94,10 @@ export async function handleAutomationsRoute(
     // Include custom automations from DB
     const builtinNames = new Set(AUTOMATIONS.map((a) => a.name));
     const customAutomations = (configs ?? [])
-      .filter((c) => !builtinNames.has(c.id) && c.custom === true)
-      .map((c) => ({
+      // biome-ignore lint/suspicious/noExplicitAny: DB query returns untyped rows
+      .filter((c: any) => !builtinNames.has(c.id) && c.custom === true)
+      // biome-ignore lint/suspicious/noExplicitAny: DB query returns untyped rows
+      .map((c: any) => ({
         name: c.id,
         description: c.description ?? c.id,
         cron: c.cron_expression ?? '0 * * * *',

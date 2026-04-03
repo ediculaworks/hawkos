@@ -1,4 +1,6 @@
 import { db } from '@hawk/db';
+import { HawkError, ValidationError, createLogger } from '@hawk/shared';
+import { z } from 'zod';
 import type {
   CreateBillInput,
   CreateMaintenanceInput,
@@ -8,8 +10,6 @@ import type {
   UpdateBillInput,
   UpdateMaintenanceInput,
 } from './types';
-import { createLogger, HawkError, ValidationError } from '@hawk/shared';
-import { z } from 'zod';
 const logger = createLogger('housing');
 
 const CreateBillSchema = z.object({ name: z.string().min(1) });
@@ -41,7 +41,9 @@ export async function getPrimaryResidence(): Promise<Residence | null> {
 export async function createBill(input: CreateBillInput): Promise<HousingBill> {
   const parsed = CreateBillSchema.safeParse(input);
   if (!parsed.success) {
-    throw new ValidationError(`Invalid input: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid input: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const { data, error } = await db
     .from('housing_bills')
@@ -150,7 +152,7 @@ export async function getMonthlyBillTotal(): Promise<number> {
     logger.error({ error: error.message }, 'Failed to get bill total');
     throw new HawkError(`Failed to get bill total: ${error.message}`, 'DB_QUERY_FAILED');
   }
-  return (data ?? []).reduce((sum, row) => sum + (row.amount ?? 0), 0);
+  return (data ?? []).reduce((sum: any, row: any) => sum + (row.amount ?? 0), 0);
 }
 
 export async function deleteBill(id: string): Promise<void> {

@@ -1,5 +1,12 @@
 import { db } from '@hawk/db';
-import { createLogger, HawkError, ValidationError, TransactionTypeSchema, PositiveNumberSchema, DateStringSchema } from '@hawk/shared';
+import {
+  DateStringSchema,
+  HawkError,
+  PositiveNumberSchema,
+  TransactionTypeSchema,
+  ValidationError,
+  createLogger,
+} from '@hawk/shared';
 import type { PaginatedResult } from '@hawk/shared';
 import { z } from 'zod';
 
@@ -40,7 +47,9 @@ export async function createTransaction(
   const parsed = CreateTransactionSchema.safeParse(input);
   if (!parsed.success) {
     logger.warn({ errors: parsed.error.flatten() }, 'Invalid transaction input');
-    throw new ValidationError(`Invalid transaction: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    throw new ValidationError(
+      `Invalid transaction: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    );
   }
   const { data, error } = await db
     .from('finance_transactions')
@@ -246,11 +255,14 @@ export async function listTransactionsWithCategory(
   const { data, error, count } = await query;
   if (error) {
     logger.error({ error: error.message }, 'Failed to list transactions with category');
-    throw new HawkError(`Failed to list transactions with category: ${error.message}`, 'DB_QUERY_FAILED');
+    throw new HawkError(
+      `Failed to list transactions with category: ${error.message}`,
+      'DB_QUERY_FAILED',
+    );
   }
 
   const total = count ?? 0;
-  const items = (data ?? []).map((t) => {
+  const items = (data ?? []).map((t: any) => {
     const cat = (t as Record<string, unknown>).finance_categories as {
       name: string;
       icon: string | null;
@@ -421,11 +433,12 @@ export async function disableAccount(id: string): Promise<void> {
  * Buscar contas por nome (para @mentions)
  */
 export async function searchAccounts(query: string, limit = 5): Promise<FinanceAccount[]> {
+  const safeQuery = query.slice(0, 100);
   const { data, error } = await db
     .from('finance_accounts')
     .select('id, name, type, currency, balance, enabled')
     .eq('enabled', true)
-    .ilike('name', `%${query}%`)
+    .ilike('name', `%${safeQuery}%`)
     .limit(limit);
 
   if (error) {

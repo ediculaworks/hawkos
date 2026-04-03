@@ -21,7 +21,8 @@ function reportMetric(metric: Metric) {
   };
 
   if (process.env.NODE_ENV === 'development') {
-    const color = metric.rating === 'good' ? '🟢' : metric.rating === 'needs-improvement' ? '🟡' : '🔴';
+    const color =
+      metric.rating === 'good' ? '🟢' : metric.rating === 'needs-improvement' ? '🟡' : '🔴';
     console.log(`${color} ${metric.name}: ${metric.value.toFixed(2)} (${metric.rating})`);
     return;
   }

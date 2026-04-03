@@ -1,41 +1,29 @@
 'use server';
 
 import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
-import { createTenantClient } from '@hawk/db';
+import { db, withTenantSchema } from '@hawk/db';
 import { cookies } from 'next/headers';
 import { type NextRequest, NextResponse } from 'next/server';
 
-async function getTenantSupabase() {
+async function getTenantSchema(): Promise<string> {
   const cookieStore = await cookies();
   const slug = cookieStore.get('hawk_tenant')?.value;
 
   if (slug) {
     const tenant = await getTenantPrivateBySlug(slug);
-    if (tenant) {
-      return createTenantClient(tenant.supabaseUrl, tenant.supabaseServiceRoleKey);
-    }
+    if (tenant) return tenant.schemaName;
   }
 
-  // Single-tenant fallback
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-
-  const { createClient } = await import('@supabase/supabase-js');
-  return createClient(url, key);
+  return process.env.TENANT_SCHEMA ?? 'public';
 }
 
 export async function GET() {
-  const supabase = await getTenantSupabase();
-  if (!supabase) {
-    return NextResponse.json({ error: 'Missing Supabase config' }, { status: 500 });
-  }
+  const schemaName = await getTenantSchema();
 
   try {
-    const { data: agents, error } = await supabase
-      .from('agent_templates')
-      .select('*')
-      .order('created_at', { ascending: true });
+    const { data: agents, error } = await withTenantSchema(schemaName, () =>
+      db.from('agent_templates').select('*').order('created_at', { ascending: true }),
+    );
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -68,10 +56,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await getTenantSupabase();
-  if (!supabase) {
-    return NextResponse.json({ error: 'Missing Supabase config' }, { status: 500 });
-  }
+  const schemaName = await getTenantSchema();
 
   try {
     const body = await request.json();
@@ -125,11 +110,9 @@ export async function POST(request: NextRequest) {
       is_default: false,
     };
 
-    const { data: agent, error } = await supabase
-      .from('agent_templates')
-      .insert(insertData)
-      .select()
-      .single();
+    const { data: agent, error } = await withTenantSchema(schemaName, () =>
+      db.from('agent_templates').insert(insertData).select().single(),
+    );
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

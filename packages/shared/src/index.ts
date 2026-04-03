@@ -8,3 +8,4 @@ export * from './event-bus.ts';
 export * from './tenants.ts';
 export * from './tenant-registry.ts';
 export * from './logger.ts';
+export * from './feature-flags.ts';

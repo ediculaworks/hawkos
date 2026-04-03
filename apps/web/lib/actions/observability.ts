@@ -70,12 +70,38 @@ export interface DataExport {
 export async function exportAllData(): Promise<DataExport> {
   return withTenant(async () => {
     const [memories, transactions, people, habits, tasks, events] = await Promise.all([
-      db.from('agent_memories').select('*').eq('status', 'active').limit(1000).then((r) => r.data ?? []),
-      db.from('finance_transactions').select('*').order('date', { ascending: false }).limit(1000).then((r) => r.data ?? []),
-      db.from('people').select('*').limit(500).then((r) => r.data ?? []),
-      db.from('habits').select('*').limit(200).then((r) => r.data ?? []),
-      db.from('tasks').select('*').limit(1000).then((r) => r.data ?? []),
-      db.from('calendar_events').select('*').limit(1000).then((r) => r.data ?? []),
+      db
+        .from('agent_memories')
+        .select('*')
+        .eq('status', 'active')
+        .limit(1000)
+        .then((r) => r.data ?? []),
+      db
+        .from('finance_transactions')
+        .select('*')
+        .order('date', { ascending: false })
+        .limit(1000)
+        .then((r) => r.data ?? []),
+      db
+        .from('people')
+        .select('*')
+        .limit(500)
+        .then((r) => r.data ?? []),
+      db
+        .from('habits')
+        .select('*')
+        .limit(200)
+        .then((r) => r.data ?? []),
+      db
+        .from('tasks')
+        .select('*')
+        .limit(1000)
+        .then((r) => r.data ?? []),
+      db
+        .from('calendar_events')
+        .select('*')
+        .limit(1000)
+        .then((r) => r.data ?? []),
     ]);
 
     return {
