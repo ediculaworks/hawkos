@@ -107,7 +107,7 @@ export default async function AdminPage() {
                       <div>
                         <div className="font-medium">{tenant.label}</div>
                         <div className="text-xs text-[var(--color-text-muted)]">
-                          {tenant.slug} • {tenant.supabase_url}
+                          {tenant.slug} • {tenant.schema_name}
                         </div>
                       </div>
                       <span
@@ -157,7 +157,7 @@ export default async function AdminPage() {
                         </span>
                       </td>
                       <td className="py-3 text-[var(--color-text-muted)] truncate max-w-[200px]">
-                        {tenant.supabase_url}
+                        {tenant.schema_name}
                       </td>
                       <td className="py-3 text-[var(--color-text-muted)]">
                         {new Date(tenant.created_at).toLocaleDateString()}
