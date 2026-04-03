@@ -12,7 +12,7 @@ COPY packages/context-engine/package.json packages/context-engine/
 COPY packages/extensions/package.json packages/extensions/
 COPY packages/modules/ packages/modules/
 
-RUN HUSKY=0 bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts
 
 COPY . .
 
