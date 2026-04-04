@@ -175,6 +175,13 @@
         "@hawk/shared": "workspace:*",
       },
     },
+    "packages/mcp": {
+      "name": "@hawk/mcp",
+      "version": "0.1.0",
+      "dependencies": {
+        "@hawk/shared": "workspace:*",
+      },
+    },
     "packages/modules/assets": {
       "name": "@hawk/module-assets",
       "version": "0.1.0",
@@ -502,6 +509,8 @@
     "@hawk/db": ["@hawk/db@workspace:packages/db"],
 
     "@hawk/extensions": ["@hawk/extensions@workspace:packages/extensions"],
+
+    "@hawk/mcp": ["@hawk/mcp@workspace:packages/mcp"],
 
     "@hawk/module-assets": ["@hawk/module-assets@workspace:packages/modules/assets"],
 
