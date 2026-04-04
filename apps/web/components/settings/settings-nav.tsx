@@ -7,8 +7,6 @@ import {
   Database,
   type LucideIcon,
   Palette,
-  Puzzle,
-  Radio,
   Settings,
   User,
 } from 'lucide-react';
@@ -19,8 +17,6 @@ export type SettingsSection =
   | 'agent'
   | 'appearance'
   | 'notifications'
-  | 'channels'
-  | 'extensions'
   | 'data';
 
 interface NavItem {
@@ -35,8 +31,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'agent', label: 'Agente', icon: Bot },
   { id: 'appearance', label: 'Aparencia', icon: Palette },
   { id: 'notifications', label: 'Notificacoes', icon: Bell },
-  { id: 'channels', label: 'Canais', icon: Radio },
-  { id: 'extensions', label: 'Extensoes', icon: Puzzle },
   { id: 'data', label: 'Dados', icon: Database },
 ];
 

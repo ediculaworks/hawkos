@@ -197,29 +197,33 @@ export function classifyComplexity(message: string, moduleCount: number): Comple
  * Get the effective daily budget limit.
  * Checks per-tenant feature_flags first, falls back to global env var.
  */
-let _tenantBudgetCache: { value: number; expiresAt: number } | null = null;
+const _tenantBudgetCache = new Map<string, { value: number; expiresAt: number }>();
 
 async function getTenantBudgetLimit(): Promise<number> {
   const globalLimit = Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
   const slot = process.env.AGENT_SLOT;
   if (!slot) return globalLimit;
 
-  // Cache for 5 minutes to avoid DB hits on every message
-  if (_tenantBudgetCache && Date.now() < _tenantBudgetCache.expiresAt) {
-    return _tenantBudgetCache.value;
+  // Cache per-tenant for 5 minutes to avoid DB hits on every message
+  const cached = _tenantBudgetCache.get(slot);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.value;
   }
 
   try {
     const sql = getPool();
-    const rows = await sql.unsafe(
-      `SELECT feature_flags->>'daily_budget_usd' AS budget
-       FROM tenants WHERE slug = $1 LIMIT 1`,
-      [slot],
-    );
+    const rows = await sql.begin(async (tx) => {
+      await tx.unsafe('SET LOCAL search_path TO admin, public');
+      return tx.unsafe(
+        `SELECT feature_flags->>'daily_budget_usd' AS budget
+         FROM tenants WHERE slug = $1 LIMIT 1`,
+        [slot],
+      );
+    });
     const row = rows[0] as { budget: string | null } | undefined;
     const tenantBudget = row?.budget ? Number(row.budget) : 0;
     const effectiveLimit = tenantBudget > 0 ? tenantBudget : globalLimit;
-    _tenantBudgetCache = { value: effectiveLimit, expiresAt: Date.now() + 5 * 60_000 };
+    _tenantBudgetCache.set(slot, { value: effectiveLimit, expiresAt: Date.now() + 5 * 60_000 });
     return effectiveLimit;
   } catch {
     return globalLimit;
@@ -228,7 +232,9 @@ async function getTenantBudgetLimit(): Promise<number> {
 
 export function selectModel(complexity: ComplexityLevel, _agentModel: string): string {
   const budget = getBudget();
-  const limit = _tenantBudgetCache?.value ?? Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
+  const slot = process.env.AGENT_SLOT ?? '';
+  const cachedBudget = slot ? _tenantBudgetCache.get(slot) : undefined;
+  const limit = cachedBudget?.value ?? Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
   const budgetUsedPct = limit > 0 ? (budget.cost / limit) * 100 : 0;
 
   // Cost-aware downgrade when approaching budget limit
@@ -284,7 +290,7 @@ function getBudget(): BudgetState {
   if (!_budget || _budget.date !== today) {
     _budget = { date: today, tokens: 0, cost: 0, llmCalls: 0, loaded: false };
     // Clear tenant budget cache on day change so it re-fetches
-    _tenantBudgetCache = null;
+    _tenantBudgetCache.clear();
   }
   return _budget;
 }
@@ -300,7 +306,9 @@ export function trackUsage(tokens: number, costUsd: number): { overBudget: boole
   if (tokens > 0) budget.llmCalls++;
 
   // Use cached tenant budget if available, otherwise fall back to env var
-  const limit = _tenantBudgetCache?.value ?? Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
+  const trackSlot = process.env.AGENT_SLOT ?? '';
+  const trackCached = trackSlot ? _tenantBudgetCache.get(trackSlot) : undefined;
+  const limit = trackCached?.value ?? Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
   const overBudget = limit > 0 && budget.cost >= limit;
 
   return { overBudget };

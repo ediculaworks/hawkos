@@ -2,9 +2,7 @@
 
 import { SectionAgent } from '@/components/settings/section-agent';
 import { SectionAppearance } from '@/components/settings/section-appearance';
-import { SectionChannels } from '@/components/settings/section-channels';
 import { SectionData } from '@/components/settings/section-data';
-import { SectionExtensions } from '@/components/settings/section-extensions';
 import { SectionGeneral } from '@/components/settings/section-general';
 import { SectionNotifications } from '@/components/settings/section-notifications';
 import { SectionProfile } from '@/components/settings/section-profile';
@@ -60,8 +58,6 @@ export default function SettingsPage() {
             {section === 'agent' && <SectionAgent />}
             {section === 'appearance' && <SectionAppearance />}
             {section === 'notifications' && <SectionNotifications />}
-            {section === 'channels' && <SectionChannels />}
-            {section === 'extensions' && <SectionExtensions />}
             {section === 'data' && <SectionData />}
           </div>
         </div>
