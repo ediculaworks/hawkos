@@ -1,10 +1,35 @@
 import { getTenantBySlug } from '@/lib/tenants/cache';
 import { signIn } from '@hawk/auth';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
+
+// Simple in-memory rate limiter: 5 attempts per IP per 60s
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (entry.count >= 5) return false;
+  entry.count++;
+  return true;
+}
 
 export async function POST(request: Request) {
   try {
+    const headersList = await headers();
+    const ip =
+      headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      headersList.get('x-real-ip') ??
+      'unknown';
+
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json({ error: 'Muitas tentativas. Aguarde 1 minuto.' }, { status: 429 });
+    }
+
     const { email, password, tenantSlug } = await request.json();
 
     if (!email || !password) {

@@ -98,18 +98,21 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
   const [activityOpen, setActivityOpen] = useState(true);
   const [logsOpen, setLogsOpen] = useState(false);
   const [logLines, setLogLines] = useState<LogEntry[]>([]);
+  const [logService, setLogService] = useState<string>('agent');
   const logsBottomRef = useRef<HTMLDivElement>(null);
   const logReaderRef = useRef<AbortController | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState<string | null>(null);
 
-  const startLogStream = useCallback(() => {
+  const LOG_SERVICES = ['agent', 'web', 'postgres', 'caddy'] as const;
+
+  const startLogStream = useCallback((service: string) => {
     logReaderRef.current?.abort();
     setLogLines([]);
     const ctrl = new AbortController();
     logReaderRef.current = ctrl;
 
-    fetch('/api/agent/admin/logs/stream?tail=200', { signal: ctrl.signal })
+    fetch(`/api/agent/admin/logs/stream?tail=200&service=${service}`, { signal: ctrl.signal })
       .then(async (res) => {
         if (!res.ok || !res.body) {
           setLogLines([
@@ -161,9 +164,10 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
       });
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: logService excluded — service changes handled by onClick
   useEffect(() => {
     if (logsOpen) {
-      startLogStream();
+      startLogStream(logService);
     } else {
       logReaderRef.current?.abort();
     }
@@ -479,11 +483,31 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
         </button>
         {logsOpen && (
           <div>
-            <div className="flex items-center justify-end px-[var(--space-4)] py-2 border-b border-[var(--color-border-subtle)] bg-zinc-900">
+            <div className="flex items-center justify-between px-[var(--space-4)] py-2 border-b border-[var(--color-border-subtle)] bg-zinc-900">
+              {/* Service selector */}
+              <div className="flex items-center gap-1">
+                {LOG_SERVICES.map((svc) => (
+                  <button
+                    key={svc}
+                    type="button"
+                    onClick={() => {
+                      setLogService(svc);
+                      startLogStream(svc);
+                    }}
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors cursor-pointer ${
+                      logService === svc
+                        ? 'bg-zinc-600 text-zinc-100'
+                        : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+                    }`}
+                  >
+                    {svc}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
-                onClick={startLogStream}
-                className="text-[11px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1"
+                onClick={() => startLogStream(logService)}
+                className="text-[11px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1 cursor-pointer"
               >
                 <RefreshCw className="h-3 w-3" /> Refresh
               </button>

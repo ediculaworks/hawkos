@@ -1,3 +1,4 @@
+import { getCurrentSchema } from '@hawk/db';
 import { archiveExpiredMemories } from '@hawk/module-memory/queries';
 import { commitSession, findExpiredSessions } from '@hawk/module-memory/session-commit';
 
@@ -10,16 +11,18 @@ import { commitSession, findExpiredSessions } from '@hawk/module-memory/session-
  * OpenViking-inspired session lifecycle management.
  */
 
-let isCompacting = false;
+/** Per-tenant lock — keyed by schema name from AsyncLocalStorage */
+const activeRuns = new Set<string>();
 
 export async function runSessionCompactor(): Promise<void> {
-  // Prevent overlapping runs (e.g. if compaction takes >1h)
-  if (isCompacting) {
-    console.warn('[session-compactor] Previous run still active, skipping.');
+  const schema = getCurrentSchema();
+
+  // Prevent overlapping runs per tenant (e.g. if compaction takes >1h)
+  if (activeRuns.has(schema)) {
     return;
   }
 
-  isCompacting = true;
+  activeRuns.add(schema);
   try {
     // Cleanup expired memories on each compactor run
     const expiredCount = await archiveExpiredMemories().catch(() => 0);
@@ -49,6 +52,6 @@ export async function runSessionCompactor(): Promise<void> {
   } catch (err) {
     console.error('[session-compactor] Failed to find expired sessions:', err);
   } finally {
-    isCompacting = false;
+    activeRuns.delete(schema);
   }
 }

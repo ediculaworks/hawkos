@@ -1,6 +1,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db } from '@hawk/db';
+import { DOCKER_LOG_SERVICES, streamDockerLogs } from '../docker-logs.js';
 import { getTailLines, subscribeToLogs } from '../log-buffer.js';
 import { handleAgentsRoute } from './routes/agents.js';
 import { handleAutomationsRoute } from './routes/automations.js';
@@ -316,7 +317,11 @@ async function handleChat(
 
   try {
     const result = await handleWebMessage(sessionId, message, onChunk);
-    return { content: result.response, tokensUsed: result.totalTokens, model: result.selectedModel };
+    return {
+      content: result.response,
+      tokensUsed: result.totalTokens,
+      model: result.selectedModel,
+    };
   } finally {
     const session = state.sessions.get(sessionId);
     if (session) {
@@ -596,12 +601,15 @@ const agentServer = Bun.serve({
       });
     }
 
-    // GET /admin/logs/stream — stream agent process logs via SSE (in-memory buffer)
+    // GET /admin/logs/stream — stream logs via SSE
+    // ?service=agent (default) | web | postgres | pgbouncer | caddy
+    // ?tail=200 (lines to replay on connect)
     if (path === '/admin/logs/stream' && method === 'GET') {
       const tail = Math.min(
         Math.max(Number.parseInt(url.searchParams.get('tail') || '200', 10) || 200, 1),
         1000,
       );
+      const service = url.searchParams.get('service') ?? 'agent';
 
       const stream = new ReadableStream({
         start(controller) {
@@ -621,7 +629,7 @@ const agentServer = Bun.serve({
             if (closed) return;
             closed = true;
             clearInterval(keepalive);
-            unsubscribe();
+            if (unsubscribe) unsubscribe();
             try {
               controller.close();
             } catch {
@@ -629,27 +637,47 @@ const agentServer = Bun.serve({
             }
           }
 
-          // Send buffered tail lines first
-          enqueue(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
-          for (const line of getTailLines(tail)) {
-            enqueue(
-              `data: ${JSON.stringify({ type: 'log', level: line.level, ts: line.ts, line: line.text })}\n\n`,
-            );
-          }
+          enqueue(`data: ${JSON.stringify({ type: 'connected', service })}\n\n`);
 
-          // Subscribe to new lines
-          const unsubscribe = subscribeToLogs((line) => {
-            enqueue(
-              `data: ${JSON.stringify({ type: 'log', level: line.level, ts: line.ts, line: line.text })}\n\n`,
+          let unsubscribe: (() => void) | null = null;
+
+          if (service === 'agent') {
+            // In-memory buffer: replay tail then subscribe to live updates
+            for (const line of getTailLines(tail)) {
+              enqueue(
+                `data: ${JSON.stringify({ type: 'log', level: line.level, ts: line.ts, line: line.text })}\n\n`,
+              );
+            }
+            unsubscribe = subscribeToLogs((line) => {
+              enqueue(
+                `data: ${JSON.stringify({ type: 'log', level: line.level, ts: line.ts, line: line.text })}\n\n`,
+              );
+            });
+          } else if (DOCKER_LOG_SERVICES.includes(service)) {
+            // Docker HTTP API — stream from container
+            streamDockerLogs(
+              service,
+              tail,
+              (text) => {
+                const level = /error/i.test(text) ? 'error' : /warn/i.test(text) ? 'warn' : 'log';
+                enqueue(
+                  `data: ${JSON.stringify({ type: 'log', level, ts: new Date().toISOString(), line: text })}\n\n`,
+                );
+              },
+              req.signal,
             );
-          });
+          } else {
+            enqueue(
+              `data: ${JSON.stringify({ type: 'error', message: `Unknown service: ${service}` })}\n\n`,
+            );
+            cleanup();
+            return;
+          }
 
           // Keepalive every 15s
           const keepalive = setInterval(() => {
             enqueue(': keepalive\n\n');
           }, 15_000);
-
-          // Cleanup when client disconnects
           req.signal.addEventListener('abort', cleanup, { once: true });
         },
       });
