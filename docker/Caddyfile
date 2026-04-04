@@ -9,49 +9,23 @@
 # A variavel {$DOMAIN} e injetada pelo docker-compose via environment.
 
 {$DOMAIN:localhost} {
-	# Agent WebSocket + API proxies (must be before the catch-all)
-	handle /ws/ten1* {
+	# Agent proxies — strip /agent/tenN prefix, forward to agent container
+	handle_path /agent/ten1/* {
 		reverse_proxy agent-ten1:3001
 	}
-	handle /ws/ten2* {
+	handle_path /agent/ten2/* {
 		reverse_proxy agent-ten2:3001
 	}
-	handle /ws/ten3* {
+	handle_path /agent/ten3/* {
 		reverse_proxy agent-ten3:3001
 	}
-	handle /ws/ten4* {
+	handle_path /agent/ten4/* {
 		reverse_proxy agent-ten4:3001
 	}
-	handle /ws/ten5* {
+	handle_path /agent/ten5/* {
 		reverse_proxy agent-ten5:3001
 	}
-	handle /ws/ten6* {
-		reverse_proxy agent-ten6:3001
-	}
-
-	# Agent health/API endpoints
-	handle /agent/ten1/* {
-		uri strip_prefix /agent/ten1
-		reverse_proxy agent-ten1:3001
-	}
-	handle /agent/ten2/* {
-		uri strip_prefix /agent/ten2
-		reverse_proxy agent-ten2:3001
-	}
-	handle /agent/ten3/* {
-		uri strip_prefix /agent/ten3
-		reverse_proxy agent-ten3:3001
-	}
-	handle /agent/ten4/* {
-		uri strip_prefix /agent/ten4
-		reverse_proxy agent-ten4:3001
-	}
-	handle /agent/ten5/* {
-		uri strip_prefix /agent/ten5
-		reverse_proxy agent-ten5:3001
-	}
-	handle /agent/ten6/* {
-		uri strip_prefix /agent/ten6
+	handle_path /agent/ten6/* {
 		reverse_proxy agent-ten6:3001
 	}
 
