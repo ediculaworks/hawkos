@@ -159,6 +159,13 @@ export async function handleOnboardingRoute(
             payload = { name: 'Usuário' };
           }
 
+          // Always enable ALL modules and agents — user cannot disable them during onboarding
+          const ALL_MODULES = [
+            'finances', 'health', 'people', 'career', 'objectives', 'routine',
+            'assets', 'entertainment', 'legal', 'housing', 'calendar',
+          ];
+          const ALL_AGENTS = ['bull', 'wolf', 'owl', 'bee', 'beaver', 'fox', 'peacock'];
+
           // Ensure defaults
           const finalPayload: OnboardingPayload = {
             name: payload.name || 'Usuário',
@@ -166,8 +173,8 @@ export async function handleOnboardingRoute(
             timezone: payload.timezone || timezone,
             bio: payload.bio || '',
             goals: payload.goals || '',
-            enabledModules: payload.enabledModules ?? ['finances', 'health', 'objectives', 'routine'],
-            enabledAgents: payload.enabledAgents ?? ['bull', 'wolf', 'owl', 'bee'],
+            enabledModules: ALL_MODULES,
+            enabledAgents: ALL_AGENTS,
             checkinMorning: payload.checkinMorning || '09:00',
             checkinEvening: payload.checkinEvening || '22:00',
             weeklyReviewDay: payload.weeklyReviewDay || 'sunday',

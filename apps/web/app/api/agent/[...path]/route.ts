@@ -48,13 +48,27 @@ async function proxyToAgent(
 
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
 
-  const agentResponse = await fetch(targetUrl, {
-    method: request.method,
-    headers,
-    body: hasBody ? request.body : undefined,
-    // SSE connections need a much longer timeout (10 minutes); normal requests 30s
-    signal: AbortSignal.timeout(isSSE ? 600_000 : 30_000),
-  });
+  let agentResponse: Response;
+  try {
+    agentResponse = await fetch(targetUrl, {
+      method: request.method,
+      headers,
+      body: hasBody ? request.body : undefined,
+      // SSE connections need a much longer timeout (10 minutes); normal requests 30s
+      signal: AbortSignal.timeout(isSSE ? 600_000 : 30_000),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Agent unreachable';
+    // ECONNRESET or timeout — return SSE error event so the client can handle it gracefully
+    if (isSSE) {
+      const body = `data: ${JSON.stringify({ type: 'error', error: 'Erro de conexão com o agente. Tente novamente.' })}\n\ndata: [DONE]\n\n`;
+      return new Response(body, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+      });
+    }
+    return NextResponse.json({ error: msg }, { status: 502 });
+  }
 
   const responseHeaders = new Headers();
   const ct = agentResponse.headers.get('content-type');
