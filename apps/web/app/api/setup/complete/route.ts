@@ -110,15 +110,17 @@ export async function POST(request: Request) {
     await sql.begin(async (tx) => {
       await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
 
-      // 1. Update profile
+      // 1. Upsert profile — handles both first-time setup and re-onboarding after data reset
       await tx.unsafe(
-        `UPDATE profile SET
-          name = $1,
-          birth_date = $2,
-          metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
-          onboarding_complete = true,
-          updated_at = now()`,
-        [name, birthDate, JSON.stringify(metadata)],
+        `INSERT INTO profile (id, name, birth_date, metadata, onboarding_complete, created_at, updated_at)
+         VALUES ($1, $2, $3, $4::jsonb, true, now(), now())
+         ON CONFLICT (id) DO UPDATE SET
+           name = $2,
+           birth_date = $3,
+           metadata = COALESCE(profile.metadata, '{}'::jsonb) || $4::jsonb,
+           onboarding_complete = true,
+           updated_at = now()`,
+        [payload.sub, name, birthDate, JSON.stringify(metadata)],
       );
 
       // 2. Update modules — enable selected, disable rest
@@ -131,7 +133,6 @@ export async function POST(request: Request) {
       }
 
       // 3. Upsert agent_settings with timezone + schedule columns
-      // Map weekday name to integer for security_review_day-style columns
       const weekdayIndex = VALID_WEEKDAYS.indexOf(weeklyReviewDay);
 
       await tx.unsafe(
@@ -147,6 +148,12 @@ export async function POST(request: Request) {
            security_review_day = $5,
            updated_at = now()`,
         [timezone, checkinMorning, checkinEvening, weeklyReviewTime, weekdayIndex],
+      );
+
+      // 4. Register owner_email in admin.tenants so login auto-resolves to this workspace
+      await tx.unsafe(
+        `UPDATE admin.tenants SET owner_email = $1, updated_at = now() WHERE slug = $2`,
+        [payload.email, tenantSlug],
       );
     });
 

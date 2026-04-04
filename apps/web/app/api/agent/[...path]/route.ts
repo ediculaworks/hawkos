@@ -30,8 +30,11 @@ async function proxyToAgent(
   const url = new URL(request.url);
   const targetUrl = url.search ? `${agentUrl}${url.search}` : agentUrl;
 
-  // Detect SSE requests (admin/logs/stream, stream endpoint)
-  const isSSE = path.join('/') === 'admin/logs/stream' || path.join('/') === 'stream';
+  // Detect SSE requests (admin/logs/stream, stream, onboarding/chat)
+  const isSSE =
+    path.join('/') === 'admin/logs/stream' ||
+    path.join('/') === 'stream' ||
+    path.join('/') === 'onboarding/chat';
 
   const headers = new Headers();
   const contentType = request.headers.get('content-type');

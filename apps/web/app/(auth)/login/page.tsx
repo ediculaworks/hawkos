@@ -4,20 +4,15 @@ import { ReactBitsGuard } from '@/components/react-bits/_adapter';
 import ShinyText from '@/components/react-bits/text/shiny-text';
 import TypingAnimation from '@/components/react-bits/text/typing-animation';
 import { EASE } from '@/lib/animations/constants';
-import { ChevronDown, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { SplashScreen } from './splash-screen';
 
 const Aurora = dynamic(() => import('@/components/react-bits/backgrounds/aurora'), {
   ssr: false,
 });
-
-interface TenantPublic {
-  slug: string;
-  label: string;
-}
 
 type Stage = 'form' | 'authenticating' | 'splash';
 
@@ -28,29 +23,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage>('form');
 
-  // Multi-tenant state
-  const [tenants, setTenants] = useState<TenantPublic[]>([]);
-  const [selectedTenant, setSelectedTenant] = useState<TenantPublic | null>(null);
-  const multiTenant = tenants.length > 0;
-
   const loading = stage === 'authenticating';
-
-  // Fetch available tenants on mount
-  useEffect(() => {
-    fetch('/api/tenants')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.tenants?.length > 0) {
-          setTenants(data.tenants);
-          if (data.tenants.length === 1) {
-            setSelectedTenant(data.tenants[0]);
-          }
-        }
-      })
-      .catch(() => {
-        // No tenants API — single-tenant mode
-      });
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,15 +31,10 @@ export default function LoginPage() {
     setStage('authenticating');
 
     try {
-      // Authenticate via our custom API
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          password,
-          tenantSlug: selectedTenant?.slug,
-        }),
+        body: JSON.stringify({ email, password }),
       });
 
       const result = await res.json();
@@ -89,7 +57,6 @@ export default function LoginPage() {
   };
 
   const handleSplashComplete = useCallback(() => {
-    // Full page reload ensures auth cookies are sent with the request
     window.location.href = '/dashboard';
   }, []);
 
@@ -161,39 +128,6 @@ export default function LoginPage() {
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.4, delay: 0.2 }}
                 >
-                  {/* Workspace selector (multi-tenant only) */}
-                  {multiTenant && (
-                    <div>
-                      <label
-                        htmlFor="workspace"
-                        className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 transition-colors"
-                      >
-                        Workspace
-                      </label>
-                      <div className="relative">
-                        <select
-                          id="workspace"
-                          value={selectedTenant?.slug ?? ''}
-                          onChange={(e) => {
-                            const t = tenants.find((t) => t.slug === e.target.value);
-                            setSelectedTenant(t ?? null);
-                          }}
-                          className="w-full appearance-none rounded-[var(--radius-md)] border border-white/[0.08] bg-[var(--color-surface-0)]/80 px-3 py-2.5 pr-8 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]/30 transition-all duration-200 cursor-pointer"
-                        >
-                          <option value="" disabled>
-                            Selecione um workspace...
-                          </option>
-                          {tenants.map((t) => (
-                            <option key={t.slug} value={t.slug}>
-                              {t.label}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-muted)]" />
-                      </div>
-                    </div>
-                  )}
-
                   <div>
                     <label
                       htmlFor="email"
@@ -208,6 +142,7 @@ export default function LoginPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       autoComplete="email"
+                      autoFocus
                       className="w-full rounded-[var(--radius-md)] border border-white/[0.08] bg-[var(--color-surface-0)]/80 px-3 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]/30 transition-all duration-200"
                       placeholder="seu@email.com"
                     />
@@ -265,7 +200,7 @@ export default function LoginPage() {
 
                   <button
                     type="submit"
-                    disabled={loading || !email || !password || (multiTenant && !selectedTenant)}
+                    disabled={loading || !email || !password}
                     className="w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98]"
                   >
                     {loading ? (
@@ -282,25 +217,14 @@ export default function LoginPage() {
             </div>
 
             {/* Footer */}
-            <motion.div
+            <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4, delay: 0.5 }}
-              className="mt-4 space-y-1 text-center"
+              className="mt-4 text-center text-[10px] text-[var(--color-text-muted)] opacity-60"
             >
-              {multiTenant ? (
-                <p className="text-[10px] text-[var(--color-text-muted)]">
-                  {tenants.length} workspaces available
-                </p>
-              ) : (
-                <p className="text-[10px] text-[var(--color-text-muted)]">
-                  Single-tenant system. Contact admin for access.
-                </p>
-              )}
-              <p className="text-[10px] text-[var(--color-text-muted)] opacity-60">
-                Acesso restrito. Contate o administrador.
-              </p>
-            </motion.div>
+              Acesso restrito. Contate o administrador.
+            </motion.p>
           </motion.div>
         ) : (
           <SplashScreen onComplete={handleSplashComplete} />

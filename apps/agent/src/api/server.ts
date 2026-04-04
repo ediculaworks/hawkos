@@ -7,6 +7,7 @@ import { handleAgentsRoute } from './routes/agents.js';
 import { handleAutomationsRoute } from './routes/automations.js';
 import { handleChatRoute } from './routes/chat.js';
 import { handleLogsRoute } from './routes/logs.js';
+import { handleOnboardingRoute } from './routes/onboarding.js';
 import { handleWorkspaceRoute } from './routes/workspace.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -769,6 +770,11 @@ const agentServer = Bun.serve({
       logActivity,
     );
     if (automationResponse) return automationResponse;
+
+    // Onboarding chat route (delegated to routes/onboarding.ts)
+    if (path === '/onboarding/chat') {
+      return handleOnboardingRoute(req, corsHeaders);
+    }
 
     // Chat routes (delegated to routes/chat.ts)
     const chatResponse = await handleChatRoute(

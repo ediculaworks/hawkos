@@ -63,6 +63,23 @@ export async function getTenantBySlug(slug: string): Promise<CachedTenant | null
   return tenant;
 }
 
+/** Resolve tenant by owner email — used at login to avoid workspace selection. */
+export async function getTenantByEmail(email: string): Promise<CachedTenant | null> {
+  const rows = await adminQuery<Record<string, unknown>>(
+    "SELECT slug, label, schema_name FROM tenants WHERE owner_email = $1 AND status = 'active' LIMIT 1",
+    [email],
+  );
+
+  const data = rows[0];
+  if (!data) return null;
+
+  return {
+    slug: data.slug as string,
+    label: data.label as string,
+    schemaName: data.schema_name as string,
+  };
+}
+
 /** List all active tenants (for login page tenant picker). */
 export async function getAllTenants(): Promise<CachedTenant[]> {
   const now = Date.now();
