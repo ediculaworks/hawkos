@@ -12,8 +12,8 @@ import type { HandlerContext, Middleware } from './types.js';
 export const persistenceMiddleware: Middleware = {
   name: 'persistence',
   execute: async (ctx: HandlerContext, next) => {
-    // Save user message (original, not redacted — redaction is only for LLM)
-    await saveMessage({
+    // Save user message fire-and-forget — don't block the pipeline on a DB write.
+    saveMessage({
       session_id: ctx.sessionId,
       role: 'user',
       content: ctx.originalMessage,

@@ -8,13 +8,33 @@ import { retrieveMemories, trackMemoryAccess } from '@hawk/module-memory/retriev
 import { getLastSessionArchive } from '@hawk/module-memory/session-commit';
 import { HawkErrorCode, createLogger, getFeatureFlag, redactSecrets } from '@hawk/shared';
 import { logActivity } from '../activity-logger.js';
+import { isLikelySimpleMessage } from '../model-router.js';
 import type { HandlerContext, Middleware } from './types.js';
 
 const logger = createLogger('middleware:context');
 
+const EMPTY_CONTEXT = {
+  l0: '',
+  l1: '',
+  l2: '',
+  modulesLoaded: [] as string[],
+  relevanceScores: [] as number[],
+};
+
 export const contextMiddleware: Middleware = {
   name: 'context',
   execute: async (ctx: HandlerContext, next) => {
+    // Fast path: skip all DB/embedding work for simple greetings.
+    // No module context, no memories, no previous session needed.
+    if (isLikelySimpleMessage(ctx.sanitizedMessage)) {
+      ctx.context = EMPTY_CONTEXT;
+      ctx.memories = [];
+      ctx.previousSession = null;
+      ctx.contextSection = '';
+      await next();
+      return;
+    }
+
     // Load all context sources in parallel with fault isolation
     const [contextResult, memoriesResult, previousSessionResult] = await Promise.allSettled([
       assembleContext(ctx.sanitizedMessage),

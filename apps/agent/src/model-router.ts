@@ -127,6 +127,15 @@ function isSimpleGreeting(message: string): boolean {
   return SIMPLE_WORDS.has(normalized);
 }
 
+/**
+ * Fast pre-check: returns true if the message is almost certainly a simple
+ * greeting or one-word confirmation — before any DB/embedding work is done.
+ * Used by context and history middleware to skip expensive loads early.
+ */
+export function isLikelySimpleMessage(message: string): boolean {
+  return message.length < 30 && isSimpleGreeting(message);
+}
+
 const COMPLEX_PATTERNS =
   /\b(analis|compar|plan[ei]j|revis|resum|organiz|avali|otimiz|prioriz|estrat[ée]g|diagnostic|correlacion|impacto|tend[êe]ncia|previs[ãa]o)/i;
 
@@ -210,7 +219,7 @@ async function getTenantBudgetLimit(): Promise<number> {
   }
 }
 
-export function selectModel(complexity: ComplexityLevel, agentModel: string): string {
+export function selectModel(complexity: ComplexityLevel, _agentModel: string): string {
   const budget = getBudget();
   const limit = _tenantBudgetCache?.value ?? Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
   const budgetUsedPct = limit > 0 ? (budget.cost / limit) * 100 : 0;
@@ -231,13 +240,16 @@ export function selectModel(complexity: ComplexityLevel, agentModel: string): st
     complex: 'qwen/qwen3.6-plus:free',
   };
 
+  // Tier env vars override everything; free defaults are fallback.
+  // agentModel is the agent's configured base model and is NOT used for tier routing —
+  // it exists for non-tiered agents (e.g. task agents with a specific model).
   switch (effectiveComplexity) {
     case 'simple':
-      return process.env.MODEL_TIER_SIMPLE ?? agentModel ?? FREE_DEFAULTS.simple;
+      return process.env.MODEL_TIER_SIMPLE ?? FREE_DEFAULTS.simple;
     case 'complex':
-      return process.env.MODEL_TIER_COMPLEX ?? agentModel ?? FREE_DEFAULTS.complex;
+      return process.env.MODEL_TIER_COMPLEX ?? FREE_DEFAULTS.complex;
     default:
-      return process.env.MODEL_TIER_DEFAULT ?? agentModel ?? FREE_DEFAULTS.moderate;
+      return process.env.MODEL_TIER_DEFAULT ?? FREE_DEFAULTS.moderate;
   }
 }
 

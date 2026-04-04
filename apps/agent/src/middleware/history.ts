@@ -5,6 +5,7 @@
 import { getSessionMessages } from '@hawk/module-memory/queries';
 import { HawkErrorCode, createLogger } from '@hawk/shared';
 import { logActivity } from '../activity-logger.js';
+import { isLikelySimpleMessage } from '../model-router.js';
 import type { HandlerContext, Middleware } from './types.js';
 
 const logger = createLogger('middleware:history');
@@ -12,6 +13,15 @@ const logger = createLogger('middleware:history');
 export const historyMiddleware: Middleware = {
   name: 'history',
   execute: async (ctx: HandlerContext, next) => {
+    // Skip history load when there's nothing useful to load:
+    // - new sessions have no history yet
+    // - simple greetings don't benefit from context window history
+    if (ctx.isNewSession || isLikelySimpleMessage(ctx.sanitizedMessage)) {
+      ctx.history = [];
+      await next();
+      return;
+    }
+
     // Load session history
     try {
       const messages = await getSessionMessages(ctx.sessionId, 20);
