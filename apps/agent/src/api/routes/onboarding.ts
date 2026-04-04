@@ -1,4 +1,4 @@
-import { getChatClient } from '../../llm-client.js';
+import { WORKER_MODEL, getWorkerClient } from '../../llm-client.js';
 import { buildOnboardingSystemPrompt } from './onboarding-prompt.js';
 
 interface Message {
@@ -19,6 +19,7 @@ interface OnboardingPayload {
   weeklyReviewDay?: string;
   weeklyReviewTime?: string;
   farewell?: string;
+  openrouterApiKey?: string;
 }
 
 const COMPLETE_ONBOARDING_TOOL = {
@@ -56,14 +57,17 @@ const COMPLETE_ONBOARDING_TOOL = {
           type: 'string',
           description: 'Short warm farewell/welcome message to display to the user',
         },
+        openrouterApiKey: {
+          type: 'string',
+          description: 'OpenRouter API key (sk-or-...) if the user provided one, or empty string if skipped',
+        },
       },
       required: ['name'],
     },
   },
 };
 
-// Onboarding always uses OpenRouter (reliable, valid free tier, tool calling support).
-const ONBOARDING_MODEL = process.env.MODEL_TIER_DEFAULT ?? 'qwen/qwen3.6-plus:free';
+// Onboarding uses the local Ollama worker (qwen3:4b) — no OpenRouter dependency.
 
 export async function handleOnboardingRoute(
   req: Request,
@@ -105,9 +109,9 @@ export async function handleOnboardingRoute(
       }
 
       try {
-        const client = getChatClient();
+        const client = getWorkerClient();
         const openaiStream = await client.chat.completions.create({
-          model: ONBOARDING_MODEL,
+          model: WORKER_MODEL,
           messages,
           tools: [COMPLETE_ONBOARDING_TOOL],
           tool_choice: 'auto',
@@ -180,6 +184,7 @@ export async function handleOnboardingRoute(
             weeklyReviewDay: payload.weeklyReviewDay || 'sunday',
             weeklyReviewTime: payload.weeklyReviewTime || '20:00',
             farewell: payload.farewell || `Tudo pronto, ${payload.name}! Bem-vindo ao Hawk OS.`,
+            openrouterApiKey: payload.openrouterApiKey || '',
           };
 
           // If the model sent a farewell message as text, it's already streamed.
