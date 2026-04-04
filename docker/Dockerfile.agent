@@ -10,6 +10,7 @@ COPY packages/admin/package.json packages/admin/
 COPY packages/auth/package.json packages/auth/
 COPY packages/context-engine/package.json packages/context-engine/
 COPY packages/extensions/package.json packages/extensions/
+COPY packages/mcp/package.json packages/mcp/
 COPY packages/modules/ packages/modules/
 
 RUN bun install --frozen-lockfile --ignore-scripts
