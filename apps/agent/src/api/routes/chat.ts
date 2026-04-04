@@ -96,14 +96,17 @@ export async function handleChatRoute(
 
     const db = requireSupabase();
     const { error } = db
-      ? await db.from('agent_conversations').upsert({
-          session_id: sessionId,
-          template_id: agentId ?? null,
-          title: 'Nova sessão',
-          channel: 'web',
-          started_at: new Date().toISOString(),
-          last_message_at: new Date().toISOString(),
-        })
+      ? await db.from('agent_conversations').upsert(
+          {
+            session_id: sessionId,
+            template_id: agentId ?? null,
+            title: 'Nova sessão',
+            channel: 'web',
+            started_at: new Date().toISOString(),
+            last_message_at: new Date().toISOString(),
+          },
+          { onConflict: 'session_id' },
+        )
       : { error: { message: 'Database not available' } };
 
     if (error) {
@@ -134,11 +137,14 @@ export async function handleChatRoute(
     const body = (await req.json()) as Record<string, unknown>;
     const title = body.title as string;
 
-    await requireSupabase().from('agent_conversations').upsert({
-      session_id: sessionId,
-      title,
-      last_message_at: new Date().toISOString(),
-    });
+    await requireSupabase().from('agent_conversations').upsert(
+      {
+        session_id: sessionId,
+        title,
+        last_message_at: new Date().toISOString(),
+      },
+      { onConflict: 'session_id' },
+    );
 
     return new Response(JSON.stringify({ ok: true, title }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
