@@ -203,7 +203,7 @@ export default function HabitGrid({ initialHabits, initialAtRisk, initialScore }
                   : 'bg-rose-500/15 text-rose-400 border-rose-500/20',
             )}
           >
-            {weeklyScore}/100
+            {Number.isFinite(weeklyScore) ? weeklyScore : 0}/100
           </span>
         )}
       </div>

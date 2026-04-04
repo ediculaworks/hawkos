@@ -20,7 +20,7 @@ export default function FinancesSummaryWidget() {
   });
 
   const totalBalance = useMemo(
-    () => accounts?.reduce((sum, a) => sum + a.balance, 0) ?? 0,
+    () => accounts?.reduce((sum, a) => sum + Number(a.balance || 0), 0) ?? 0,
     [accounts],
   );
   const netIsPositive = (summary?.net ?? 0) >= 0;

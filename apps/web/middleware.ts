@@ -15,7 +15,7 @@ export function buildCsp(nonce: string): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://openrouter.ai https://vitals.vercel-insights.com",
+    `connect-src 'self' ws: wss: https://openrouter.ai https://vitals.vercel-insights.com`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
