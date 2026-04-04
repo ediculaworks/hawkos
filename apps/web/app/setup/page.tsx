@@ -56,7 +56,7 @@ function parseBirthDate(input: string): string | null {
   const t = input.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
   const m1 = t.match(/^(\d{1,2})[/\-.~](\d{1,2})[/\-.~](\d{4})$/);
-  if (m1) return `${m1[3]}-${m1[2].padStart(2, '0')}-${m1[1].padStart(2, '0')}`;
+  if (m1?.[1] && m1[2] && m1[3]) return `${m1[3]}-${m1[2].padStart(2, '0')}-${m1[1].padStart(2, '0')}`;
   return null;
 }
 
