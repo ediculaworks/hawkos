@@ -123,6 +123,32 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # ── Ollama (local LLM inference — simple tier) ─────────────────────────────
+  # Serves qwen3:4b for simple queries (greetings, CRUD) — zero OpenRouter cost.
+  # Model downloaded automatically on first request (~2.5GB, stored in volume).
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: '0.0.0.0:11434'
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:11434/api/tags']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
   # ── Agent (single process, serves ALL tenants) ─────────────────────────
   # On startup: loads all active tenants from admin.tenants
   # Creates one Discord client per tenant, scoped crons via withSchema()
@@ -167,4 +193,6 @@ volumes:
   caddy_data:
     driver: local
   caddy_config:
+    driver: local
+  ollama_data:
     driver: local

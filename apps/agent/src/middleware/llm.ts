@@ -3,13 +3,14 @@
  */
 
 import { HawkError, createLogger } from '@hawk/shared';
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import {
   createSessionCost,
   estimateCostUsd,
   trackLLMCall,
   trackToolCall,
 } from '../cost-tracker.js';
+import { getChatClient, getWorkerClient } from '../llm-client.js';
 import {
   estimateTokenCount,
   getContextLimit,
@@ -22,19 +23,16 @@ import type { HandlerContext, Middleware } from './types.js';
 
 const logger = createLogger('middleware:llm');
 
-let _client: OpenAI | null = null;
-function getClient(): OpenAI {
-  if (!_client) {
-    _client = new OpenAI({
-      baseURL: 'https://openrouter.ai/api/v1',
-      apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
-      defaultHeaders: {
-        'HTTP-Referer': 'https://github.com/hawk-os',
-        'X-Title': 'Hawk OS',
-      },
-    });
+/**
+ * Return the right OpenAI client for the given model.
+ * Ollama models have no '/' (e.g. 'qwen2.5:3b').
+ * OpenRouter models always have '/' (e.g. 'qwen/qwen3.6-plus:free').
+ */
+function getClientForModel(model: string): OpenAI {
+  if (!model.includes('/') && process.env.OLLAMA_BASE_URL) {
+    return getWorkerClient(); // points to local Ollama
   }
-  return _client;
+  return getChatClient(); // points to OpenRouter
 }
 
 const FALLBACK_MODELS_WITH_TOOL_CHOICE = [
@@ -232,7 +230,7 @@ async function callLLMOnce(
   const LLM_TIMEOUT_MS = 90_000; // 90s — generous for slow free models
 
   if (stream && ctx.onChunk) {
-    const streamResponse = await getClient().chat.completions.create(
+    const streamResponse = await getClientForModel(model).chat.completions.create(
       { ...opts, stream: true } as never,
       { signal: AbortSignal.timeout(LLM_TIMEOUT_MS) },
     );
@@ -273,7 +271,7 @@ async function callLLMOnce(
     return { content: content || null, toolCalls: toolCalls.filter(Boolean), finishReason };
   }
 
-  const response = await getClient().chat.completions.create(opts as never, {
+  const response = await getClientForModel(model).chat.completions.create(opts as never, {
     signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
   });
   const choice = response.choices[0];

@@ -17,6 +17,13 @@ export type ComplexityLevel = 'simple' | 'moderate' | 'complex';
 // ── Model capability metadata ────────────────────────────────────────────────
 // All free models available on OpenRouter (openrouter.ai/collections/free-models)
 const MODEL_CONTEXT_LIMITS: Record<string, number> = {
+  // Ollama local models
+  'qwen3:4b': 256_000,
+  'qwen3:1.7b': 40_000,
+  'qwen3:8b': 256_000,
+  'qwen2.5:3b': 32_768,   // legacy fallback
+  'ministral-3:3b': 256_000,
+  'phi4-mini': 131_072,
   // Qwen family
   'qwen/qwen3.6-plus:free': 1_000_000,
   'qwen/qwen3-coder:free': 262_000,
@@ -234,8 +241,9 @@ export function selectModel(complexity: ComplexityLevel, _agentModel: string): s
 
   // Free-model defaults — used when env vars not configured.
   // Override via MODEL_TIER_SIMPLE / MODEL_TIER_DEFAULT / MODEL_TIER_COMPLEX in .env
+  // When OLLAMA_BASE_URL is set, simple tier uses local qwen2.5:3b (free, fast, multilingual).
   const FREE_DEFAULTS: Record<ComplexityLevel, string> = {
-    simple: 'nvidia/nemotron-3-nano-30b-a3b:free',
+    simple: process.env.OLLAMA_BASE_URL ? 'qwen3:4b' : 'nvidia/nemotron-3-nano-30b-a3b:free',
     moderate: 'qwen/qwen3.6-plus:free',
     complex: 'qwen/qwen3.6-plus:free',
   };
