@@ -3,11 +3,8 @@
 import { ChatInput } from '@/components/chat/chat-input';
 import { MarkdownRenderer } from '@/components/chat/markdown-renderer';
 import { parseSseStream } from '@/lib/utils/parse-sse';
-import { User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-
-// ── Types ────────────────────────────────────────────────────────
 
 interface OnboardingMessage {
   role: 'user' | 'assistant';
@@ -29,37 +26,24 @@ interface OnboardingPayload {
   farewell?: string;
 }
 
-// ── Message bubble components ────────────────────────────────────
-
-function UserBubble({ content }: { content: string }) {
+function AssistantBubble({ content }: { content: string }) {
   return (
-    <div className="flex justify-end gap-3 mb-4">
-      <div className="max-w-[680px]">
-        <div className="flex items-center justify-end gap-2 mb-1">
-          <span className="text-xs font-medium text-[var(--color-text-secondary)]">Você</span>
-        </div>
-        <div className="bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 rounded-[var(--radius-lg)] rounded-tr-[var(--radius-sm)] px-4 py-2.5">
-          <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap">{content}</p>
-        </div>
+    <div className="flex gap-3 mb-6">
+      <div className="flex-shrink-0 h-8 w-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-bold text-white mt-0.5">
+        HA
       </div>
-      <div className="flex-shrink-0 h-7 w-7 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center">
-        <User className="h-3.5 w-3.5 text-[var(--color-accent)]" />
+      <div className="max-w-[620px] pt-1">
+        <MarkdownRenderer content={content} />
       </div>
     </div>
   );
 }
 
-function AssistantBubble({ content }: { content: string }) {
+function UserBubble({ content }: { content: string }) {
   return (
-    <div className="mb-6">
-      <div className="flex items-center gap-2.5 mb-2">
-        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-bold text-white">
-          HA
-        </div>
-        <span className="text-xs font-medium text-[var(--color-text-secondary)]">Hawk</span>
-      </div>
-      <div className="pl-[42px] max-w-[680px]">
-        <MarkdownRenderer content={content} />
+    <div className="flex justify-end mb-4">
+      <div className="max-w-[480px] bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 rounded-[var(--radius-lg)] rounded-tr-[var(--radius-sm)] px-4 py-2.5">
+        <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap">{content}</p>
       </div>
     </div>
   );
@@ -67,11 +51,11 @@ function AssistantBubble({ content }: { content: string }) {
 
 function TypingIndicator() {
   return (
-    <div className="flex items-center gap-2.5 mb-4">
+    <div className="flex gap-3 mb-4">
       <div className="flex-shrink-0 h-8 w-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-bold text-white">
         HA
       </div>
-      <div className="flex items-center gap-1 px-3 py-2 rounded-[var(--radius-lg)] bg-[var(--color-surface-2)]">
+      <div className="flex items-center gap-1 px-3 py-2.5 rounded-[var(--radius-lg)] bg-[var(--color-surface-2)]">
         <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-text-muted)] animate-bounce [animation-delay:0ms]" />
         <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-text-muted)] animate-bounce [animation-delay:150ms]" />
         <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-text-muted)] animate-bounce [animation-delay:300ms]" />
@@ -79,8 +63,6 @@ function TypingIndicator() {
     </div>
   );
 }
-
-// ── Main Page ────────────────────────────────────────────────────
 
 export default function SetupPage() {
   const router = useRouter();
@@ -97,7 +79,6 @@ export default function SetupPage() {
       : 'America/Sao_Paulo',
   );
 
-  // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streaming]);
@@ -107,7 +88,6 @@ export default function SetupPage() {
       setStreaming(false);
       setCompleting(true);
 
-      // Make sure farewell is shown in the chat
       if (payload.farewell && !assistantText.includes(payload.farewell)) {
         setMessages((prev) => {
           const updated = [...prev];
@@ -124,7 +104,6 @@ export default function SetupPage() {
         });
       }
 
-      // Brief pause so the user can read the farewell
       await new Promise((resolve) => setTimeout(resolve, 1400));
 
       try {
@@ -159,7 +138,7 @@ export default function SetupPage() {
         setCompleting(false);
       }
     },
-    [router, timezone],
+    [router],
   );
 
   const sendMessage = useCallback(
@@ -168,7 +147,6 @@ export default function SetupPage() {
 
       const isInit = text === '__init__';
 
-      // Append user message to history (skip the init signal)
       const history: OnboardingMessage[] = isInit
         ? [...messages]
         : [...messages, { role: 'user', content: text }];
@@ -181,7 +159,6 @@ export default function SetupPage() {
       setStreaming(true);
       setError(null);
 
-      // Start streaming assistant response
       let assistantContent = '';
       setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
 
@@ -226,7 +203,6 @@ export default function SetupPage() {
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
         setError('Algo deu errado. Tente novamente.');
-        // Remove the empty assistant message
         setMessages((prev) => prev.filter((m) => m.content !== ''));
       } finally {
         setStreaming(false);
@@ -235,39 +211,16 @@ export default function SetupPage() {
     [streaming, completing, messages, handleComplete],
   );
 
-  // Fire the init message on mount to get the greeting
   useEffect(() => {
     sendMessage('__init__');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <div
-      className="-m-4 md:-m-6 flex flex-col overflow-hidden"
-      style={{ height: 'calc(100vh - var(--topbar-height, 56px))' }}
-    >
-      {/* Header */}
-      <div className="flex-shrink-0 border-b border-[var(--color-border-subtle)] px-4 py-3">
-        <div className="flex items-center gap-3 max-w-2xl mx-auto">
-          <div className="h-9 w-9 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-            HA
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-[var(--color-text-primary)]">Hawk</p>
-            <p className="text-xs text-[var(--color-text-muted)]">Configuração Inicial</p>
-          </div>
-          {completing && (
-            <div className="ml-auto flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
-              <div className="h-2 w-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
-              Configurando...
-            </div>
-          )}
-        </div>
-      </div>
-
+    <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-2xl mx-auto">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto px-4 pt-16 pb-4">
           {messages.map((msg, i) =>
             msg.role === 'user' ? (
               // biome-ignore lint/suspicious/noArrayIndexKey: static list
@@ -279,8 +232,14 @@ export default function SetupPage() {
           )}
           {streaming && messages[messages.length - 1]?.content === '' && <TypingIndicator />}
           {error && (
-            <div className="mb-4 rounded-[var(--radius-md)] bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 px-3 py-2 max-w-2xl">
+            <div className="mb-4 rounded-[var(--radius-md)] bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 px-3 py-2">
               <p className="text-xs text-[var(--color-danger)]">{error}</p>
+            </div>
+          )}
+          {completing && (
+            <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] mb-4">
+              <div className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
+              Salvando configuração...
             </div>
           )}
           <div ref={messagesEndRef} />

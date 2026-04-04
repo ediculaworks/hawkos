@@ -27,10 +27,10 @@ export function SetupGuard({ children }: { children: React.ReactNode }) {
       .then((data: MeData | null) => {
         if (cancelled || !data) return;
 
-        const isSetupPage = pathname === '/dashboard/setup';
+        const isSetupPage = pathname === '/setup';
 
         if (!data.onboardingComplete && !isSetupPage) {
-          router.replace('/dashboard/setup');
+          router.replace('/setup');
         } else if (data.onboardingComplete && isSetupPage) {
           router.replace('/dashboard');
         } else {

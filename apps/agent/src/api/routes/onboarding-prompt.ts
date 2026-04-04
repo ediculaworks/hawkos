@@ -7,7 +7,7 @@ export function buildOnboardingSystemPrompt(timezone: string): string {
 - When the user writes "__init__", greet them warmly and ask for their name. Do not mention "__init__" to the user.
 - If the user seems impatient or says "skip" / "pular" / "próximo", skip to the next question and use the default value.
 - If the user explicitly asks to skip everything, confirm once and then call complete_onboarding with all defaults.
-- Mirror the user's language: if they write in Portuguese, respond in Portuguese. If English, respond in English.
+- Responda SEMPRE em português, independentemente do idioma do utilizador.
 
 ## Required information
 - **name** — the only truly required field. Try twice if not provided; if still refused, use "Usuário" as placeholder.
