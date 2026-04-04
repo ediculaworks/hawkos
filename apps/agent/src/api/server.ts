@@ -590,6 +590,172 @@ const agentServer = Bun.serve({
       });
     }
 
+    // GET /admin/logs/stream — stream Docker container logs via SSE
+    if (path === '/admin/logs/stream' && method === 'GET') {
+      const VALID_CONTAINERS = ['postgres', 'web', 'agent', 'caddy', 'pgbouncer'] as const;
+      const containerFilter = url.searchParams.get('container') || 'all';
+      const tail = Math.min(
+        Math.max(Number.parseInt(url.searchParams.get('tail') || '100', 10) || 100, 1),
+        5000,
+      );
+
+      // Resolve container names — docker compose uses project name as prefix
+      const projectName = process.env.COMPOSE_PROJECT_NAME || 'hawkos';
+      const requestedContainers =
+        containerFilter === 'all'
+          ? [...VALID_CONTAINERS]
+          : VALID_CONTAINERS.includes(containerFilter as (typeof VALID_CONTAINERS)[number])
+            ? [containerFilter]
+            : [];
+
+      if (requestedContainers.length === 0) {
+        return new Response(
+          JSON.stringify({
+            error: `Invalid container. Valid: ${VALID_CONTAINERS.join(', ')}, all`,
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const containers = requestedContainers.map((c) => `${projectName}-${c}-1`);
+
+      const stream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          const processes: { kill(): void }[] = [];
+          let closed = false;
+
+          function enqueue(text: string) {
+            if (closed) return;
+            try {
+              controller.enqueue(encoder.encode(text));
+            } catch {
+              cleanup();
+            }
+          }
+
+          function cleanup() {
+            if (closed) return;
+            closed = true;
+            clearInterval(keepalive);
+            for (const proc of processes) {
+              try {
+                proc.kill();
+              } catch {
+                /* already dead */
+              }
+            }
+            processes.length = 0;
+            try {
+              controller.close();
+            } catch {
+              /* already closed */
+            }
+          }
+
+          // Initial connection event
+          enqueue(
+            `data: ${JSON.stringify({ type: 'connected', containers: requestedContainers })}\n\n`,
+          );
+
+          for (const container of containers) {
+            const shortName = container.replace(`${projectName}-`, '').replace('-1', '');
+
+            try {
+              const proc = Bun.spawn(
+                ['docker', 'logs', '-f', '--tail', String(tail), '--timestamps', container],
+                { stdout: 'pipe', stderr: 'pipe' },
+              );
+
+              processes.push(proc);
+
+              // Stream stdout lines
+              const readStream = async (
+                reader: ReadableStreamDefaultReader<Uint8Array>,
+                level?: string,
+              ) => {
+                const decoder = new TextDecoder();
+                let buffer = '';
+                try {
+                  while (!closed) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    for (const line of lines) {
+                      if (!line) continue;
+                      const payload: Record<string, string> = {
+                        type: 'log',
+                        container: shortName,
+                        line,
+                      };
+                      if (level) payload.level = level;
+                      enqueue(`data: ${JSON.stringify(payload)}\n\n`);
+                    }
+                  }
+                  // Flush remaining buffer
+                  if (buffer && !closed) {
+                    const payload: Record<string, string> = {
+                      type: 'log',
+                      container: shortName,
+                      line: buffer,
+                    };
+                    if (level) payload.level = level;
+                    enqueue(`data: ${JSON.stringify(payload)}\n\n`);
+                  }
+                } catch {
+                  // stream closed or process exited
+                }
+              };
+
+              // Read both stdout and stderr
+              readStream(proc.stdout.getReader());
+              readStream(proc.stderr.getReader(), 'error');
+
+              // Handle process exit
+              proc.exited
+                .then(() => {
+                  if (!closed) {
+                    enqueue(
+                      `data: ${JSON.stringify({ type: 'process_exit', container: shortName })}\n\n`,
+                    );
+                  }
+                })
+                .catch(() => {});
+            } catch (err) {
+              enqueue(
+                `data: ${JSON.stringify({ type: 'error', container: shortName, message: String(err) })}\n\n`,
+              );
+            }
+          }
+
+          // Keepalive every 15s
+          const keepalive = setInterval(() => {
+            enqueue(': keepalive\n\n');
+          }, 15_000);
+
+          // Cleanup when client disconnects
+          req.signal.addEventListener('abort', cleanup, { once: true });
+        },
+
+        cancel() {
+          // ReadableStream cancel — processes cleaned up via abort listener
+        },
+      });
+
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        },
+      });
+    }
+
     if (path === '/status' && method === 'GET') {
       return new Response(
         JSON.stringify({

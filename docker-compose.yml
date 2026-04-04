@@ -146,6 +146,7 @@ services:
           memory: 1G
     volumes:
       - backups:/data/backups
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s

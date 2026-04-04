@@ -19,15 +19,19 @@ async function proxyToAgent(
   }
 
   const { path } = await params;
-  // In Docker: use service name (agent-ten1:3001). Locally: use localhost:port.
+  // In multi-tenant single-process mode: always route to "agent" service on port 3001
+  // In Docker: use service name. Locally: use localhost:port.
   const isDocker = process.env.DOCKER === '1' || process.env.HOSTNAME;
-  const agentHost = isDocker ? `agent-${slug}` : 'localhost';
-  const agentPort = isDocker ? 3001 : tenant.agentApiPort;
+  const agentHost = isDocker ? 'agent' : 'localhost';
+  const agentPort = isDocker ? 3001 : tenant.agentApiPort || 3001;
   const agentUrl = `http://${agentHost}:${agentPort}/${path.join('/')}`;
 
   // Forward query string
   const url = new URL(request.url);
   const targetUrl = url.search ? `${agentUrl}${url.search}` : agentUrl;
+
+  // Detect SSE requests (admin/logs/stream, stream endpoint)
+  const isSSE = path.join('/') === 'admin/logs/stream' || path.join('/') === 'stream';
 
   const headers = new Headers();
   const contentType = request.headers.get('content-type');
@@ -42,12 +46,20 @@ async function proxyToAgent(
     method: request.method,
     headers,
     body: hasBody ? request.body : undefined,
-    signal: AbortSignal.timeout(30000),
+    // SSE connections need a much longer timeout (10 minutes); normal requests 30s
+    signal: AbortSignal.timeout(isSSE ? 600_000 : 30_000),
   });
 
   const responseHeaders = new Headers();
   const ct = agentResponse.headers.get('content-type');
   if (ct) responseHeaders.set('Content-Type', ct);
+
+  // For SSE responses: pass through streaming headers to prevent buffering
+  if (isSSE || ct?.includes('text/event-stream')) {
+    responseHeaders.set('Cache-Control', 'no-cache');
+    responseHeaders.set('Connection', 'keep-alive');
+    responseHeaders.set('X-Accel-Buffering', 'no');
+  }
 
   return new Response(agentResponse.body, {
     status: agentResponse.status,

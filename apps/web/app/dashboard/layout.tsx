@@ -1,9 +1,9 @@
 'use client';
 
-import { WelcomeWizard } from '@/components/dashboard/welcome-wizard';
 import { CommandPalette } from '@/components/shell/command-palette';
 import { FloatingAgentCTA } from '@/components/shell/floating-agent-cta';
 import { HydrationGate } from '@/components/shell/hydration-gate';
+import { SetupGuard } from '@/components/shell/setup-guard';
 import { Sidebar } from '@/components/shell/sidebar';
 import { TopBar } from '@/components/shell/topbar';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
@@ -36,12 +36,13 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         )}
       >
         <div className="p-[var(--space-4)] md:p-[var(--space-6)]">
-          <ErrorBoundary>{children}</ErrorBoundary>
+          <ErrorBoundary>
+            <SetupGuard>{children}</SetupGuard>
+          </ErrorBoundary>
         </div>
       </main>
       <FloatingAgentCTA />
       <CommandPalette />
-      <WelcomeWizard />
     </div>
   );
 }

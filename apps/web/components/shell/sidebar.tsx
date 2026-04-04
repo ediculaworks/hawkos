@@ -17,12 +17,13 @@ import {
   PanelLeftClose,
   Plug,
   Settings,
+  ShieldCheck,
   Users,
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -32,6 +33,24 @@ export function Sidebar() {
   const setSidebarMobileOpen = useUIStore((s) => s.setSidebarMobileOpen);
   const badges = useSidebarBadges();
   const { scores: frecencyScores, track: trackAccess } = useModuleFrecency();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check admin role (cached — only fetches once)
+  const checkAdmin = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/me');
+      if (res.ok) {
+        const data = await res.json();
+        setIsAdmin(data.role === 'admin');
+      }
+    } catch {
+      // silently ignore — non-admin by default
+    }
+  }, []);
+
+  useEffect(() => {
+    checkAdmin();
+  }, [checkAdmin]);
 
   // Sort life modules by frecency (most used first)
   const sortedModules = useMemo(
@@ -196,6 +215,20 @@ export function Sidebar() {
               collapsed={sidebarCollapsed}
               onNavigate={handleNavClick}
             />
+            {isAdmin && (
+              <>
+                <div className="my-[var(--space-2)] h-px bg-[var(--color-border-subtle)] mx-[var(--space-2)]" />
+                <SidebarLink
+                  href="/dashboard/admin"
+                  label="Administração"
+                  icon={<ShieldCheck className="h-4 w-4" />}
+                  colorVar="var(--color-accent)"
+                  isActive={pathname === '/dashboard/admin'}
+                  collapsed={sidebarCollapsed}
+                  onNavigate={handleNavClick}
+                />
+              </>
+            )}
             <SidebarLink
               href="/dashboard/settings"
               label="Configurações"

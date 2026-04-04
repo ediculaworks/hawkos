@@ -297,12 +297,9 @@ export default function LoginPage() {
                   Single-tenant system. Contact admin for access.
                 </p>
               )}
-              <a
-                href="/onboarding"
-                className="block text-[10px] text-[var(--color-accent)] hover:underline"
-              >
-                Create new workspace
-              </a>
+              <p className="text-[10px] text-[var(--color-text-muted)] opacity-60">
+                Acesso restrito. Contate o administrador.
+              </p>
             </motion.div>
           </motion.div>
         ) : (

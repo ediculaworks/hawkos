@@ -9,24 +9,9 @@
 # A variavel {$DOMAIN} e injetada pelo docker-compose via environment.
 
 {$DOMAIN:localhost} {
-	# Agent proxies — strip /agent/tenN prefix, forward to agent container
-	handle_path /agent/ten1/* {
-		reverse_proxy agent-ten1:3001
-	}
-	handle_path /agent/ten2/* {
-		reverse_proxy agent-ten2:3001
-	}
-	handle_path /agent/ten3/* {
-		reverse_proxy agent-ten3:3001
-	}
-	handle_path /agent/ten4/* {
-		reverse_proxy agent-ten4:3001
-	}
-	handle_path /agent/ten5/* {
-		reverse_proxy agent-ten5:3001
-	}
-	handle_path /agent/ten6/* {
-		reverse_proxy agent-ten6:3001
+	# Agent API — single multi-tenant process
+	handle_path /agent/* {
+		reverse_proxy agent:3001
 	}
 
 	# Next.js web app (catch-all)
