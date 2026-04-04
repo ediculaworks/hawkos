@@ -1,5 +1,3 @@
-'use server';
-
 import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
 import { db, withTenantSchema } from '@hawk/db';
 import { cookies } from 'next/headers';
@@ -26,6 +24,7 @@ export async function GET() {
     );
 
     if (error) {
+      console.error('[api/agents] schema:', schemaName, 'error:', error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
