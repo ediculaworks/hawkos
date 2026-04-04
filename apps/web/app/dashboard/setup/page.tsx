@@ -132,7 +132,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
                   : 'bg-[var(--color-surface-3)]',
             )}
             animate={{ width: i === current ? 32 : 10 }}
-            transition={{ duration: DURATION.normal, ease: EASE.outQuart as unknown as number[] }}
+            transition={{ duration: DURATION.normal, ease: EASE.outQuart as never }}
           />
         </div>
       ))}
@@ -567,7 +567,7 @@ export default function SetupPage() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: DURATION.slow, ease: EASE.outQuart as unknown as number[] }}
+          transition={{ duration: DURATION.slow, ease: EASE.outQuart as never }}
           className="mb-[var(--space-8)] text-center"
         >
           <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">
@@ -594,7 +594,7 @@ export default function SetupPage() {
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  transition={{ duration: DURATION.normal, ease: EASE.outQuart as unknown as number[] }}
+                  transition={{ duration: DURATION.normal, ease: EASE.outQuart as never }}
                 >
                   {step === 0 && <StepPersonal data={personal} onChange={setPersonal} />}
                   {step === 1 && <StepModules selected={enabledModules} onChange={setEnabledModules} />}
