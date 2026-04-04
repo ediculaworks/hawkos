@@ -311,7 +311,8 @@ export default function SetupPage() {
       setStepIndex(saved.stepIndex);
       setStatus('resume');
     } else {
-      setMessages([{ role: 'assistant', content: STEPS[0].question(tzRef.current, {}) }]);
+      const firstQ = STEPS[0]?.question(tzRef.current, {}) ?? '';
+      setMessages([{ role: 'assistant', content: firstQ }]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -452,7 +453,7 @@ export default function SetupPage() {
     clearSaved();
     setPayload({});
     setStepIndex(0);
-    setMessages([{ role: 'assistant', content: STEPS[0].question(tzRef.current, {}) }]);
+    setMessages([{ role: 'assistant', content: STEPS[0]?.question(tzRef.current, {}) ?? '' }]);
     setStatus('questioning');
   }, []);
 
