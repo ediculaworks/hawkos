@@ -14,8 +14,7 @@ const PRECACHE_URLS = [
   '/dashboard',
   '/login',
   '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
+  '/favicon.svg',
 ];
 
 // ── Install: precache static resources ─────────────────────────────────────

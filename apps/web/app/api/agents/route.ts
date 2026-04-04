@@ -1,5 +1,5 @@
 import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
-import { db, withTenantSchema } from '@hawk/db';
+import { getPool } from '@hawk/db';
 import { cookies } from 'next/headers';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -19,23 +19,20 @@ export async function GET() {
   const schemaName = await getTenantSchema();
 
   try {
-    const { data: agents, error } = await withTenantSchema(schemaName, () =>
-      db.from('agent_templates').select('*').order('created_at', { ascending: true }),
-    );
+    const sql = getPool();
+    const agents = await sql.begin(async (tx) => {
+      await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      return tx.unsafe('SELECT * FROM agent_templates ORDER BY created_at ASC');
+    });
 
-    if (error) {
-      console.error('[api/agents] schema:', schemaName, 'error:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    const formattedAgents = (agents ?? []).map((agent) => ({
+    const formattedAgents = (agents ?? []).map((agent: Record<string, unknown>) => ({
       id: agent.id,
       name: agent.name,
       avatar: agent.avatar_seed ?? 'robot',
       tagline: agent.description ?? '',
-      traits: agent.personality?.traits ?? [],
-      tone: agent.personality?.tone ?? '',
-      phrases: agent.personality?.phrases ?? [],
+      traits: (agent.personality as Record<string, unknown>)?.traits ?? [],
+      tone: (agent.personality as Record<string, unknown>)?.tone ?? '',
+      phrases: (agent.personality as Record<string, unknown>)?.phrases ?? [],
       knowledge: agent.knowledge ?? '',
       philosophy: agent.philosophy ?? '',
       enabled_tools: agent.tools_enabled ?? [],
