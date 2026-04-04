@@ -5,11 +5,11 @@
 function getTenantConfig() {
   if (typeof window !== 'undefined' && window.__HAWK_TENANT__) {
     const t = window.__HAWK_TENANT__;
-    const host = window.location.hostname;
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const host = window.location.host; // includes port if non-standard
     return {
-      // Proxy through Next.js — agentApiSecret never reaches the browser
       apiUrl: '/api/agent',
-      wsUrl: `ws://${host}:${t.agentApiPort}/ws`,
+      wsUrl: `${proto}://${host}/ws/${t.slug}/ws`,
       token: '',
     };
   }

@@ -51,9 +51,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     tenant
       ? `window.__HAWK_TENANT__=${JSON.stringify({
           slug: tenant.slug,
-          supabaseUrl: tenant.supabaseUrl,
-          supabaseAnonKey: tenant.supabaseAnonKey,
-          agentApiPort: tenant.agentApiPort, // needed for WebSocket connection
+          agentApiPort: tenant.agentApiPort,
         })};`
       : '',
   ]
