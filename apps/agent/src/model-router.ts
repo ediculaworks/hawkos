@@ -93,8 +93,13 @@ function isSimpleGreeting(message: string): boolean {
 const COMPLEX_PATTERNS =
   /\b(analis|compar|plan[ei]j|revis|resum|organiz|avali|otimiz|prioriz|estrat[ée]g|diagnostic|correlacion|impacto|tend[êe]ncia|previs[ãa]o)/i;
 
+/** Patterns that indicate tool-heavy requests (CRUD, data lookup) */
+const TOOL_HEAVY_PATTERNS =
+  /\b(cri[ae]|adiciona|registr|salv|delet|remov|atualiz|list[ae]|mostr|busc|consult)/i;
+
 /**
  * Classify query complexity based on message content and detected modules.
+ * Enhanced with token-estimated message length and tool-use prediction.
  */
 export function classifyComplexity(message: string, moduleCount: number): ComplexityLevel {
   // Complex: multi-module takes priority (even if message is short)
@@ -107,8 +112,20 @@ export function classifyComplexity(message: string, moduleCount: number): Comple
     return 'simple';
   }
 
+  // Simple: short tool-heavy CRUD requests (create, list, delete)
+  // These are fast, single-turn, and don't need reasoning
+  if (message.length < 100 && moduleCount <= 1 && TOOL_HEAVY_PATTERNS.test(message)) {
+    return 'simple';
+  }
+
   // Complex: long messages with questions (likely detailed requests)
   if (message.length > 300 && message.includes('?')) {
+    return 'complex';
+  }
+
+  // Complex: multiple questions in a single message
+  const questionCount = (message.match(/\?/g) || []).length;
+  if (questionCount >= 2 && moduleCount >= 2) {
     return 'complex';
   }
 
@@ -116,11 +133,27 @@ export function classifyComplexity(message: string, moduleCount: number): Comple
 }
 
 /**
- * Select model based on complexity and agent's base model.
- * Returns the agent's model if no tier-specific model is configured.
+ * Select model based on complexity, agent's base model, and cost awareness.
+ * Considers daily budget usage — downgrades to cheaper models when approaching limit.
+ *
+ * Enhanced with cost-aware routing (Hermes Agent pattern):
+ * - When >80% of daily budget used: downgrade complex → moderate tier
+ * - When >95%: downgrade all to simple tier
  */
 export function selectModel(complexity: ComplexityLevel, agentModel: string): string {
-  switch (complexity) {
+  const budget = getBudget();
+  const limit = Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
+  const budgetUsedPct = limit > 0 ? (budget.cost / limit) * 100 : 0;
+
+  // Cost-aware downgrade when approaching budget limit
+  let effectiveComplexity = complexity;
+  if (budgetUsedPct > 95) {
+    effectiveComplexity = 'simple'; // emergency: use cheapest model for everything
+  } else if (budgetUsedPct > 80 && complexity === 'complex') {
+    effectiveComplexity = 'moderate'; // save budget: don't use expensive model
+  }
+
+  switch (effectiveComplexity) {
     case 'simple':
       return process.env.MODEL_TIER_SIMPLE ?? agentModel;
     case 'complex':

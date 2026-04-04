@@ -756,7 +756,15 @@ class QueryBuilder<T = any> {
       conditions.push(parseOrConditions(orF.raw));
     }
 
-    const ALLOWED_TS_CONFIGS = new Set(['simple', 'english', 'portuguese', 'spanish', 'french', 'german', 'italian']);
+    const ALLOWED_TS_CONFIGS = new Set([
+      'simple',
+      'english',
+      'portuguese',
+      'spanish',
+      'french',
+      'german',
+      'italian',
+    ]);
     for (const ts of this._textSearchFilters) {
       const safeConfig = ALLOWED_TS_CONFIGS.has(ts.config) ? ts.config : 'simple';
       const fn = ts.type === 'websearch' ? 'websearch_to_tsquery' : 'plainto_tsquery';

@@ -87,7 +87,11 @@ export async function semanticSearchMemories(
 
 /**
  * Hybrid search: combines vector similarity (pgvector) + keyword relevance (pg_trgm).
- * Falls back to vector-only search if the hybrid RPC doesn't exist.
+ * Uses Weighted Reciprocal Rank Fusion (RRF) for better ranking than linear weighting.
+ * Falls back to simple weighted sum if RRF RPC doesn't exist, then to vector-only.
+ *
+ * RRF formula: score(d) = Σ (weight_i / (k + rank_i(d)))
+ * where k is a smoothing constant (default 60, from Onyx reference).
  */
 export async function hybridSearchMemories(
   query: string,
@@ -97,6 +101,7 @@ export async function hybridSearchMemories(
     vectorWeight?: number;
     keywordWeight?: number;
     minScore?: number;
+    rrfK?: number;
   },
 ): Promise<
   Array<{
@@ -114,7 +119,34 @@ export async function hybridSearchMemories(
   const queryEmbedding = await generateEmbedding(query);
   const vectorStr = `[${queryEmbedding.join(',')}]`;
 
-  const { data, error } = await db.rpc('hybrid_search_memories', {
+  // Try RRF first (Wave 6), then simple hybrid (Wave 4), then vector-only
+  const { data, error } = await db.rpc('hybrid_search_memories_rrf', {
+    query_embedding: vectorStr,
+    query_text: query,
+    match_count: limit,
+    vector_weight: options?.vectorWeight ?? 0.6,
+    keyword_weight: options?.keywordWeight ?? 0.4,
+    rrf_k: options?.rrfK ?? 60,
+    min_score: options?.minScore ?? 0.0,
+    filter_type: options?.memoryType ?? null,
+  });
+
+  if (!error && data) {
+    return (data ?? []) as Array<{
+      id: string;
+      content: string;
+      memory_type: string;
+      module: string | null;
+      importance: number;
+      access_count: number;
+      vector_score: number;
+      keyword_score: number;
+      combined_score: number;
+    }>;
+  }
+
+  // Fallback: try simple weighted hybrid (Wave 4 RPC)
+  const { data: simpleData, error: simpleError } = await db.rpc('hybrid_search_memories', {
     query_embedding: vectorStr,
     query_text: query,
     match_count: limit,
@@ -124,31 +156,31 @@ export async function hybridSearchMemories(
     filter_type: options?.memoryType ?? null,
   });
 
-  // Fallback to vector-only if hybrid RPC doesn't exist yet
-  if (error) {
-    const fallback = await semanticSearchMemories(query, limit, options?.memoryType);
-    return fallback.map((m) => ({
-      ...m,
-      module: null,
-      importance: 5,
-      access_count: 0,
-      vector_score: m.similarity,
-      keyword_score: 0,
-      combined_score: m.similarity,
-    }));
+  if (!simpleError && simpleData) {
+    return (simpleData ?? []) as Array<{
+      id: string;
+      content: string;
+      memory_type: string;
+      module: string | null;
+      importance: number;
+      access_count: number;
+      vector_score: number;
+      keyword_score: number;
+      combined_score: number;
+    }>;
   }
 
-  return (data ?? []) as Array<{
-    id: string;
-    content: string;
-    memory_type: string;
-    module: string | null;
-    importance: number;
-    access_count: number;
-    vector_score: number;
-    keyword_score: number;
-    combined_score: number;
-  }>;
+  // Final fallback: vector-only search
+  const fallback = await semanticSearchMemories(query, limit, options?.memoryType);
+  return fallback.map((m) => ({
+    ...m,
+    module: null,
+    importance: 5,
+    access_count: 0,
+    vector_score: m.similarity,
+    keyword_score: 0,
+    combined_score: m.similarity,
+  }));
 }
 
 /**

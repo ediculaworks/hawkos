@@ -50,3 +50,65 @@ export function trackLLMCall(
 export function trackToolCall(cost: SessionCost, count = 1): void {
   cost.toolCalls += count;
 }
+
+// ── Per-Task Auxiliary Model Tracking ────────────────────────────────────────
+// Tracks token usage for background worker LLM calls (compression, memory
+// extraction, deduplication) separately from primary model usage.
+// Inspired by Hermes Agent's per-task auxiliary model pattern.
+
+export type WorkerTask =
+  | 'compression'
+  | 'memory_extraction'
+  | 'memory_layers'
+  | 'dedup_decision'
+  | 'title_generation'
+  | 'insight_synthesis'
+  | 'gap_scan';
+
+interface WorkerUsage {
+  tokens: number;
+  calls: number;
+  lastCallAt: number;
+}
+
+const _workerUsage = new Map<WorkerTask, WorkerUsage>();
+
+/**
+ * Track a worker LLM call for a specific background task.
+ */
+export function trackWorkerCall(task: WorkerTask, tokens: number): void {
+  const existing = _workerUsage.get(task) ?? { tokens: 0, calls: 0, lastCallAt: 0 };
+  existing.tokens += tokens;
+  existing.calls++;
+  existing.lastCallAt = Date.now();
+  _workerUsage.set(task, existing);
+}
+
+/**
+ * Get usage summary for all worker tasks.
+ */
+export function getWorkerUsageSummary(): Record<WorkerTask, WorkerUsage> {
+  const result = {} as Record<WorkerTask, WorkerUsage>;
+  for (const [task, usage] of _workerUsage) {
+    result[task] = { ...usage };
+  }
+  return result;
+}
+
+/**
+ * Get total worker tokens used today.
+ */
+export function getTotalWorkerTokens(): number {
+  let total = 0;
+  for (const usage of _workerUsage.values()) {
+    total += usage.tokens;
+  }
+  return total;
+}
+
+/**
+ * Reset daily worker usage (called at midnight or startup).
+ */
+export function resetWorkerUsage(): void {
+  _workerUsage.clear();
+}

@@ -150,8 +150,11 @@ let _weeklyRunning = false;
 function getLocalTime(timezone: string): { hours: number; minutes: number; dayOfWeek: number } {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric', minute: 'numeric', weekday: 'short',
-    hour12: false, timeZone: timezone,
+    hour: 'numeric',
+    minute: 'numeric',
+    weekday: 'short',
+    hour12: false,
+    timeZone: timezone,
   }).formatToParts(now);
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
   const weekday = parts.find((p) => p.type === 'weekday')?.value ?? '';
@@ -167,7 +170,8 @@ export function startWeeklyReviewCron(): void {
       const settings = await getWeeklyReviewSettings();
       if (!settings.weekly_review_enabled) return;
 
-      const timezone = (settings as Record<string, unknown>).timezone as string ?? 'America/Sao_Paulo';
+      const timezone =
+        ((settings as Record<string, unknown>).timezone as string) ?? 'America/Sao_Paulo';
       const now = getLocalTime(timezone);
       const [hours, minutes] = settings.weekly_review_time.split(':').map(Number);
 

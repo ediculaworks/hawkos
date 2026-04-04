@@ -56,7 +56,12 @@ export async function findPersonByName(name: string): Promise<Person | null> {
 export async function getPersonWithInteractions(id: string): Promise<PersonWithLastInteraction> {
   const [personResult, interactionsResult] = await Promise.all([
     db.from('people').select('*').eq('id', id).single(),
-    db.from('interactions').select('*').eq('person_id', id).order('date', { ascending: false }).limit(10),
+    db
+      .from('interactions')
+      .select('*')
+      .eq('person_id', id)
+      .order('date', { ascending: false })
+      .limit(10),
   ]);
 
   const { data: person, error } = personResult;

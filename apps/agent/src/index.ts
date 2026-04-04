@@ -31,6 +31,7 @@ import {
   toolLoggerHook,
 } from './hooks/index.js';
 import { loadDailyUsageFromDb } from './model-router.js';
+import { onShutdown, runCleanupHooks } from './shutdown.js';
 import { registerTriggers, setNotificationSender } from './triggers.js';
 
 const activeTasks: ScheduledTask[] = [];
@@ -169,29 +170,21 @@ async function gracefulShutdown(signal: string) {
 
   console.log(`\n[${signal}] Shutting down gracefully...`);
 
-  // 1. Stop cron tasks
-  for (const task of activeTasks) {
-    task.stop();
-  }
-  activeTasks.length = 0;
-  console.log('[shutdown] Cron tasks stopped.');
+  // Register cleanup hooks (priority: lower = runs first)
+  onShutdown(
+    'cron-tasks',
+    () => {
+      for (const task of activeTasks) task.stop();
+      activeTasks.length = 0;
+    },
+    { priority: 0 },
+  );
 
-  // 2. Disconnect channels (with 5s timeout)
-  try {
-    await Promise.race([
-      channelRegistry.disconnectAll(),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Channel disconnect timeout')), 5000),
-      ),
-    ]);
-    console.log('[shutdown] All channels disconnected.');
-  } catch {
-    console.error('[shutdown] Channel disconnect timed out after 5s.');
-  }
+  onShutdown('channels', () => channelRegistry.disconnectAll(), { priority: 10, timeoutMs: 5000 });
+  onShutdown('api-server', () => stopApiServer(), { priority: 20 });
 
-  // 3. Stop API server
-  stopApiServer();
-  console.log('[shutdown] API server stopped.');
+  // Run all cleanup hooks in priority order
+  await runCleanupHooks();
 
   console.log('[shutdown] Done. Exiting.');
   process.exit(0);

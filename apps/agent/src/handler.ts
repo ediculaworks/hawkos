@@ -3,7 +3,15 @@ import { db as activityDb } from '@hawk/db';
 import { getSessionMessages, saveMessage } from '@hawk/module-memory/queries';
 import { retrieveMemories, trackMemoryAccess } from '@hawk/module-memory/retrieval';
 import { getLastSessionArchive } from '@hawk/module-memory/session-commit';
-import { HawkError, createLogger } from '@hawk/shared';
+import {
+  HawkError,
+  HawkErrorCode,
+  createLogger,
+  getFeatureFlag,
+  redactSecrets,
+  scanForInjection,
+  stripSuspiciousUnicode,
+} from '@hawk/shared';
 import OpenAI from 'openai';
 import { logActivity } from './activity-logger.js';
 import type { ResolvedAgent } from './agent-resolver.js';
@@ -66,7 +74,57 @@ async function runLLMSession(params: {
     .emit('message:received', { sessionId, channel, message: userMessage })
     .catch(() => {});
 
-  // 1. Save user message
+  // 0b. Security: strip suspicious unicode + scan for prompt injection
+  let sanitizedMessage = stripSuspiciousUnicode(userMessage);
+  if (getFeatureFlag('prompt-injection-scanning')) {
+    const scanResult = scanForInjection(sanitizedMessage);
+    if (scanResult.threatLevel === 'critical' || scanResult.threatLevel === 'high') {
+      logActivity(
+        'security',
+        `Injection detected: ${scanResult.matchedPatterns.join(', ')}`,
+        undefined,
+        {
+          threatLevel: scanResult.threatLevel,
+          score: scanResult.score,
+          patterns: scanResult.matchedPatterns,
+          session_id: sessionId,
+        },
+      ).catch(() => {});
+      logger.warn(
+        {
+          sessionId,
+          threatLevel: scanResult.threatLevel,
+          score: scanResult.score,
+          patterns: scanResult.matchedPatterns,
+        },
+        'Prompt injection detected',
+      );
+    }
+  }
+
+  // 0c. Security: redact secrets from user message before LLM context
+  if (getFeatureFlag('secret-redaction')) {
+    const redaction = redactSecrets(sanitizedMessage);
+    if (redaction.redactedCount > 0) {
+      sanitizedMessage = redaction.text;
+      logActivity(
+        'security',
+        `Redacted ${redaction.redactedCount} secret(s): ${redaction.redactedPatterns.join(', ')}`,
+        undefined,
+        {
+          redactedCount: redaction.redactedCount,
+          patterns: redaction.redactedPatterns,
+          session_id: sessionId,
+        },
+      ).catch(() => {});
+      logger.warn(
+        { sessionId, count: redaction.redactedCount, patterns: redaction.redactedPatterns },
+        'Secrets redacted from user message',
+      );
+    }
+  }
+
+  // 1. Save user message (original, not redacted — redaction is only for LLM context)
   await saveMessage({
     session_id: sessionId,
     role: 'user',
@@ -74,11 +132,12 @@ async function runLLMSession(params: {
     channel,
   }).catch((err) => console.error('[handler] Failed to save user message:', err));
 
-  // 2. Load context in parallel (all with error handling to prevent single-point crashes)
+  // 2. Load context in parallel — per-component fault isolation
+  //    Each component failure is logged independently and doesn't crash the handler.
   const [contextResult, memoriesResult, historyResult, previousSessionResult] =
     await Promise.allSettled([
-      assembleContext(userMessage),
-      retrieveMemories(userMessage, 5),
+      assembleContext(sanitizedMessage),
+      retrieveMemories(sanitizedMessage, 5),
       getSessionMessages(sessionId, 20),
       isNewSession ? getLastSessionArchive(channel) : Promise.resolve(null),
     ]);
@@ -92,10 +151,44 @@ async function runLLMSession(params: {
   const previousSession =
     previousSessionResult.status === 'fulfilled' ? previousSessionResult.value : null;
 
+  // Per-component fault isolation — log each failure independently
   if (contextResult.status === 'rejected') {
-    console.error(
-      '[handler] Context assembly failed, running with empty context:',
-      contextResult.reason,
+    logger.error(
+      { err: contextResult.reason, sessionId },
+      'Context assembly failed (running with empty context)',
+    );
+    logActivity('error', `Context assembly failed: ${contextResult.reason}`, undefined, {
+      component: 'context-engine',
+      error_code: HawkErrorCode.CONTEXT_LOAD_FAILED,
+      session_id: sessionId,
+    }).catch(() => {});
+  }
+  if (memoriesResult.status === 'rejected') {
+    logger.error(
+      { err: memoriesResult.reason, sessionId },
+      'Memory retrieval failed (running without memories)',
+    );
+    logActivity('error', `Memory retrieval failed: ${memoriesResult.reason}`, undefined, {
+      component: 'memory-retrieval',
+      error_code: HawkErrorCode.MEMORY_OPERATION_FAILED,
+      session_id: sessionId,
+    }).catch(() => {});
+  }
+  if (historyResult.status === 'rejected') {
+    logger.error(
+      { err: historyResult.reason, sessionId },
+      'History loading failed (running without history)',
+    );
+    logActivity('error', `History loading failed: ${historyResult.reason}`, undefined, {
+      component: 'session-history',
+      error_code: HawkErrorCode.DB_QUERY_FAILED,
+      session_id: sessionId,
+    }).catch(() => {});
+  }
+  if (previousSessionResult.status === 'rejected') {
+    logger.warn(
+      { err: previousSessionResult.reason, sessionId },
+      'Previous session loading failed',
     );
   }
 
@@ -109,7 +202,7 @@ async function runLLMSession(params: {
   const proceduralMemories = memories.filter((m) => m.memory_type === 'procedure');
   const regularMemories = memories.filter((m) => m.memory_type !== 'procedure');
 
-  const contextSection = [
+  let contextSection = [
     context.l0 ? `## Contexto dos módulos\n${context.l0}` : '',
     proceduralMemories.length > 0
       ? `## Regras aprendidas (SEMPRE seguir)\n${proceduralMemories.map((m) => `- ${m.content}`).join('\n')}`
@@ -126,8 +219,40 @@ async function runLLMSession(params: {
     .filter(Boolean)
     .join('\n\n');
 
-  // 5. Build system prompt from agent template
+  // Redact any secrets that may have leaked into context (memories, DB data, etc.)
+  if (getFeatureFlag('secret-redaction')) {
+    const contextRedaction = redactSecrets(contextSection);
+    if (contextRedaction.redactedCount > 0) {
+      contextSection = contextRedaction.text;
+      logger.warn(
+        { count: contextRedaction.redactedCount },
+        'Secrets redacted from context section',
+      );
+    }
+  }
+
+  // 5. Build system prompt from agent template + platform-specific hints
   const basePrompt = buildSystemPrompt(agent, contextSection);
+
+  // 5a. Platform-specific formatting hints
+  const PLATFORM_HINTS: Record<string, string> = {
+    discord: `## Formatação (Discord)
+- Limite de 2000 caracteres por mensagem. Se a resposta for longa, divida em partes.
+- Use **negrito** e *itálico* para ênfase. Use \`code\` para termos técnicos.
+- Listas: use - ou • (não números para listas curtas).
+- Emojis: use com moderação para categorizar (✅ ❌ ⚠️ 📊 💰).
+- Tabelas não renderizam no Discord — use listas formatadas.
+- Blocos de código: use \`\`\` para dados estruturados.
+- Não use headings (#) — Discord os renderiza mal.`,
+    web: `## Formatação (Web Dashboard)
+- Sem limite de caracteres. Pode usar respostas mais detalhadas.
+- Use Markdown completo: headings (#, ##), tabelas, listas ordenadas.
+- Tabelas são preferidas para dados comparativos.
+- Blocos de código com syntax highlighting: \`\`\`sql, \`\`\`json.
+- Links: use [texto](url) para referências.`,
+  };
+
+  const platformHint = PLATFORM_HINTS[channel] ?? '';
 
   // 5b. ReAct: detect complex queries that benefit from structured reasoning
   const reactEnabled =
@@ -148,7 +273,9 @@ For simple greetings, quick facts, or single-module queries, respond directly.
 
 When you are uncertain about information (no tool results, working from memory, or data is older than a week), prefix your statement with "Acredito que..." or "Não tenho certeza, mas..." to signal confidence level. Never state uncertain facts as definitive.`;
 
-  const systemPrompt = isComplexQuery ? `${basePrompt}\n\n${REACT_INSTRUCTION}` : basePrompt;
+  const systemPrompt = [basePrompt, platformHint, isComplexQuery ? REACT_INSTRUCTION : '']
+    .filter(Boolean)
+    .join('\n\n');
 
   // 5c. Initialize cost tracking (respects feature flag)
   const sessionCost = agent.costTrackingEnabled ? createSessionCost(agent.model) : null;
@@ -170,9 +297,10 @@ When you are uncertain about information (no tool results, working from memory, 
   }
 
   // Build user message content (text + optional images for multimodal)
+  // Uses sanitizedMessage (secrets redacted, unicode cleaned) for LLM context
   if (attachments && attachments.length > 0) {
     const contentParts: OpenAI.ChatCompletionContentPart[] = [
-      { type: 'text', text: userMessage },
+      { type: 'text', text: sanitizedMessage },
       ...attachments.map((a) => ({
         type: 'image_url' as const,
         image_url: { url: a.url },
@@ -180,7 +308,7 @@ When you are uncertain about information (no tool results, working from memory, 
     ];
     messages.push({ role: 'user', content: contentParts });
   } else {
-    messages.push({ role: 'user', content: userMessage });
+    messages.push({ role: 'user', content: sanitizedMessage });
   }
 
   // 6b. History compression — silently compress old messages at 60k tokens

@@ -71,6 +71,9 @@ const state: AgentState = {
   pendingAutomation: null,
 };
 
+// SSE clients — key: clientId, value: event sender function
+const sseClients = new Map<string, (type: string, data: unknown) => void>();
+
 /**
  * Send a tool call event to the WebSocket client for a given session.
  * Used by the tool:after hook to show tool calls in real-time.
@@ -106,6 +109,10 @@ function broadcast(type: string, data: unknown) {
   const msg = JSON.stringify({ type, timestamp: new Date().toISOString(), ...(data as object) });
   for (const ws of state.wsClients) {
     ws.send(msg);
+  }
+  // Also emit to SSE clients
+  for (const listener of sseClients.values()) {
+    listener(type, data);
   }
 }
 
@@ -397,7 +404,11 @@ const agentServer = Bun.serve({
         await db.from('activity_log').select('id').limit(1);
         checks.database = { ok: true, latency_ms: Date.now() - dbStart };
       } catch (err) {
-        checks.database = { ok: false, latency_ms: Date.now() - dbStart, error: err instanceof Error ? err.message : 'unknown' };
+        checks.database = {
+          ok: false,
+          latency_ms: Date.now() - dbStart,
+          error: err instanceof Error ? err.message : 'unknown',
+        };
       }
 
       if (deep) {
@@ -695,6 +706,70 @@ const agentServer = Bun.serve({
       ];
       return new Response(lines.join('\n'), {
         headers: { ...corsHeaders, 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' },
+      });
+    }
+
+    // ── SSE Streaming Endpoint ─────────────────────────────────────────────
+    // Server-Sent Events for long-running agent tasks (demands, automations).
+    // Inspired by TaxHacker's SSE progress pattern.
+    //
+    // GET /stream?token=<auth_token>
+    // Emits typed events: progress, tool_call, error, done, heartbeat
+    if (path === '/stream' && method === 'GET') {
+      const stream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          const clientId = crypto.randomUUID();
+
+          function send(event: string, data: unknown) {
+            const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+            try {
+              controller.enqueue(encoder.encode(payload));
+            } catch {
+              cleanup();
+            }
+          }
+
+          // Send initial connection event
+          send('connected', { clientId, timestamp: new Date().toISOString() });
+
+          // Create a listener for broadcast events
+          const listener = (type: string, payload: unknown) => {
+            send(type, payload);
+          };
+
+          // Register SSE client
+          sseClients.set(clientId, listener);
+
+          // SSE keepalive every 15s (prevents proxy timeouts)
+          const keepalive = setInterval(() => {
+            send('heartbeat', { timestamp: new Date().toISOString() });
+          }, 15_000);
+
+          function cleanup() {
+            sseClients.delete(clientId);
+            clearInterval(keepalive);
+            try {
+              controller.close();
+            } catch {
+              // already closed
+            }
+          }
+
+          // Handle client disconnect
+          req.signal.addEventListener('abort', cleanup, { once: true });
+        },
+      });
+
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no', // Disable nginx buffering
+        },
       });
     }
 

@@ -2,6 +2,133 @@
 
 **Ultima atualizacao:** 2026-04-03
 
+## Wave 7 — Platform & UX (2026-04-03)
+**Status: [✅ Completo]**
+
+4 padrões de plataforma implementados. Todas as 7 waves do Reference Repo Analysis estão completas.
+
+### O que foi implementado:
+
+| Area | O que mudou |
+|------|------------|
+| Context References | `packages/context-engine/src/context-references.ts`: Parser para `@file:path`, `@url:endpoint`, `@memory:query`. Token budgets com hard/soft limits (4K total, 2K soft/ref, 8K hard/ref). `extractReferences()` remove refs da mensagem, `resolveReferences()` busca conteúdo, `formatReferencesAsContext()` injeta no LLM. Feature flag `context-references`. |
+| Typed SSE Packets | `apps/agent/src/api/sse-packets.ts`: 45 event types tipados com payloads TypeScript. Categorias: connection (4), chat (5), tools (8), sessions (4), modules (3), memory (4), automation (6), demands (4), security (2), system (5). `createPacket()`, `serializeSSE()`, `serializeWS()` helpers. Feature flag `typed-sse-packets`. |
+| Multi-Channel | `apps/agent/src/channels/types.ts` expandido com `ChannelCapabilities` (12 capabilities). Presets para Discord, Web, Telegram, WhatsApp. `getFormattingHints()` gera prompt hints a partir de capabilities. Discord adapter atualizado com capabilities. Feature flag `multi-channel`. |
+| Plugin SDK | `packages/extensions/core/plugin-sdk.ts`: Lifecycle completo (discover → init → ready → reload → unload). `PluginManifest` com permissions e dependencies. Topological sort para init order. `getPluginTools()` para tool routing, `collectPluginContext()` para context injection. 7 permission types. Feature flag `plugin-sdk`. |
+| Feature Flags | 4 novos flags: `context-references`, `typed-sse-packets`, `multi-channel`, `plugin-sdk`. |
+
+### Ficheiros novos/modificados:
+
+| Ficheiro | Tipo |
+|----------|------|
+| `packages/context-engine/src/context-references.ts` | Novo — @ref parser + token budgets |
+| `apps/agent/src/api/sse-packets.ts` | Novo — 45 typed SSE event types |
+| `packages/extensions/core/plugin-sdk.ts` | Novo — Plugin SDK com lifecycle |
+| `apps/agent/src/channels/types.ts` | Modificado — ChannelCapabilities + presets |
+| `apps/agent/src/channels/discord-adapter.ts` | Modificado — capabilities integration |
+| `packages/context-engine/src/index.ts` | Modificado — exporta context references |
+| `packages/extensions/core/index.ts` | Modificado — exporta token-manager + plugin-sdk |
+| `packages/shared/src/feature-flags.ts` | Modificado — 4 novos flags |
+
+## Wave 6 — Intelligence & Cost (2026-04-03)
+**Status: [✅ Completo]**
+
+4 padrões de inteligência e otimização de custo implementados.
+
+### O que foi implementado:
+
+| Area | O que mudou |
+|------|------------|
+| Iterative Context Summaries | Template Goal/Progress/Decisions/Next em `history-compressor.ts`. LLM resume com template estruturado (Objetivo, Progresso, Decisões, Próximo, Dados). Fallback sem LLM extrai estrutura dos user/assistant messages. Feature flag `iterative-summaries`. |
+| Weighted RRF Hybrid Search | `hybrid_search_memories_rrf()` RPC com Reciprocal Rank Fusion. Formula: score = Σ(weight_i / (k + rank_i)). k=60 default (Onyx reference). Fallback chain: RRF → simple weighted → vector-only. Pesos default 0.6 vector / 0.4 keyword. Feature flag `rrf-hybrid-search`. |
+| Credential Pool with Rotation | `apps/agent/src/credential-pool.ts`: 3 estratégias (FILL_FIRST, ROUND_ROBIN, LEAST_USED). Cooldown automático após rate limit. Daily reset. Usage tracking (calls, tokens). `credential_pool` table com encryption. Feature flag `credential-pool`. |
+| Smart Model Routing (Enhanced) | Cost-aware downgrade: >80% budget → complex downgrades a moderate; >95% → tudo downgrades a simple. CRUD detection (registra, lista, cria, deleta) em single-module → simple tier. Multi-question detection. Feature flag `cost-aware-routing`. |
+| Feature Flags | 4 novos flags: `iterative-summaries`, `rrf-hybrid-search`, `credential-pool`, `cost-aware-routing`. |
+| Migration | `20260416000000_wave6_rrf_credential_pool.sql`: RRF RPC function + credential_pool table. |
+
+### Ficheiros novos/modificados:
+
+| Ficheiro | Tipo |
+|----------|------|
+| `apps/agent/src/credential-pool.ts` | Novo — credential pool with 3 rotation strategies |
+| `packages/db/supabase/migrations/20260416000000_wave6_rrf_credential_pool.sql` | Novo — RRF RPC + credential_pool table |
+| `apps/agent/src/history-compressor.ts` | Modificado — iterative summary template |
+| `apps/agent/src/model-router.ts` | Modificado — cost-aware routing + CRUD detection |
+| `packages/modules/memory/embeddings.ts` | Modificado — RRF hybrid search with fallback chain |
+| `packages/shared/src/feature-flags.ts` | Modificado — 4 novos flags |
+
+## Wave 5 — MCP, Connectors, Infrastructure (2026-04-03)
+**Status: [✅ Completo]**
+
+7 padrões de infraestrutura implementados: SSRF, graceful shutdown, URL filters, SSE streaming, OAuth auto-refresh, worker token tracking, MCP scaffold.
+
+### O que foi implementado:
+
+| Area | O que mudou |
+|------|------------|
+| SSRF Validation | `@hawk/shared/ssrf-validator.ts`: `validateURLForSSRF()` e `validateWebhookURL()`. Bloqueia IPs privados (RFC 1918), loopback, link-local, metadata endpoints, DNS rebinding. Webhooks requerem HTTPS + FQDN. Feature flag `ssrf-validation`. |
+| Graceful Shutdown | `apps/agent/src/shutdown.ts`: AbortController global (`shutdownSignal`), cleanup hooks com prioridade e timeout individual, `cancellableDelay()` e `cancellableFetch()`. `onShutdown()` para registrar handlers por módulo. |
+| URL-Synced Filters | `apps/web/lib/hooks/use-url-filters.ts`: Hook `useURLFilters(basePath)` genérico. API: `get/set/setMany/remove/toRecord`. Substitui pattern repetido de `updateParams` em finances/calendar/health. |
+| SSE Streaming | `GET /stream` endpoint no agent API server. Server-Sent Events com typed events, keepalive 15s, auto-cleanup on disconnect. Broadcast para SSE + WebSocket em paralelo. |
+| OAuth Token Manager | `packages/extensions/core/token-manager.ts`: Auto-refresh com 60s buffer antes do expiry. Lock contra concurrent refreshes. 3 retries máximo. Persistência automática via callback. `getValidToken()` API simples. |
+| Worker Token Tracking | `cost-tracker.ts` expandido: `trackWorkerCall(task, tokens)` por task type (compression, memory_extraction, dedup_decision, etc.). `getWorkerUsageSummary()` e `getTotalWorkerTokens()` para monitoring. |
+| MCP Scaffold | `packages/mcp/` package novo. **Client**: discovery-first setup (connect → discover → select tools → ready), connection registry, `getEnabledMCPTools()`. **Server**: tool/resource registry, `registerMCPTool()`, `executeTool()`. Suporta stdio + SSE transport. |
+| Feature Flags | 6 novos flags Wave 5: `mcp-client`, `mcp-server`, `sse-streaming`, `ssrf-validation`, `oauth-auto-refresh`, `worker-token-tracking`. |
+
+### Ficheiros novos/modificados:
+
+| Ficheiro | Tipo |
+|----------|------|
+| `packages/shared/src/ssrf-validator.ts` | Novo — SSRF validation utility |
+| `apps/agent/src/shutdown.ts` | Novo — AbortController + cleanup hooks |
+| `apps/web/lib/hooks/use-url-filters.ts` | Novo — URL-synced filter hook |
+| `packages/extensions/core/token-manager.ts` | Novo — OAuth auto-refresh manager |
+| `packages/mcp/src/types.ts` | Novo — MCP protocol types |
+| `packages/mcp/src/client.ts` | Novo — MCP client (discovery-first) |
+| `packages/mcp/src/server.ts` | Novo — MCP server (tool/resource registry) |
+| `packages/mcp/src/index.ts` | Novo — MCP package exports |
+| `packages/mcp/package.json` | Novo — MCP package config |
+| `packages/shared/src/index.ts` | Modificado — exporta ssrf-validator |
+| `packages/shared/src/feature-flags.ts` | Modificado — 6 novos flags Wave 5 |
+| `apps/agent/src/api/server.ts` | Modificado — SSE endpoint + SSE clients |
+| `apps/agent/src/cost-tracker.ts` | Modificado — worker token tracking |
+| `apps/agent/src/index.ts` | Modificado — shutdown hooks integration |
+
+## Wave 4 Remaining — Security, Reliability & UX Patterns (2026-04-03)
+**Status: [✅ Completo]**
+
+7 padrões restantes do Wave 4 implementados (top 7 do Reference Repo Analysis). Score estimado subiu de ~98 para ~99/100.
+
+### O que foi implementado:
+
+| Area | O que mudou |
+|------|------------|
+| Secret Redaction | 51+ regex patterns em `@hawk/shared/secret-redactor.ts`. Redacta API keys, tokens, URIs de DB, PEM keys do contexto LLM. Aplica-se a mensagens do usuário e context sections antes de enviar ao LLM. Feature flag `secret-redaction`. |
+| Prompt Injection | 14 regex + unicode detection em `@hawk/shared/prompt-injection-scanner.ts`. Detecta role hijacking, delimiter injection, data exfiltration, jailbreak, encoding evasion. Threat levels: none/low/medium/high/critical. Feature flag `prompt-injection-scanning`. |
+| Error Codes | `HawkErrorCode` enum com 40+ códigos categorizados (database, validation, auth, external, budget, agent, security, automation, module, channel). `getErrorCategory()` para dashboard grouping. `isRetriable()` para retry logic. Backward-compatible com `ErrorCodes` existente. |
+| [SILENT] Cron | Check-in matinal suprimido quando user inativo 24h. Check-in noturno suprimido quando todos os hábitos completados + mood logado. Eventos `automation_skipped` no activity_log. Feature flag `silent-cron`. |
+| Fault Isolation | Cada componente (context, memory, history, previous session) falha independentemente com logging estruturado via pino. Erros classificados com `HawkErrorCode` e logados no activity_log com `component` field. |
+| Platform Hints | System prompt inclui formatação específica por channel: Discord (2000 char limit, sem tabelas, emojis moderados) vs Web (Markdown completo, tabelas, headings). Feature flag `platform-hints`. |
+| Tool Pair Sanitization | `sanitizeToolPairs()` em `history-compressor.ts`: remove orphaned tool responses sem assistant tool_call correspondente, strip tool_calls de assistant messages sem tool response correspondente. Executa após compressão de histórico. |
+| Feature Flags | 4 novos flags: `secret-redaction`, `prompt-injection-scanning`, `silent-cron`, `platform-hints` (todos enabled por default). |
+| Activity Log | 5 novos event types: `security`, `automation_skipped`, `module_detection`, `session_cost`, `client_error`. |
+| Migration | `20260415000000_wave4_remaining_patterns.sql`: constraint expandida com novos event types. |
+
+### Ficheiros novos/modificados:
+
+| Ficheiro | Tipo |
+|----------|------|
+| `packages/shared/src/secret-redactor.ts` | Novo — 51+ pattern redaction |
+| `packages/shared/src/prompt-injection-scanner.ts` | Novo — 14 pattern + unicode scanner |
+| `packages/shared/src/error-codes.ts` | Modificado — HawkErrorCode enum (40+ codes) |
+| `packages/shared/src/errors.ts` | Modificado — usa HawkErrorCode enum |
+| `packages/shared/src/feature-flags.ts` | Modificado — 4 novos flags |
+| `packages/shared/src/index.ts` | Modificado — exporta novos módulos |
+| `apps/agent/src/handler.ts` | Modificado — security scanning, fault isolation, platform hints |
+| `apps/agent/src/history-compressor.ts` | Modificado — tool pair sanitization |
+| `apps/agent/src/automations/daily-checkin.ts` | Modificado — [SILENT] suppression |
+| `packages/db/supabase/migrations/20260415000000_wave4_remaining_patterns.sql` | Novo — migration |
+
 ## Wave 4 — Reference Repo Patterns (2026-04-03)
 **Status: [✅ Completo]**
 

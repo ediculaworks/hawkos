@@ -32,7 +32,9 @@ export async function handleChatRoute(
     const templateIds = [
       ...new Set(
         // biome-ignore lint/suspicious/noExplicitAny: DB query returns untyped rows
-        allConversations.filter((c: any) => c.template_id).map((c: any) => c.template_id as string),
+        allConversations
+          .filter((c: any) => c.template_id)
+          .map((c: any) => c.template_id as string),
       ),
     ];
     const agentMap = new Map<string, { name: string; avatar_seed?: string }>();

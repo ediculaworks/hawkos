@@ -56,9 +56,7 @@ export async function POST(request: Request) {
           await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
 
           // Remove BEGIN/COMMIT since we're already in a transaction
-          migrationSql = migrationSql
-            .replace(/^BEGIN;\s*/im, '')
-            .replace(/\s*COMMIT;\s*$/im, '');
+          migrationSql = migrationSql.replace(/^BEGIN;\s*/im, '').replace(/\s*COMMIT;\s*$/im, '');
 
           await tx.unsafe(migrationSql);
         });

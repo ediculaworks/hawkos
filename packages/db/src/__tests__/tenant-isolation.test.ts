@@ -86,12 +86,7 @@ describe('tenant isolation', () => {
     });
 
     it('accepts valid schema names', () => {
-      const valid = [
-        'public',
-        'tenant_ten1',
-        'tenant_ten2',
-        'tenant_ten6',
-      ];
+      const valid = ['public', 'tenant_ten1', 'tenant_ten2', 'tenant_ten6'];
 
       for (const name of valid) {
         expect(() => validateSchemaName(name)).not.toThrow();

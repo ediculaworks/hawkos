@@ -19,10 +19,11 @@ describe('Model Router', () => {
       expect(classifyComplexity('tchau', 0)).toBe('simple');
     });
 
-    it('should classify single-module queries as moderate', () => {
+    it('should classify single-module queries appropriately', () => {
       expect(classifyComplexity('quanto gastei esse mês?', 1)).toBe('moderate');
-      expect(classifyComplexity('registra meu treino de hoje', 1)).toBe('moderate');
-      expect(classifyComplexity('lista meus hábitos', 1)).toBe('moderate');
+      // Short CRUD operations on single module → simple (cost-aware routing)
+      expect(classifyComplexity('registra meu treino de hoje', 1)).toBe('simple');
+      expect(classifyComplexity('lista meus hábitos', 1)).toBe('simple');
     });
 
     it('should classify multi-module queries as complex', () => {

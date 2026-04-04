@@ -79,6 +79,7 @@
       ".turbo",
       "*.lock",
       "resources/repositories",
+      "resources/repo",
       "next-env.d.ts",
       "packages/db/types",
       "scripts/*"

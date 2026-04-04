@@ -10,19 +10,34 @@ export const DEFAULT_FEATURE_FLAGS = {
   'hybrid-search': true,
   'frecency-sidebar': true,
   'activity-feed-widget': true,
+  'secret-redaction': true,
+  'prompt-injection-scanning': true,
+  'silent-cron': true,
+  'platform-hints': true,
 
-  // Wave 5 (disabled by default until implemented)
-  'mcp-client': false,
-  'mcp-server': false,
+  // Wave 5
+  'mcp-client': true,
+  'mcp-server': true,
+  'sse-streaming': true,
+  'ssrf-validation': true,
+  'oauth-auto-refresh': true,
+  'worker-token-tracking': true,
   'google-calendar-sync': false,
   webhooks: false,
 
   // Wave 6
+  'iterative-summaries': true,
+  'rrf-hybrid-search': true,
+  'credential-pool': true,
+  'cost-aware-routing': true,
   'context-compression': false,
   'agentic-rag': false,
 
   // Wave 7
-  'multi-channel': false,
+  'context-references': true,
+  'typed-sse-packets': true,
+  'multi-channel': true,
+  'plugin-sdk': true,
 } as const;
 
 export type FeatureFlagName = keyof typeof DEFAULT_FEATURE_FLAGS;

@@ -1,5 +1,5 @@
 import { disconnectDiscord, sendToChannel, startDiscordBot } from './discord.js';
-import type { Channel } from './types.js';
+import { type Channel, DISCORD_CAPABILITIES } from './types.js';
 
 let connected = false;
 
@@ -9,6 +9,7 @@ let connected = false;
  */
 export const discordChannel: Channel = {
   name: 'discord',
+  capabilities: DISCORD_CAPABILITIES,
 
   async connect(): Promise<void> {
     await startDiscordBot();

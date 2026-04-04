@@ -16,7 +16,7 @@ describe('Error Hierarchy', () => {
   describe('ValidationError', () => {
     it('should have VALIDATION_ERROR code', () => {
       const err = new ValidationError('invalid input');
-      expect(err.code).toBe('VALIDATION_ERROR');
+      expect(err.code).toBe('VALIDATION_FAILED');
       expect(err.name).toBe('ValidationError');
       expect(err).toBeInstanceOf(HawkError);
     });

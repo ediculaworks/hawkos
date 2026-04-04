@@ -20,10 +20,9 @@ export default async function AdminPage() {
 
     const activeTenants = tenants.filter((t) => t.status === 'active');
     const totalTokens = tenants.reduce((acc, t) => {
-      const metrics = (t as { tenant_metrics?: { date: string; tokens_used: number }[] }).tenant_metrics;
-      const todayMetrics = metrics?.find(
-        (m) => m.date === new Date().toISOString().split('T')[0],
-      );
+      const metrics = (t as { tenant_metrics?: { date: string; tokens_used: number }[] })
+        .tenant_metrics;
+      const todayMetrics = metrics?.find((m) => m.date === new Date().toISOString().split('T')[0]);
       return acc + (todayMetrics?.tokens_used || 0);
     }, 0);
 

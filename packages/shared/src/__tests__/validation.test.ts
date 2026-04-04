@@ -99,7 +99,7 @@ describe('validatedCommand', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toBeInstanceOf(ValidationError);
-      expect(result.error.code).toBe('VALIDATION_ERROR');
+      expect(result.error.code).toBe('VALIDATION_FAILED');
       expect(result.error.message).toContain('TestAction');
     }
   });

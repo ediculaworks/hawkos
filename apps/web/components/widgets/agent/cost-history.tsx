@@ -81,14 +81,18 @@ export default function CostHistoryWidget() {
           <DollarSign className="h-3.5 w-3.5 text-[var(--color-accent)]" />
           <div>
             <p className="text-[10px] text-[var(--color-text-muted)]">Total ({entries.length}d)</p>
-            <p className="text-sm font-semibold text-[var(--color-text)]">{formatCost(totalCost)}</p>
+            <p className="text-sm font-semibold text-[var(--color-text)]">
+              {formatCost(totalCost)}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-[var(--space-2)] rounded-lg bg-[var(--color-surface-2)] p-[var(--space-2)]">
           <Zap className="h-3.5 w-3.5 text-[var(--color-accent)]" />
           <div>
             <p className="text-[10px] text-[var(--color-text-muted)]">Tokens total</p>
-            <p className="text-sm font-semibold text-[var(--color-text)]">{formatTokens(totalTokens)}</p>
+            <p className="text-sm font-semibold text-[var(--color-text)]">
+              {formatTokens(totalTokens)}
+            </p>
           </div>
         </div>
       </div>
@@ -99,8 +103,14 @@ export default function CostHistoryWidget() {
             Custo diário
           </p>
           {trend !== 0 && (
-            <span className={`flex items-center gap-0.5 text-[10px] ${trend > 0 ? 'text-red-400' : 'text-green-400'}`}>
-              {trend > 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+            <span
+              className={`flex items-center gap-0.5 text-[10px] ${trend > 0 ? 'text-red-400' : 'text-green-400'}`}
+            >
+              {trend > 0 ? (
+                <TrendingUp className="h-2.5 w-2.5" />
+              ) : (
+                <TrendingDown className="h-2.5 w-2.5" />
+              )}
               {Math.abs(trend).toFixed(0)}%
             </span>
           )}

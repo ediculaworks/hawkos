@@ -34,7 +34,10 @@ class HookRegistry {
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
       if (result && result.status === 'rejected') {
-        console.error(`[hooks] Error in hook "${hooks[i]?.name}" for event "${event}":`, result.reason);
+        console.error(
+          `[hooks] Error in hook "${hooks[i]?.name}" for event "${event}":`,
+          result.reason,
+        );
       }
     }
   }

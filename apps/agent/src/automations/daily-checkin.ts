@@ -1,15 +1,19 @@
 // Automation: Daily Check-in
 // Manhã e noite — horários configuráveis via agent_settings
+// [SILENT] suppression: skips sending when nothing changed since last check-in
 
 import { db } from '@hawk/db';
 import { getTodayEntry } from '@hawk/module-journal';
 import { getNextQuestion, markQuestionAsked } from '@hawk/module-memory';
 import type { HabitWithLog } from '@hawk/module-routine';
 import { listHabitsWithTodayStatus } from '@hawk/module-routine';
-import { fetchHolidays } from '@hawk/shared';
+import { createLogger, fetchHolidays } from '@hawk/shared';
 import cron from 'node-cron';
+import { logActivity } from '../activity-logger.js';
 import { sendToChannel } from '../channels/discord.js';
 import { isAutomationEnabled, markAutomationRun } from './config.js';
+
+const logger = createLogger('daily-checkin');
 
 const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
 
@@ -51,6 +55,74 @@ function getLocalizedDate(timezone: string): Intl.DateTimeFormat {
   });
 }
 
+// ── [SILENT] Cron Suppression ─────────────────────────────────────────────
+// Skip check-in when nothing meaningful has changed (no pending habits, no new
+// interactions since last check-in). Inspired by Hermes Agent's [SILENT] pattern.
+
+async function shouldSuppressMorningCheckin(): Promise<boolean> {
+  try {
+    const habits = await listHabitsWithTodayStatus();
+    // If there are no habits at all, nothing to report
+    if (habits.length === 0) return true;
+
+    // Check if there were any messages in the last 24h (user is active)
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await db
+      .from('conversation_messages')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', since)
+      .eq('role', 'user');
+
+    // If user hasn't interacted in 24h, suppress — they're probably away
+    if ((count ?? 0) === 0) {
+      logger.info('[SILENT] Morning check-in suppressed: no user activity in 24h');
+      logActivity('automation_skipped', 'Morning check-in: SILENT (no activity 24h)', undefined, {
+        automation: 'daily-checkin-morning',
+        reason: 'no_user_activity',
+      }).catch(() => {});
+      return true;
+    }
+
+    return false;
+  } catch {
+    // On error, don't suppress — better to send than miss
+    return false;
+  }
+}
+
+async function shouldSuppressEveningCheckin(): Promise<boolean> {
+  try {
+    const habits = await listHabitsWithTodayStatus();
+    const completed = habits.filter((h: HabitWithLog) => h.completed_today);
+    const pending = habits.filter((h: HabitWithLog) => !h.completed_today);
+
+    // If all habits are done and user already logged mood — nothing to check out
+    const todayEntry = await getTodayEntry();
+    if (pending.length === 0 && completed.length > 0 && todayEntry?.mood) {
+      logger.info('[SILENT] Evening check-in suppressed: all habits done, mood logged');
+      logActivity('automation_skipped', 'Evening check-in: SILENT (all complete)', undefined, {
+        automation: 'daily-checkin-evening',
+        reason: 'all_habits_complete_mood_logged',
+      }).catch(() => {});
+      return true;
+    }
+
+    // If no habits exist and no journal entry today — nothing useful to show
+    if (habits.length === 0 && !todayEntry) {
+      logger.info('[SILENT] Evening check-in suppressed: no habits or journal');
+      logActivity('automation_skipped', 'Evening check-in: SILENT (no data)', undefined, {
+        automation: 'daily-checkin-evening',
+        reason: 'no_habits_no_journal',
+      }).catch(() => {});
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Check-in matinal
  * Pergunta humor, energia e top 3 do dia
@@ -67,6 +139,9 @@ export async function sendMorningCheckin(): Promise<void> {
   if (!settings.checkin_morning_enabled) {
     return;
   }
+
+  // [SILENT] suppression — skip when nothing changed
+  if (await shouldSuppressMorningCheckin()) return;
 
   const habits = await listHabitsWithTodayStatus();
   const activeHabits = habits.filter((h: HabitWithLog) => !h.completed_today);
@@ -132,6 +207,9 @@ export async function sendEveningCheckin(): Promise<void> {
     return;
   }
 
+  // [SILENT] suppression — skip when everything is already done
+  if (await shouldSuppressEveningCheckin()) return;
+
   const [habits, todayEntry] = await Promise.all([listHabitsWithTodayStatus(), getTodayEntry()]);
 
   const completed = habits.filter((h: HabitWithLog) => h.completed_today);
@@ -170,8 +248,10 @@ let _checkinRunning = false;
 function getLocalHour(timezone: string): { hours: number; minutes: number } {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric', minute: 'numeric',
-    hour12: false, timeZone: timezone,
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+    timeZone: timezone,
   }).formatToParts(now);
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
   return { hours: get('hour'), minutes: get('minute') };

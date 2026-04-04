@@ -1,7 +1,30 @@
-import { getTenantBySlug } from '@/lib/tenants/cache';
-import { verifyToken } from '@hawk/auth/jwt';
-import { getPool } from '@hawk/db';
 import { type NextRequest, NextResponse } from 'next/server';
+
+// Edge-safe JWT verification using jose (no Node.js modules)
+async function verifyTokenEdge(
+  token: string,
+): Promise<{ sub: string; email: string; tenant: string } | null> {
+  try {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return null;
+
+    // Use Web Crypto API (edge-compatible)
+    const { jwtVerify } = await import('jose');
+    const key = new TextEncoder().encode(secret);
+    const { payload } = await jwtVerify(token, key, {
+      issuer: 'hawk-os',
+      audience: 'hawk-os',
+    });
+
+    return {
+      sub: payload.sub as string,
+      email: payload.email as string,
+      tenant: payload.tenant as string,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export async function updateSession(request: NextRequest) {
   const response = NextResponse.next({ request });
@@ -12,23 +35,8 @@ export async function updateSession(request: NextRequest) {
   const isAuthRoute = path === '/login' || path.startsWith('/auth/');
   const isProtectedRoute = path.startsWith('/dashboard');
 
-  // ── Resolve tenant ──────────────────────────────────────────────────
-  let tenant: { slug: string; label: string; schemaName: string } | null = null;
-
-  if (tenantSlug) {
-    tenant = await getTenantBySlug(tenantSlug);
-    if (!tenant) {
-      // Invalid tenant slug — clear cookie, redirect to login
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = '/login';
-      const redirect = NextResponse.redirect(loginUrl);
-      redirect.cookies.delete('hawk_tenant');
-      return redirect;
-    }
-  }
-
-  // No tenant selected and trying to access protected route → login
-  if (!tenant && isProtectedRoute) {
+  // No tenant cookie and trying to access protected route → login
+  if (!tenantSlug && isProtectedRoute) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     return NextResponse.redirect(loginUrl);
@@ -38,14 +46,7 @@ export async function updateSession(request: NextRequest) {
   let user: { sub: string; email: string; tenant: string } | null = null;
 
   if (sessionToken) {
-    const payload = await verifyToken(sessionToken);
-    if (payload) {
-      user = {
-        sub: payload.sub,
-        email: payload.email,
-        tenant: payload.tenant,
-      };
-    }
+    user = await verifyTokenEdge(sessionToken);
   }
 
   // Validate that the authenticated user's tenant matches the cookie
@@ -63,7 +64,6 @@ export async function updateSession(request: NextRequest) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     const redirect = NextResponse.redirect(loginUrl);
-    // Clear stale cookies
     for (const cookie of request.cookies.getAll()) {
       if (cookie.name === 'hawk_session' || cookie.name === 'hawk_onboarding') {
         redirect.cookies.delete(cookie.name);
@@ -77,51 +77,6 @@ export async function updateSession(request: NextRequest) {
     const dashboardUrl = request.nextUrl.clone();
     dashboardUrl.pathname = '/dashboard';
     return NextResponse.redirect(dashboardUrl);
-  }
-
-  // Check onboarding status for authenticated users accessing dashboard
-  if (user && isProtectedRoute && tenant) {
-    const isOnboardingRoute = path === '/onboarding';
-    const onboardingCookie = request.cookies.get('hawk_onboarding')?.value;
-
-    if (onboardingCookie === 'complete' && !isOnboardingRoute) {
-      // Fast path: cookie still valid
-    } else {
-      // Check profile in DB
-      try {
-        const sql = getPool();
-        const rows = await sql.begin(async (tx) => {
-          await tx.unsafe(`SET LOCAL search_path TO "${tenant!.schemaName}", public`);
-          return tx.unsafe('SELECT onboarding_complete FROM profile WHERE id = $1 LIMIT 1', [
-            user!.sub,
-          ]);
-        });
-
-        const profile = rows[0] as Record<string, unknown> | undefined;
-        const onboardingComplete = profile?.onboarding_complete ?? false;
-
-        if (onboardingComplete) {
-          response.cookies.set('hawk_onboarding', 'complete', {
-            path: '/',
-            maxAge: 86400,
-            httpOnly: true,
-            sameSite: 'strict',
-          });
-        } else if (!isOnboardingRoute) {
-          const onboardingUrl = request.nextUrl.clone();
-          onboardingUrl.pathname = '/onboarding';
-          return NextResponse.redirect(onboardingUrl);
-        }
-
-        if (onboardingComplete && isOnboardingRoute) {
-          const dashboardUrl = request.nextUrl.clone();
-          dashboardUrl.pathname = '/dashboard';
-          return NextResponse.redirect(dashboardUrl);
-        }
-      } catch {
-        // DB error — allow through, page will handle gracefully
-      }
-    }
   }
 
   return response;

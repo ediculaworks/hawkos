@@ -19,3 +19,27 @@ export type {
   ExtensionView,
 } from './types';
 export type { OAuthProviderConfig } from './oauth';
+export {
+  registerToken,
+  getValidToken,
+  revokeToken,
+  setTokenPersister,
+  getTokenStatus,
+} from './token-manager';
+export {
+  registerPlugin,
+  initPlugin,
+  initAllPlugins,
+  unloadPlugin,
+  unloadAllPlugins,
+  reloadPlugin,
+  getPlugins,
+  getPluginTools,
+  collectPluginContext,
+} from './plugin-sdk';
+export type {
+  PluginManifest,
+  PluginInstance,
+  PluginPermission,
+  PluginStatus,
+} from './plugin-sdk';

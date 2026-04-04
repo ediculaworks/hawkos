@@ -9,3 +9,6 @@ export * from './tenants.ts';
 export * from './tenant-registry.ts';
 export * from './logger.ts';
 export * from './feature-flags.ts';
+export * from './secret-redactor.ts';
+export * from './prompt-injection-scanner.ts';
+export * from './ssrf-validator.ts';

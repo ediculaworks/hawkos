@@ -157,8 +157,11 @@ let _alertsRunning = false;
 function getLocalHour(timezone: string): { hours: number; minutes: number; date: number } {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric', minute: 'numeric', day: 'numeric',
-    hour12: false, timeZone: timezone,
+    hour: 'numeric',
+    minute: 'numeric',
+    day: 'numeric',
+    hour12: false,
+    timeZone: timezone,
   }).formatToParts(now);
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
   return { hours: get('hour'), minutes: get('minute'), date: get('day') };
@@ -170,7 +173,8 @@ export function startAlertsCron(): void {
     _alertsRunning = true;
     try {
       const settings = await getAlertSettings();
-      const timezone = (settings as Record<string, unknown>).timezone as string ?? 'America/Sao_Paulo';
+      const timezone =
+        ((settings as Record<string, unknown>).timezone as string) ?? 'America/Sao_Paulo';
       const now = getLocalHour(timezone);
       const [aHours, aMinutes] = settings.alerts_time.split(':').map(Number);
       const [sHours, sMinutes] = settings.security_review_time.split(':').map(Number);
