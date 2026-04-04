@@ -243,7 +243,7 @@ export default function SetupPage() {
 
   return (
     <div
-      className="flex flex-col"
+      className="-m-4 md:-m-6 flex flex-col overflow-hidden"
       style={{ height: 'calc(100vh - var(--topbar-height, 56px))' }}
     >
       {/* Header */}

@@ -1,4 +1,4 @@
-import { getChatClient } from '../../llm-client.js';
+import { WORKER_MODEL, getChatClient, getWorkerClient, isOllamaAvailable } from '../../llm-client.js';
 import { buildOnboardingSystemPrompt } from './onboarding-prompt.js';
 
 interface Message {
@@ -62,7 +62,11 @@ const COMPLETE_ONBOARDING_TOOL = {
   },
 };
 
-const MODEL = process.env.MODEL_TIER_SIMPLE ?? 'qwen/qwen3-235b-a22b:free';
+// Use Ollama (local, free, supports tool calling) when available,
+// otherwise fall back to a valid OpenRouter free model.
+const getModel = () =>
+  isOllamaAvailable() ? WORKER_MODEL : (process.env.MODEL_TIER_DEFAULT ?? 'qwen/qwen3.6-plus:free');
+const getClient = () => (isOllamaAvailable() ? getWorkerClient() : getChatClient());
 
 export async function handleOnboardingRoute(
   req: Request,
@@ -104,9 +108,9 @@ export async function handleOnboardingRoute(
       }
 
       try {
-        const client = getChatClient();
+        const client = getClient();
         const openaiStream = await client.chat.completions.create({
-          model: MODEL,
+          model: getModel(),
           messages,
           tools: [COMPLETE_ONBOARDING_TOOL],
           tool_choice: 'auto',

@@ -79,12 +79,17 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.ok) {
+        // Only cache successful, non-streaming responses
+        if (response.ok && response.headers.get('content-type')?.includes('text/html')) {
           const clone = response.clone();
-          caches.open(DYNAMIC_CACHE).then((cache) => cache.put(request, clone));
+          caches.open(DYNAMIC_CACHE).then((cache) => cache.put(request, clone)).catch(() => {});
         }
         return response;
       })
-      .catch(() => caches.match(request)),
+      .catch(() =>
+        caches.match(request).then(
+          (cached) => cached ?? new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } }),
+        ),
+      ),
   );
 });
