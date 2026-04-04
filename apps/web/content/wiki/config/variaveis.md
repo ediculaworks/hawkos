@@ -11,26 +11,36 @@ cp .env.example .env
 
 ---
 
-## Supabase
+## PostgreSQL
 
-Variáveis para conexão com o banco de dados PostgreSQL via Supabase.
+Variáveis para conexão direta com o banco de dados PostgreSQL.
 
 | Variável | Propósito | Obrigatória | Valor padrão |
-|----------|-----------|-------------|--------------|
-| `SUPABASE_URL` | URL da instância Supabase (usada no servidor) | ✅ Sim | — |
-| `SUPABASE_ANON_KEY` | Chave anon para acesso RLS (servidor) | ✅ Sim | — |
-| `SUPABASE_SERVICE_ROLE_KEY` | Chave service role (bypass RLS, apenas servidor) | ✅ Sim | — |
-| `NEXT_PUBLIC_SUPABASE_URL` | URL do Supabase exposta ao browser | ✅ Sim | — |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave anon exposta ao browser | ✅ Sim | — |
-
-**Onde encontrar**: [supabase.com](https://supabase.com) → seu projeto → Settings → API.
+| -------- | --------- | ----------- | ------------ |
+| `DATABASE_URL` | Conexão direta PostgreSQL (migrations, admin) | ✅ Sim | — |
+| `DATABASE_POOL_URL` | Conexão via PgBouncer (aplicação) | ✅ Sim | — |
+| `POSTGRES_USER` | Usuário PostgreSQL no Docker | ✅ Sim | — |
+| `POSTGRES_PASSWORD` | Senha PostgreSQL no Docker | ✅ Sim | — |
 
 ```env
-SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
-SUPABASE_ANON_KEY=eyJhbGc...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
+DATABASE_URL=postgres://hawkos:your-password@localhost:5432/hawkos
+DATABASE_POOL_URL=postgres://hawkos:your-password@localhost:6432/hawkos
+POSTGRES_USER=hawkos
+POSTGRES_PASSWORD=your-secure-password
+```
+
+---
+
+## Autenticação
+
+| Variável | Propósito | Obrigatória | Valor padrão |
+| -------- | --------- | ----------- | ------------ |
+| `JWT_SECRET` | Secret para assinar JWTs (mínimo 32 chars) | ✅ Sim | — |
+| `ADMIN_MASTER_KEY` | Chave para encriptar secrets de tenants (Discord tokens, API keys) | ✅ Sim | — |
+
+```env
+JWT_SECRET=your-jwt-secret-at-least-32-chars
+ADMIN_MASTER_KEY=your-admin-master-key
 ```
 
 ---
@@ -63,7 +73,7 @@ DISCORD_CHANNEL_MAP=1234567890:hawk-default,9876543210:cfo-template,1111111111:c
 Variáveis para o modelo de linguagem.
 
 | Variável | Propósito | Obrigatória | Valor padrão |
-|----------|-----------|-------------|--------------|
+| -------- | --------- | ----------- | ------------ |
 | `OPENROUTER_API_KEY` | Chave da API OpenRouter (roteador de LLMs) | ✅ Sim | — |
 | `OPENROUTER_MODEL` | Modelo a usar via OpenRouter | ⚪ Não | `openrouter/auto` |
 | `OPENROUTER_MAX_TOKENS` | Máximo de tokens na resposta | ⚪ Não | `4096` |
@@ -81,6 +91,32 @@ OPENROUTER_MODEL=google/gemini-2.0-flash
 ```
 
 **Onde encontrar**: [openrouter.ai/keys](https://openrouter.ai/keys).
+
+---
+
+## Model Tiers (Smart Routing)
+
+O sistema classifica cada mensagem por complexidade e seleciona o modelo adequado. Estas variáveis configuram os modelos por tier.
+
+| Variável | Propósito | Obrigatória | Valor padrão |
+| -------- | --------- | ----------- | ------------ |
+| `MODEL_TIER_SIMPLE` | Modelo para queries simples (cumprimentos, CRUD) | ⚪ Não | modelo do agente |
+| `MODEL_TIER_DEFAULT` | Modelo para queries moderadas | ⚪ Não | modelo do agente |
+| `MODEL_TIER_COMPLEX` | Modelo para raciocínio complexo (multi-módulo, análise) | ⚪ Não | modelo do agente |
+| `MODEL_DAILY_BUDGET_USD` | Limite diário de custo por tenant (ex: `5.00`) | ⚪ Não | sem limite |
+| `MEMORY_WORKER_MODEL` | Modelo para tarefas background (compressão, extração) | ⚪ Não | `nvidia/nemotron-nano-9b-v2:free` |
+| `DEDUP_WORKER_MODEL` | Modelo para deduplicação de memórias | ⚪ Não | `nvidia/nemotron-nano-9b-v2:free` |
+
+**Cost-aware downgrade**: Quando >80% do budget diário é consumido, queries complexas são rebaixadas para moderate. Quando >95%, tudo é rebaixado para simple.
+
+```env
+MODEL_TIER_SIMPLE=nvidia/nemotron-3-nano-30b-a3b:free
+MODEL_TIER_DEFAULT=qwen/qwen3.6-plus:free
+MODEL_TIER_COMPLEX=qwen/qwen3.6-plus:free
+MODEL_DAILY_BUDGET_USD=5.00
+MEMORY_WORKER_MODEL=nvidia/nemotron-nano-9b-v2:free
+DEDUP_WORKER_MODEL=nvidia/nemotron-nano-9b-v2:free
+```
 
 ---
 
@@ -159,6 +195,35 @@ Quando configurado, mensagens de voz enviadas no Discord são transcritas automa
 
 ---
 
+## Extensions (GitHub, ClickUp)
+
+Integrações com serviços externos.
+
+| Variável | Propósito | Obrigatória | Valor padrão |
+| -------- | --------- | ----------- | ------------ |
+| `GITHUB_USERNAME` | Username do GitHub para sync | ⚪ Opcional | — |
+| `GITHUB_CLIENT_ID` | OAuth Client ID do GitHub | ⚪ Opcional | — |
+| `GITHUB_CLIENT_SECRET` | OAuth Client Secret do GitHub | ⚪ Opcional | — |
+| `CLICKUP_CLIENT_ID` | OAuth Client ID do ClickUp | ⚪ Opcional | — |
+| `CLICKUP_CLIENT_SECRET` | OAuth Client Secret do ClickUp | ⚪ Opcional | — |
+
+---
+
+## Multi-Tenant
+
+Variáveis para o sistema multi-tenant.
+
+| Variável | Propósito | Obrigatória | Valor padrão |
+| -------- | --------- | ----------- | ------------ |
+| `TENANT_SCHEMA` | Schema PostgreSQL (single-tenant mode) | ⚪ Não | — |
+| `AGENT_SLOT` | ⚠️ Deprecated — slot para modo legacy (ten1, ten2, etc.) | ⚪ Não | — |
+| `ONBOARDING_MASTER_PASSWORD` | Password para reset de conta admin | ⚪ Não | — |
+| `DOMAIN` | Domínio para Caddy HTTPS (produção) | ⚪ Prod | — |
+
+> ⚠️ **Atenção:** `AGENT_SLOT` é deprecated. O sistema multi-tenant agora carrega tenants dinamicamente da tabela `admin.tenants`. Use `AGENT_SLOT` apenas para compatibilidade legacy.
+
+---
+
 ## Heartbeat / Automações
 
 Controla o comportamento proativo do agente.
@@ -185,39 +250,58 @@ HEARTBEAT_ACTIVE_HOURS=08:00-22:00
 ## Exemplo de .env Completo
 
 ```env
-# Supabase
-SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
-SUPABASE_ANON_KEY=eyJhbGc...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
+# PostgreSQL
+DATABASE_URL=postgres://hawkos:your-password@localhost:5432/hawkos
+DATABASE_POOL_URL=postgres://hawkos:your-password@localhost:6432/hawkos
+POSTGRES_USER=hawkos
+POSTGRES_PASSWORD=your-secure-password
+
+# Auth
+JWT_SECRET=your-jwt-secret-at-least-32-chars
+ADMIN_MASTER_KEY=your-admin-master-key
 
 # Discord
-DISCORD_BOT_TOKEN=Bot xxxx...
+DISCORD_BOT_TOKEN=your-bot-token
 DISCORD_CLIENT_ID=123456789
 DISCORD_GUILD_ID=987654321
 DISCORD_CHANNEL_ID=111111111
 DISCORD_AUTHORIZED_USER_ID=999999999
-DISCORD_CHANNEL_MAP=111111111:hawk-default,222222222:cfo-template
 
-# AI
+# AI — OpenRouter
 OPENROUTER_API_KEY=sk-or-...
 OPENROUTER_MODEL=openrouter/auto
 OPENROUTER_MAX_TOKENS=4096
+
+# AI — Anthropic (opcional)
+# ANTHROPIC_API_KEY=sk-ant-...
+# ANTHROPIC_MODEL=claude-sonnet-4-6
+
+# Model Tiers (opcional)
+# MODEL_TIER_SIMPLE=nvidia/nemotron-3-nano-30b-a3b:free
+# MODEL_TIER_DEFAULT=qwen/qwen3.6-plus:free
+# MODEL_TIER_COMPLEX=qwen/qwen3.6-plus:free
+# MODEL_DAILY_BUDGET_USD=5.00
 
 # App
 NODE_ENV=development
 APP_URL=http://localhost:3000
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+# DOMAIN=hawk.meudominio.com
 
 # Agent API
 AGENT_API_PORT=3001
 AGENT_API_SECRET=seu-segredo-aqui
 NEXT_PUBLIC_AGENT_API_TOKEN=seu-token-aqui
 
+# Voice (opcional)
+# GROQ_API_KEY=your-groq-api-key
+
 # Heartbeat
 HEARTBEAT_PROFILE=companion
 HEARTBEAT_ACTIVE_HOURS=08:00-22:00
+
+# Onboarding
+# ONBOARDING_MASTER_PASSWORD=your-master-password
 ```
 
 ---

@@ -1,22 +1,28 @@
 'use client';
 
 import {
-	Activity,
-	ChevronDown,
-	ChevronRight,
-	Coins,
-	Cpu,
-	RefreshCw,
-	Terminal,
-	Trash2,
-	Users,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+  Activity,
+  ChevronDown,
+  ChevronRight,
+  Coins,
+  Cpu,
+  RefreshCw,
+  Terminal,
+  Trash2,
+  Users,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 
-import { deleteTenant, updateTenantStatus } from "@/lib/actions/admin";
+import { deleteTenant, updateTenantStatus } from '@/lib/actions/admin';
 
 // ── Types ────────────────────────────────────────────────────────────────────
+
+interface LogEntry {
+  level: 'log' | 'warn' | 'error';
+  ts: string;
+  text: string;
+}
 
 interface AdminDashboardProps {
   overview: {
@@ -91,24 +97,28 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
   const [isPending, startTransition] = useTransition();
   const [activityOpen, setActivityOpen] = useState(true);
   const [logsOpen, setLogsOpen] = useState(false);
-  const [logLines, setLogLines] = useState<string[]>([]);
-  const [logsContainer, setLogsContainer] = useState('all');
+  const [logLines, setLogLines] = useState<LogEntry[]>([]);
   const logsBottomRef = useRef<HTMLDivElement>(null);
   const logReaderRef = useRef<AbortController | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState<string | null>(null);
 
-  const startLogStream = useCallback((container: string) => {
+  const startLogStream = useCallback(() => {
     logReaderRef.current?.abort();
     setLogLines([]);
     const ctrl = new AbortController();
     logReaderRef.current = ctrl;
 
-    const url = `/api/agent/admin/logs/stream?container=${container}&tail=200`;
-    fetch(url, { signal: ctrl.signal })
+    fetch('/api/agent/admin/logs/stream?tail=200', { signal: ctrl.signal })
       .then(async (res) => {
         if (!res.ok || !res.body) {
-          setLogLines([`[error] ${res.status} ${res.statusText}`]);
+          setLogLines([
+            {
+              level: 'error',
+              ts: new Date().toISOString(),
+              text: `${res.status} ${res.statusText}`,
+            },
+          ]);
           return;
         }
         const reader = res.body.getReader();
@@ -120,33 +130,45 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
           buf += decoder.decode(value, { stream: true });
           const lines = buf.split('\n');
           buf = lines.pop() ?? '';
-          const newLines = lines.filter((l) => l.startsWith('data:'));
-          if (newLines.length > 0) {
-            setLogLines((prev) => {
-              const next = [
-                ...prev,
-                ...newLines.map((l) => l.replace(/^data:\s?/, '')),
-              ].slice(-500); // keep last 500 lines
-              return next;
-            });
+          const newEntries: LogEntry[] = [];
+          for (const l of lines) {
+            if (!l.startsWith('data:')) continue;
+            try {
+              const payload = JSON.parse(l.replace(/^data:\s?/, ''));
+              if (payload.type === 'log') {
+                newEntries.push({
+                  level: payload.level ?? 'log',
+                  ts: payload.ts ?? '',
+                  text: payload.line ?? '',
+                });
+              }
+            } catch {
+              /* malformed */
+            }
+          }
+          if (newEntries.length > 0) {
+            setLogLines((prev) => [...prev, ...newEntries].slice(-500));
           }
         }
       })
       .catch((err) => {
         if (err.name !== 'AbortError') {
-          setLogLines((prev) => [...prev, `[error] ${err.message}`]);
+          setLogLines((prev) => [
+            ...prev,
+            { level: 'error', ts: new Date().toISOString(), text: err.message },
+          ]);
         }
       });
   }, []);
 
   useEffect(() => {
     if (logsOpen) {
-      startLogStream(logsContainer);
+      startLogStream();
     } else {
       logReaderRef.current?.abort();
     }
     return () => logReaderRef.current?.abort();
-  }, [logsOpen, logsContainer, startLogStream]);
+  }, [logsOpen, startLogStream]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new lines
   useEffect(() => {
@@ -184,9 +206,7 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">
-            Administração
-          </h1>
+          <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">Administração</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
             Painel de controle multi-tenant
           </p>
@@ -305,9 +325,7 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
                       <div className="relative">
                         <button
                           type="button"
-                          onClick={() =>
-                            setStatusMenuOpen(statusMenuOpen === t.id ? null : t.id)
-                          }
+                          onClick={() => setStatusMenuOpen(statusMenuOpen === t.id ? null : t.id)}
                           className="rounded-[var(--radius-md)] px-2 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-secondary)] transition-colors"
                         >
                           Status
@@ -331,9 +349,7 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
                       {/* Delete button */}
                       <button
                         type="button"
-                        onClick={() =>
-                          setConfirmDelete(confirmDelete === t.id ? null : t.id)
-                        }
+                        onClick={() => setConfirmDelete(confirmDelete === t.id ? null : t.id)}
                         className="rounded-[var(--radius-md)] p-1 text-[var(--color-text-muted)] hover:bg-red-500/10 hover:text-red-400 transition-colors"
                         title="Delete tenant"
                       >
@@ -444,7 +460,7 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
         )}
       </div>
 
-      {/* Docker Logs Viewer */}
+      {/* Agent Logs Viewer */}
       <div className="bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] rounded-[var(--radius-lg)] overflow-hidden">
         <button
           type="button"
@@ -453,9 +469,7 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
         >
           <div className="flex items-center gap-2">
             <Terminal className="h-4 w-4 text-[var(--color-text-muted)]" />
-            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
-              Agent Logs
-            </h2>
+            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Agent Logs</h2>
           </div>
           {logsOpen ? (
             <ChevronDown className="h-4 w-4 text-[var(--color-text-muted)]" />
@@ -465,46 +479,32 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
         </button>
         {logsOpen && (
           <div>
-            <div className="flex items-center gap-2 px-[var(--space-4)] py-2 border-b border-[var(--color-border-subtle)] bg-zinc-900">
-              <span className="text-xs text-[var(--color-text-muted)]">Container:</span>
-              {(['all', 'agent', 'web', 'postgres', 'caddy', 'pgbouncer'] as const).map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setLogsContainer(c)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-mono transition-colors ${
-                    logsContainer === c
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                      : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
+            <div className="flex items-center justify-end px-[var(--space-4)] py-2 border-b border-[var(--color-border-subtle)] bg-zinc-900">
               <button
                 type="button"
-                onClick={() => startLogStream(logsContainer)}
-                className="ml-auto text-[11px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1"
+                onClick={startLogStream}
+                className="text-[11px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1"
               >
                 <RefreshCw className="h-3 w-3" /> Refresh
               </button>
             </div>
             <div className="bg-zinc-950 p-[var(--space-4)] min-h-[200px] max-h-[400px] overflow-y-auto font-mono text-xs">
               {logLines.length === 0 ? (
-                <p className="text-zinc-600 animate-pulse">Connecting to {logsContainer} logs…</p>
+                <p className="text-zinc-600 animate-pulse">Connecting to agent logs…</p>
               ) : (
-                logLines.map((line, i) => (
+                logLines.map((entry, i) => (
                   <p
-                    key={`${i}-${line.slice(0, 20)}`}
+                    key={`${i}-${entry.ts}`}
                     className={
-                      line.includes('[error]') || line.includes('ERROR')
+                      entry.level === 'error'
                         ? 'text-red-400/80'
-                        : line.includes('WARN')
+                        : entry.level === 'warn'
                           ? 'text-amber-400/70'
                           : 'text-emerald-400/70'
                     }
                   >
-                    {line}
+                    <span className="text-zinc-600 mr-2">{entry.ts.slice(11, 19)}</span>
+                    {entry.text}
                   </p>
                 ))
               )}

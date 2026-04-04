@@ -2,14 +2,15 @@
 
 import { ChatEmpty } from '@/components/chat/chat-empty';
 import { ChatHeader } from '@/components/chat/chat-header';
+import { ChatHistoryPanel } from '@/components/chat/chat-history-panel';
 import { ChatInput } from '@/components/chat/chat-input';
 import { ChatMessageBubble, TypingIndicator } from '@/components/chat/chat-message';
-import { ChatSidebar } from '@/components/chat/chat-sidebar';
+import { ChatTabs } from '@/components/chat/chat-tabs';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChat } from '@/lib/agent-chat';
 import { AlertCircle, Lock } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function ChatPage() {
   return (
@@ -22,6 +23,7 @@ export default function ChatPage() {
 function ChatPageInner() {
   const chat = useChat();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on message/typing changes
   useEffect(() => {
@@ -33,34 +35,25 @@ function ChatPageInner() {
   const currentSession = chat.sessions.find((s) => s.id === chat.activeSession);
   const isDiscordSession = currentSession?.channel === 'discord';
 
-  const handleSend = (content: string) => {
-    chat.sendMessage(content);
-  };
-
-  const handleNewSession = () => {
-    chat.createSession();
-  };
-
-  const handleSuggest = (text: string) => {
-    chat.sendMessage(text);
-  };
+  const handleSend = (content: string) => chat.sendMessage(content);
+  const handleNewSession = () => chat.createSession();
+  const handleSuggest = (text: string) => chat.sendMessage(text);
 
   return (
-    <div className="flex h-[calc(100vh-var(--topbar-height)-var(--space-12))] gap-[var(--space-4)]">
-      {/* Sidebar */}
-      <ChatSidebar
+    <div className="flex flex-col h-[calc(100vh-var(--topbar-height)-var(--space-12))]">
+      {/* Tab bar */}
+      <ChatTabs
+        openTabs={chat.openTabs}
         sessions={chat.sessions}
         activeSession={chat.activeSession}
-        connected={chat.connected}
-        loading={chat.initializing || chat.sessionsLoading}
+        onSelectTab={(id) => chat.selectSession(id)}
+        onCloseTab={(id) => chat.closeTab(id)}
         onNewSession={handleNewSession}
-        onSelectSession={(id) => chat.selectSession(id)}
-        onDeleteSession={(id) => chat.deleteSession(id)}
-        onRenameSession={(id, title) => chat.updateSessionTitle(id, title)}
+        onOpenHistory={() => setHistoryOpen(true)}
       />
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-1)] overflow-hidden">
+      <div className="flex-1 flex flex-col rounded-b-[var(--radius-lg)] border border-t-0 border-[var(--color-border)] bg-[var(--color-surface-1)] overflow-hidden">
         {/* Header */}
         <ChatHeader agent={chat.selectedAgent} connected={chat.connected} />
 
@@ -68,7 +61,6 @@ function ChatPageInner() {
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4">
           {chat.messagesLoading ? (
             <div className="space-y-4 py-4">
-              {/* Skeleton message bubbles */}
               <div className="flex justify-end">
                 <Skeleton className="h-10 w-48 rounded-2xl" />
               </div>
@@ -139,6 +131,22 @@ function ChatPageInner() {
           <ChatInput onSend={handleSend} loading={chat.loading} />
         )}
       </div>
+
+      {/* History panel (slide-in from right) */}
+      <ChatHistoryPanel
+        open={historyOpen}
+        sessions={chat.sessions}
+        activeSession={chat.activeSession}
+        loading={chat.sessionsLoading}
+        onClose={() => setHistoryOpen(false)}
+        onSelectSession={(id) => chat.selectSession(id)}
+        onDeleteSession={(id) => chat.deleteSession(id)}
+        onRenameSession={(id, title) => chat.updateSessionTitle(id, title)}
+        onNewSession={() => {
+          handleNewSession();
+          setHistoryOpen(false);
+        }}
+      />
     </div>
   );
 }

@@ -5,18 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { agentHeaders, getAgentApiUrl } from '@/lib/config';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
-
-const POPULAR_MODELS = [
-  { id: 'openrouter/auto', label: 'Auto (OpenRouter)' },
-  { id: 'openrouter/free', label: 'Free (OpenRouter)' },
-  { id: 'anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
-  { id: 'google/gemini-3.1-pro', label: 'Gemini 3.1 Pro' },
-  { id: 'openai/gpt-4.3', label: 'GPT-4.3' },
-  { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 3 Super 120B (Free)' },
-  { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' },
-];
 
 const TIMEZONES = [
   { id: 'America/Sao_Paulo', label: 'São Paulo (GMT-3)' },
@@ -262,63 +252,26 @@ export function SectionAgent() {
           </div>
         </div>
 
-        {/* LLM Model */}
-        <div className="grid gap-[var(--space-2)]">
-          <Label htmlFor="agent_model">Modelo LLM</Label>
-          <select
-            value={
-              POPULAR_MODELS.some((m) => m.id === settings.llm_model)
-                ? settings.llm_model
-                : '__custom__'
-            }
-            onChange={(e) => {
-              if (e.target.value !== '__custom__') update({ llm_model: e.target.value });
-            }}
-            className={selectClass}
-          >
-            {POPULAR_MODELS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-            <option value="__custom__">Personalizado...</option>
-          </select>
-          <Input
-            id="agent_model"
-            value={settings.llm_model}
-            onChange={(e) => update({ llm_model: e.target.value })}
-            placeholder="vendor/model-name"
-            className="font-mono text-xs"
-          />
-        </div>
-
-        {/* Temperature */}
-        <div className="grid gap-[var(--space-2)]">
-          <Label>Temperature: {settings.temperature}</Label>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.1"
-            value={settings.temperature}
-            onChange={(e) => update({ temperature: Number.parseFloat(e.target.value) })}
-            className="w-full accent-[var(--color-accent)]"
-          />
-          <p className="text-xs text-[var(--color-text-muted)]">0 = determinístico, 1 = criativo</p>
-        </div>
-
-        {/* Max Tokens */}
-        <div className="grid gap-[var(--space-2)]">
-          <Label htmlFor="agent_tokens">Max Tokens</Label>
-          <Input
-            id="agent_tokens"
-            type="number"
-            value={settings.max_tokens}
-            onChange={(e) => {
-              const val = Number.parseInt(e.target.value);
-              if (!Number.isNaN(val)) update({ max_tokens: val });
-            }}
-          />
+        {/* Smart Routing — informativo */}
+        <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-2)] p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className="h-4 w-4 text-[var(--color-accent)]" />
+            <span className="text-sm font-medium text-[var(--color-text-primary)]">
+              Smart Routing ativo
+            </span>
+          </div>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            O modelo é selecionado automaticamente por complexidade usando modelos free do
+            OpenRouter. Configure via variáveis de ambiente{' '}
+            <code className="font-mono">MODEL_TIER_SIMPLE</code> /{' '}
+            <code className="font-mono">DEFAULT</code> / <code className="font-mono">COMPLEX</code>{' '}
+            no servidor.
+          </p>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] font-mono text-[var(--color-text-muted)]">
+            <div>simples → nemotron-nano</div>
+            <div>padrão → qwen3.6-plus</div>
+            <div>complexo → qwen3.6-plus</div>
+          </div>
         </div>
 
         {/* Financial Settings */}
@@ -340,75 +293,6 @@ export function SectionAgent() {
             <p className="text-xs text-[var(--color-text-muted)]">
               O agente confirmará gastos acima deste valor
             </p>
-          </div>
-        </div>
-
-        {/* Automations */}
-        <div className="border-t border-[var(--color-border)] pt-[var(--space-5)]">
-          <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-[var(--space-4)]">
-            Automações
-          </h3>
-          <div className="space-y-[var(--space-4)]">
-            <div className="flex items-center justify-between">
-              <Label>Check-in Matinal</Label>
-              <div className="flex items-center gap-[var(--space-2)]">
-                <Input
-                  type="time"
-                  value={settings.checkin_morning_time}
-                  onChange={(e) => update({ checkin_morning_time: e.target.value })}
-                  className="w-24"
-                />
-                <Switch
-                  checked={settings.checkin_morning_enabled}
-                  onCheckedChange={(checked) => update({ checkin_morning_enabled: checked })}
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label>Check-in Noturno</Label>
-              <div className="flex items-center gap-[var(--space-2)]">
-                <Input
-                  type="time"
-                  value={settings.checkin_evening_time}
-                  onChange={(e) => update({ checkin_evening_time: e.target.value })}
-                  className="w-24"
-                />
-                <Switch
-                  checked={settings.checkin_evening_enabled}
-                  onCheckedChange={(checked) => update({ checkin_evening_enabled: checked })}
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label>Review Semanal</Label>
-              <div className="flex items-center gap-[var(--space-2)]">
-                <Input
-                  type="time"
-                  value={settings.weekly_review_time}
-                  onChange={(e) => update({ weekly_review_time: e.target.value })}
-                  className="w-24"
-                />
-                <Switch
-                  checked={settings.weekly_review_enabled}
-                  onCheckedChange={(checked) => update({ weekly_review_enabled: checked })}
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label>Alertas Diários</Label>
-              <div className="flex items-center gap-[var(--space-2)]">
-                <Input
-                  type="time"
-                  value={settings.alerts_time}
-                  onChange={(e) => update({ alerts_time: e.target.value })}
-                  className="w-24"
-                />
-                <Switch
-                  checked={settings.alerts_enabled}
-                  onCheckedChange={(checked) => update({ alerts_enabled: checked })}
-                />
-              </div>
-            </div>
           </div>
         </div>
 

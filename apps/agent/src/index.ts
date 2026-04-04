@@ -1,3 +1,5 @@
+// Must be first import — intercepts console.* to fill the in-memory log buffer
+import './log-buffer.js';
 import { initModuleCentroids } from '@hawk/context-engine';
 import { withSchema } from '@hawk/db';
 import { trainCategorizer } from '@hawk/module-finances/categorizer';

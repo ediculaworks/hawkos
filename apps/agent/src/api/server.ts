@@ -1,6 +1,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db } from '@hawk/db';
+import { getTailLines, subscribeToLogs } from '../log-buffer.js';
 import { handleAgentsRoute } from './routes/agents.js';
 import { handleAutomationsRoute } from './routes/automations.js';
 import { handleChatRoute } from './routes/chat.js';
@@ -252,7 +253,9 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
         }
       };
 
-      const response = await handleChat(sid, message, onChunk);
+      const startMs = Date.now();
+      const chatResult = await handleChat(sid, message, onChunk);
+      const durationMs = Date.now() - startMs;
 
       // Auto-title: update title from first user message if still default
       const { data: conv } = await requireSupabase()
@@ -279,9 +282,12 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
         JSON.stringify({
           type: 'chat_message',
           sessionId: sid,
-          content: response,
+          content: chatResult.content,
           role: 'assistant',
           timestamp: new Date().toISOString(),
+          tokensUsed: chatResult.tokensUsed,
+          model: chatResult.model,
+          durationMs,
         }),
       );
     } catch (err) {
@@ -300,7 +306,7 @@ async function handleChat(
   sessionId: string,
   message: string,
   onChunk?: (chunk: string) => void,
-): Promise<string> {
+): Promise<{ content: string; tokensUsed: number; model: string }> {
   const { handleWebMessage } = await import('../handler.js');
 
   // Only create session if it doesn't exist; don't reset existing sessions
@@ -309,8 +315,8 @@ async function handleChat(
   }
 
   try {
-    const response = await handleWebMessage(sessionId, message, onChunk);
-    return response;
+    const result = await handleWebMessage(sessionId, message, onChunk);
+    return { content: result.response, tokensUsed: result.totalTokens, model: result.selectedModel };
   } finally {
     const session = state.sessions.get(sessionId);
     if (session) {
@@ -590,39 +596,16 @@ const agentServer = Bun.serve({
       });
     }
 
-    // GET /admin/logs/stream — stream Docker container logs via SSE
+    // GET /admin/logs/stream — stream agent process logs via SSE (in-memory buffer)
     if (path === '/admin/logs/stream' && method === 'GET') {
-      const VALID_CONTAINERS = ['postgres', 'web', 'agent', 'caddy', 'pgbouncer'] as const;
-      const containerFilter = url.searchParams.get('container') || 'all';
       const tail = Math.min(
-        Math.max(Number.parseInt(url.searchParams.get('tail') || '100', 10) || 100, 1),
-        5000,
+        Math.max(Number.parseInt(url.searchParams.get('tail') || '200', 10) || 200, 1),
+        1000,
       );
-
-      // Resolve container names — docker compose uses project name as prefix
-      const projectName = process.env.COMPOSE_PROJECT_NAME || 'hawkos';
-      const requestedContainers =
-        containerFilter === 'all'
-          ? [...VALID_CONTAINERS]
-          : VALID_CONTAINERS.includes(containerFilter as (typeof VALID_CONTAINERS)[number])
-            ? [containerFilter]
-            : [];
-
-      if (requestedContainers.length === 0) {
-        return new Response(
-          JSON.stringify({
-            error: `Invalid container. Valid: ${VALID_CONTAINERS.join(', ')}, all`,
-          }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
-
-      const containers = requestedContainers.map((c) => `${projectName}-${c}-1`);
 
       const stream = new ReadableStream({
         start(controller) {
           const encoder = new TextEncoder();
-          const processes: { kill(): void }[] = [];
           let closed = false;
 
           function enqueue(text: string) {
@@ -638,14 +621,7 @@ const agentServer = Bun.serve({
             if (closed) return;
             closed = true;
             clearInterval(keepalive);
-            for (const proc of processes) {
-              try {
-                proc.kill();
-              } catch {
-                /* already dead */
-              }
-            }
-            processes.length = 0;
+            unsubscribe();
             try {
               controller.close();
             } catch {
@@ -653,82 +629,20 @@ const agentServer = Bun.serve({
             }
           }
 
-          // Initial connection event
-          enqueue(
-            `data: ${JSON.stringify({ type: 'connected', containers: requestedContainers })}\n\n`,
-          );
-
-          for (const container of containers) {
-            const shortName = container.replace(`${projectName}-`, '').replace('-1', '');
-
-            try {
-              const proc = Bun.spawn(
-                ['docker', 'logs', '-f', '--tail', String(tail), '--timestamps', container],
-                { stdout: 'pipe', stderr: 'pipe' },
-              );
-
-              processes.push(proc);
-
-              // Stream stdout lines
-              const readStream = async (
-                reader: ReadableStreamDefaultReader<Uint8Array>,
-                level?: string,
-              ) => {
-                const decoder = new TextDecoder();
-                let buffer = '';
-                try {
-                  while (!closed) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop() || '';
-                    for (const line of lines) {
-                      if (!line) continue;
-                      const payload: Record<string, string> = {
-                        type: 'log',
-                        container: shortName,
-                        line,
-                      };
-                      if (level) payload.level = level;
-                      enqueue(`data: ${JSON.stringify(payload)}\n\n`);
-                    }
-                  }
-                  // Flush remaining buffer
-                  if (buffer && !closed) {
-                    const payload: Record<string, string> = {
-                      type: 'log',
-                      container: shortName,
-                      line: buffer,
-                    };
-                    if (level) payload.level = level;
-                    enqueue(`data: ${JSON.stringify(payload)}\n\n`);
-                  }
-                } catch {
-                  // stream closed or process exited
-                }
-              };
-
-              // Read both stdout and stderr
-              readStream(proc.stdout.getReader());
-              readStream(proc.stderr.getReader(), 'error');
-
-              // Handle process exit
-              proc.exited
-                .then(() => {
-                  if (!closed) {
-                    enqueue(
-                      `data: ${JSON.stringify({ type: 'process_exit', container: shortName })}\n\n`,
-                    );
-                  }
-                })
-                .catch(() => {});
-            } catch (err) {
-              enqueue(
-                `data: ${JSON.stringify({ type: 'error', container: shortName, message: String(err) })}\n\n`,
-              );
-            }
+          // Send buffered tail lines first
+          enqueue(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+          for (const line of getTailLines(tail)) {
+            enqueue(
+              `data: ${JSON.stringify({ type: 'log', level: line.level, ts: line.ts, line: line.text })}\n\n`,
+            );
           }
+
+          // Subscribe to new lines
+          const unsubscribe = subscribeToLogs((line) => {
+            enqueue(
+              `data: ${JSON.stringify({ type: 'log', level: line.level, ts: line.ts, line: line.text })}\n\n`,
+            );
+          });
 
           // Keepalive every 15s
           const keepalive = setInterval(() => {
@@ -737,10 +651,6 @@ const agentServer = Bun.serve({
 
           // Cleanup when client disconnects
           req.signal.addEventListener('abort', cleanup, { once: true });
-        },
-
-        cancel() {
-          // ReadableStream cancel — processes cleaned up via abort listener
         },
       });
 

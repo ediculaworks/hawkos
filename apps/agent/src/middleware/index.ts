@@ -39,9 +39,15 @@ export const defaultPipeline = createPipeline([
   llmMiddleware,
 ]);
 
+export interface PipelineResult {
+  response: string;
+  totalTokens: number;
+  selectedModel: string;
+}
+
 /**
  * Run the handler pipeline for a given set of params.
- * Returns the LLM response string.
+ * Returns the LLM response along with token usage and selected model.
  */
 export async function runPipeline(params: {
   sessionId: string;
@@ -51,7 +57,7 @@ export async function runPipeline(params: {
   isNewSession: boolean;
   onChunk?: (chunk: string) => void;
   attachments?: import('../handler.js').Attachment[];
-}): Promise<string> {
+}): Promise<PipelineResult> {
   const ctx = createHandlerContext(params);
   await defaultPipeline(ctx);
 
@@ -59,5 +65,5 @@ export async function runPipeline(params: {
     throw new Error('Pipeline completed without generating a response');
   }
 
-  return ctx.response;
+  return { response: ctx.response, totalTokens: ctx.totalTokens, selectedModel: ctx.selectedModel };
 }

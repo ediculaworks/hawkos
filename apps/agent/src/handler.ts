@@ -2,7 +2,7 @@ import { db as activityDb } from '@hawk/db';
 import { HawkError, createLogger } from '@hawk/shared';
 import { resolveAgent } from './agent-resolver.js';
 import { addSession, updateSession } from './api/server.js';
-import { runPipeline } from './middleware/index.js';
+import { type PipelineResult, runPipeline } from './middleware/index.js';
 import { checkRateLimit, getOrCreateSession, touchWebSession } from './session-manager.js';
 
 const logger = createLogger('handler');
@@ -50,7 +50,7 @@ export async function handleWebMessage(
   sessionId: string,
   userMessage: string,
   onChunk?: (chunk: string) => void,
-): Promise<string> {
+): Promise<PipelineResult> {
   if (!checkRateLimit(`web:${sessionId}`) || !checkRateLimit('web:global')) {
     throw new HawkError(
       'Rate limit exceeded. Aguarde um momento antes de enviar mais mensagens.',
@@ -97,13 +97,14 @@ export async function handleStreamingMessage(
 export async function handleAutomationMessage(prompt: string): Promise<string> {
   const sessionId = `automation-${Date.now()}`;
   const agent = await resolveAgent(sessionId, 'discord');
-  return runPipeline({
+  const result = await runPipeline({
     sessionId,
     userMessage: prompt,
     channel: 'discord',
     agent,
     isNewSession: true,
   });
+  return result.response;
 }
 
 // ── Internal: shared Discord handler ─────────────────────────────────
@@ -129,7 +130,7 @@ async function _handleDiscord(opts: {
   }
 
   const agent = await resolveAgent(sessionId, 'discord');
-  const response = await runPipeline({
+  const result = await runPipeline({
     sessionId,
     userMessage: opts.userMessage,
     channel: 'discord',
@@ -143,5 +144,5 @@ async function _handleDiscord(opts: {
     await autoTitleConversation(sessionId, opts.userMessage);
   }
 
-  return response;
+  return result.response;
 }

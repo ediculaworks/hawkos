@@ -29,22 +29,37 @@ Hawk é generalista. Acessa todos os módulos, todas as tools, carrega contexto 
 
 Cada mensagem é classificada antes de chamar o LLM:
 
-| Complexidade | Critério | Env var |
-|---|---|---|
-| `simple` | Saudações, CRUD simples (<100 chars, 1 módulo) | `MODEL_TIER_SIMPLE` |
-| `moderate` | Padrão | `MODEL_TIER_DEFAULT` |
-| `complex` | Multi-módulo, análise, planejamento | `MODEL_TIER_COMPLEX` |
+| Complexidade | Critério | Env var | Default (free) |
+|---|---|---|---|
+| `simple` | Saudações, CRUD simples (<100 chars, 1 módulo) | `MODEL_TIER_SIMPLE` | `nvidia/nemotron-3-nano-30b-a3b:free` |
+| `moderate` | Padrão | `MODEL_TIER_DEFAULT` | `qwen/qwen3.6-plus:free` |
+| `complex` | Multi-módulo, análise, planejamento | `MODEL_TIER_COMPLEX` | `qwen/qwen3.6-plus:free` |
 
-Se as env vars não estiverem definidas, usa `OPENROUTER_MODEL` (default: `openrouter/auto`).
+Se as env vars não estiverem definidas, os defaults acima são usados (todos modelos free do OpenRouter). Nenhum modelo pago é usado por padrão.
 
 **Cost-aware downgrade**: quando >80% do budget diário é consumido, queries complexas são rebaixadas para moderate. Quando >95%, tudo rebaixa para simple.
 
 ```env
+# Opcional — defaults já usam modelos free
 MODEL_TIER_SIMPLE=nvidia/nemotron-3-nano-30b-a3b:free
 MODEL_TIER_DEFAULT=qwen/qwen3.6-plus:free
 MODEL_TIER_COMPLEX=qwen/qwen3.6-plus:free
 MODEL_DAILY_BUDGET_USD=5.00
 ```
+
+### Modelos free disponíveis (openrouter.ai/collections/free-models)
+
+| Modelo | Context | Tools |
+|--------|---------|-------|
+| `qwen/qwen3.6-plus:free` | 1M | ✅ |
+| `nvidia/nemotron-3-super-120b-a12b:free` | 262K | ✅ |
+| `qwen/qwen3-coder:free` | 262K | ✅ |
+| `nvidia/nemotron-3-nano-30b-a3b:free` | 256K | ✅ |
+| `openai/gpt-oss-120b:free` | 131K | ✅ |
+| `google/gemma-3-27b-it:free` | 131K | ✅ |
+| `mistralai/mistral-small-3.2-24b-instruct:free` | 131K | ✅ |
+| `deepseek/deepseek-r1-0528:free` | 163K | ❌ |
+| `stepfun/step-3.5-flash:free` | 256K | ❌ |
 
 ---
 

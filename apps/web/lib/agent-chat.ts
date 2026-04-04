@@ -2,6 +2,7 @@
 
 import { agentHeaders, getAgentApiUrl, getAgentWsUrl } from '@/lib/config';
 import { useCallback, useEffect, useRef, useState } from 'react';
+
 export interface ChatMessage {
   id?: string;
   session_id: string;
@@ -9,6 +10,10 @@ export interface ChatMessage {
   content: string;
   created_at?: string;
   quickReplies?: string[];
+  /** Token usage, model, and duration — set on assistant messages */
+  tokensUsed?: number;
+  model?: string;
+  durationMs?: number;
   /** For tool messages: tool name, args, result, duration */
   toolCall?: {
     name: string;
@@ -45,6 +50,8 @@ export interface Agent {
 }
 
 const SESSION_STORAGE_KEY = 'hawk_active_session';
+const OPEN_TABS_KEY = 'hawk_open_tabs';
+const DELEGATION_KEY = 'hawk_pending_delegation';
 
 function getStoredSession(): string | null {
   if (typeof window === 'undefined') return null;
@@ -60,11 +67,26 @@ function setStoredSession(sessionId: string | null): void {
   }
 }
 
+function getStoredTabs(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem(OPEN_TABS_KEY) ?? '[]') as string[];
+  } catch {
+    return [];
+  }
+}
+
+function setStoredTabs(tabs: string[]): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(OPEN_TABS_KEY, JSON.stringify(tabs));
+}
+
 export function useChat() {
   const [_ws, setWs] = useState<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSession, _setActiveSession] = useState<string | null>(() => getStoredSession());
+  const [openTabs, setOpenTabs] = useState<string[]>(() => getStoredTabs());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [typing, setTyping] = useState(false);
@@ -79,6 +101,8 @@ export function useChat() {
   const activeSessionRef = useRef<string | null>(activeSession);
   const streamBufferRef = useRef<string>('');
   const streamFlushTimerRef = useRef<number | null>(null);
+  // Pending message to auto-send after joining a session (used by agent delegation flow)
+  const pendingMessageRef = useRef<string | null>(null);
 
   // Keep ref in sync with state
   activeSessionRef.current = activeSession;
@@ -89,12 +113,66 @@ export function useChat() {
     setStoredSession(sessionId);
   }, []);
 
+  // Add a session as an open tab (idempotent)
+  const addTab = useCallback((sessionId: string) => {
+    setOpenTabs((prev) => {
+      if (prev.includes(sessionId)) return prev;
+      const next = [sessionId, ...prev];
+      setStoredTabs(next);
+      return next;
+    });
+  }, []);
+
+  // Close a tab; switches active session to an adjacent tab if needed
+  const closeTab = useCallback(
+    (sessionId: string) => {
+      setOpenTabs((prev) => {
+        const idx = prev.indexOf(sessionId);
+        const next = prev.filter((id) => id !== sessionId);
+        setStoredTabs(next);
+
+        if (activeSessionRef.current === sessionId) {
+          // Select adjacent tab or null
+          const nextActive = next[idx] ?? next[idx - 1] ?? null;
+          _setActiveSession(nextActive);
+          activeSessionRef.current = nextActive;
+          setStoredSession(nextActive);
+          if (nextActive) {
+            // Load messages for the new active session
+            setMessagesLoading(true);
+            fetch(`${getAgentApiUrl()}/chat/sessions/${nextActive}/messages`, {
+              headers: agentHeaders(),
+            })
+              .then((r) => r.json())
+              .then((d) => setMessages((d as { messages?: ChatMessage[] }).messages ?? []))
+              .catch(() => {})
+              .finally(() => setMessagesLoading(false));
+          } else {
+            setMessages([]);
+          }
+        }
+
+        return next;
+      });
+    },
+    [] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   const loadSessions = useCallback(async () => {
     setSessionsLoading(true);
     try {
       const res = await fetch(`${getAgentApiUrl()}/chat/sessions`, { headers: agentHeaders() });
       const data = await res.json();
-      setSessions(data.sessions ?? []);
+      const fetched: ChatSession[] = data.sessions ?? [];
+      setSessions(fetched);
+
+      // Validate open tabs against fetched sessions — remove stale IDs
+      const validIds = new Set(fetched.map((s) => s.id));
+      setOpenTabs((prev) => {
+        const cleaned = prev.filter((id) => validIds.has(id));
+        if (cleaned.length !== prev.length) setStoredTabs(cleaned);
+        return cleaned;
+      });
     } catch (_err) {
     } finally {
       setSessionsLoading(false);
@@ -110,9 +188,30 @@ export function useChat() {
     socket.onopen = () => {
       setConnected(true);
       const storedSession = activeSessionRef.current;
-      if (storedSession) {
+
+      // Check for pending delegation from agent creation form
+      const pendingDelegation = (() => {
+        if (typeof window === 'undefined') return null;
+        const raw = sessionStorage.getItem(DELEGATION_KEY);
+        if (!raw) return null;
+        try {
+          return JSON.parse(raw) as { sessionId: string; message: string };
+        } catch {
+          return null;
+        }
+      })();
+
+      if (pendingDelegation) {
+        sessionStorage.removeItem(DELEGATION_KEY);
+        setActiveSession(pendingDelegation.sessionId);
+        addTab(pendingDelegation.sessionId);
+        socket.send(JSON.stringify({ type: 'chat_join', sessionId: pendingDelegation.sessionId }));
+        // Send the first message once the join completes (handled in chat_joined handler)
+        pendingMessageRef.current = pendingDelegation.message;
+      } else if (storedSession) {
         socket.send(JSON.stringify({ type: 'chat_join', sessionId: storedSession }));
       }
+
       loadSessions();
       loadHawk();
     };
@@ -123,6 +222,30 @@ export function useChat() {
 
         if (data.type === 'chat_joined') {
           setActiveSession(data.sessionId);
+          addTab(data.sessionId);
+          // Auto-send pending delegation message (from agent creation form)
+          const pending = pendingMessageRef.current;
+          if (pending) {
+            pendingMessageRef.current = null;
+            // Defer to next tick so state settles
+            setTimeout(() => {
+              const sock = wsRef.current;
+              if (sock?.readyState === WebSocket.OPEN) {
+                setMessages((prev) => [
+                  ...prev,
+                  { session_id: data.sessionId, role: 'user', content: pending },
+                ]);
+                setLoading(true);
+                sock.send(
+                  JSON.stringify({
+                    type: 'chat_message',
+                    sessionId: data.sessionId,
+                    content: pending,
+                  }),
+                );
+              }
+            }, 50);
+          }
         }
 
         if (data.type === 'chat_chunk') {
@@ -174,6 +297,9 @@ export function useChat() {
                 content: data.content,
                 created_at: data.timestamp,
                 quickReplies: data.quickReplies,
+                tokensUsed: data.tokensUsed,
+                model: data.model,
+                durationMs: data.durationMs,
               },
             ];
           });
@@ -222,7 +348,7 @@ export function useChat() {
     wsRef.current = socket;
     setWs(socket);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setActiveSession, loadSessions]);
+  }, [setActiveSession, loadSessions, addTab]);
 
   // Load only Hawk (orchestrator) for display purposes — user cannot change agent
   const loadHawk = async () => {
@@ -289,6 +415,7 @@ export function useChat() {
       }
 
       setActiveSession(data.sessionId);
+      addTab(data.sessionId);
       setMessages([]);
       setError(null);
       await loadSessions();
@@ -329,6 +456,7 @@ export function useChat() {
 
   const selectSession = (sessionId: string) => {
     setActiveSession(sessionId);
+    addTab(sessionId);
     setError(null);
     loadMessages(sessionId);
   };
@@ -339,6 +467,8 @@ export function useChat() {
         method: 'DELETE',
         headers: agentHeaders(),
       });
+      // Close the tab if open
+      closeTab(sessionId);
       if (activeSessionRef.current === sessionId) {
         setActiveSession(null);
         setMessages([]);
@@ -382,6 +512,7 @@ export function useChat() {
     messagesLoading,
     sessions,
     activeSession,
+    openTabs,
     messages,
     loading,
     typing,
@@ -390,6 +521,8 @@ export function useChat() {
     sendMessage,
     createSession,
     selectSession,
+    addTab,
+    closeTab,
     deleteSession,
     updateSessionTitle,
     clearError,

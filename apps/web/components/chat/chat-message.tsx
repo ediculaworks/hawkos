@@ -147,6 +147,19 @@ function AssistantMessage({
             ))}
           </div>
         )}
+
+        {/* Subtle token/model/duration info */}
+        {!message.streaming && (message.tokensUsed || message.model || message.durationMs) && (
+          <div className="flex items-center gap-1.5 mt-2 text-[10px] text-[var(--color-text-muted)] opacity-60 hover:opacity-100 transition-opacity">
+            {message.tokensUsed && <span>~{message.tokensUsed.toLocaleString()} tokens</span>}
+            {message.tokensUsed && message.model && <span>·</span>}
+            {message.model && (
+              <span className="font-mono">{message.model.replace(':free', '')}</span>
+            )}
+            {(message.tokensUsed || message.model) && message.durationMs && <span>·</span>}
+            {message.durationMs && <span>{(message.durationMs / 1000).toFixed(1)}s</span>}
+          </div>
+        )}
       </div>
     </div>
   );

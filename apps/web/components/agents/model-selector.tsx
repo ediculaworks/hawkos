@@ -2,27 +2,42 @@
 
 export const MODEL_OPTIONS = [
   {
-    category: 'Texto (Free)',
+    category: 'Com suporte a tools (Free)',
     models: [
+      { id: 'qwen/qwen3.6-plus:free', label: 'Qwen3.6 Plus (1M ctx)', tier: 'Free' },
+      { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 120B (262K)', tier: 'Free' },
+      { id: 'qwen/qwen3-coder:free', label: 'Qwen3 Coder (262K)', tier: 'Free' },
       {
-        id: 'nvidia/nemotron-3-super-120b-a12b:free',
-        label: 'Nemotron 3 Super 120B',
+        id: 'nvidia/nemotron-3-nano-30b-a3b:free',
+        label: 'Nemotron Nano 30B (256K)',
         tier: 'Free',
       },
-      { id: 'openai/gpt-oss-120b:free', label: 'GPT OSS 120B', tier: 'Free' },
+      { id: 'openai/gpt-oss-120b:free', label: 'GPT OSS 120B (131K)', tier: 'Free' },
+      { id: 'openai/gpt-oss-20b:free', label: 'GPT OSS 20B (131K)', tier: 'Free' },
+      { id: 'google/gemma-3-27b-it:free', label: 'Gemma 3 27B (131K)', tier: 'Free' },
+      { id: 'google/gemma-3-12b-it:free', label: 'Gemma 3 12B (131K)', tier: 'Free' },
+      {
+        id: 'mistralai/mistral-small-3.2-24b-instruct:free',
+        label: 'Mistral Small 3.2 24B',
+        tier: 'Free',
+      },
+      { id: 'z-ai/glm-4.5-air:free', label: 'GLM 4.5 Air (131K)', tier: 'Free' },
+      { id: 'nvidia/nemotron-nano-9b-v2:free', label: 'Nemotron Nano 9B (128K)', tier: 'Free' },
+      { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (65K)', tier: 'Free' },
+    ],
+  },
+  {
+    category: 'Sem suporte a tools (Free)',
+    models: [
+      { id: 'deepseek/deepseek-r1-0528:free', label: 'DeepSeek R1 0528 (163K)', tier: 'Free' },
+      { id: 'stepfun/step-3.5-flash:free', label: 'Step 3.5 Flash (256K)', tier: 'Free' },
       { id: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5', tier: 'Free' },
-      { id: 'qwen/qwen3-next-80b-a3b-instruct:free', label: 'Qwen3 Next 80B', tier: 'Free' },
-      { id: 'z-ai/glm-4.5-air:free', label: 'GLM 4.5 Air', tier: 'Free' },
-      { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B', tier: 'Free' },
-      { id: 'stepfun/step-3.5-flash:free', label: 'Step 3.5 Flash', tier: 'Free' },
-      { id: 'qwen/qwen3-coder:free', label: 'Qwen3 Coder', tier: 'Free' },
+      { id: 'nousresearch/hermes-3-llama-3.1-405b:free', label: 'Hermes 3 405B', tier: 'Free' },
       {
         id: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
         label: 'Dolphin Mistral 24B',
         tier: 'Free',
       },
-      { id: 'sourceful/riverflow-v2-pro', label: 'Riverflow V2 Pro', tier: 'Free' },
-      { id: 'sourceful/riverflow-v2-fast', label: 'Riverflow V2 Fast', tier: 'Free' },
     ],
   },
   {

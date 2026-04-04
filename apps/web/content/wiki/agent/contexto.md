@@ -134,19 +134,24 @@ export async function loadL2(userId: string, query: string): Promise<string> {
 }
 ```
 
-O assembler em `packages/context-engine/src/assembler.ts` chama estas funções:
+O assembler em `packages/context-engine/src/assembler.ts` chama estas funções com **fault isolation** — cada módulo pode falhar independentemente:
 
 ```typescript
-// Para cada módulo detectado
-const l1Sections = await Promise.all(
+// Para cada módulo detectado (fault-isolated)
+const l1Results = await Promise.allSettled(
   detectedModules.map(mod => modules[mod].loadL1(userId))
 );
+const l1Sections = l1Results
+  .filter(r => r.status === 'fulfilled')
+  .map(r => r.value);
 
-// L2 apenas se necessário
+// L2 apenas se necessário (wrapped em try/catch)
 const l2Sections = requiresSpecificData(message)
-  ? await Promise.all(detectedModules.map(mod => modules[mod].loadL2(userId, message)))
+  ? await Promise.allSettled(detectedModules.map(mod => modules[mod].loadL2(userId, message)))
   : [];
 ```
+
+> 💡 **Dica:** `Promise.allSettled` em vez de `Promise.all` garante que se um módulo falhar (ex: módulo de finanças com erro de DB), os outros continuam normalmente. O agente responde com menos contexto, mas não crasha.
 
 ## Exemplo de Contexto Completo Montado
 

@@ -15,25 +15,62 @@
 export type ComplexityLevel = 'simple' | 'moderate' | 'complex';
 
 // ── Model capability metadata ────────────────────────────────────────────────
+// All free models available on OpenRouter (openrouter.ai/collections/free-models)
 const MODEL_CONTEXT_LIMITS: Record<string, number> = {
+  // Qwen family
   'qwen/qwen3.6-plus:free': 1_000_000,
-  'nvidia/nemotron-3-super-120b-a12b:free': 262_144,
   'qwen/qwen3-coder:free': 262_000,
-  'stepfun/step-3.5-flash:free': 256_000,
+  'qwen/qwen3-next-80b-a3b-instruct:free': 131_072,
+  'qwen/qwen2.5-vl-72b-instruct:free': 32_768,
+  // NVIDIA
+  'nvidia/nemotron-3-super-120b-a12b:free': 262_144,
   'nvidia/nemotron-3-nano-30b-a3b:free': 256_000,
-  'openrouter/free': 200_000,
-  'minimax/minimax-m2.5:free': 196_608,
+  'nvidia/nemotron-nano-9b-v2:free': 128_000,
+  // OpenAI OSS
   'openai/gpt-oss-120b:free': 131_072,
   'openai/gpt-oss-20b:free': 131_072,
+  // Google Gemma
+  'google/gemma-3-27b-it:free': 131_072,
+  'google/gemma-3-12b-it:free': 131_072,
+  'google/gemma-3-4b-it:free': 131_072,
+  'google/gemma-3n-e4b-it:free': 131_072,
+  // Mistral
+  'mistralai/mistral-small-3.2-24b-instruct:free': 131_072,
+  'mistralai/mistral-7b-instruct:free': 32_768,
+  // Microsoft Phi
+  'microsoft/phi-4-reasoning-plus:free': 32_768,
+  'microsoft/phi-4-reasoning:free': 32_768,
+  // DeepSeek
+  'deepseek/deepseek-r1-0528:free': 163_840,
+  'deepseek/deepseek-r1-0528-qwen3-8b:free': 32_768,
+  'deepseek/deepseek-prover-v2:free': 131_072,
+  'tngtech/deepseek-r1t-chimera:free': 163_840,
+  // Z-AI / GLM
   'z-ai/glm-4.5-air:free': 131_072,
-  'nvidia/nemotron-nano-9b-v2:free': 128_000,
+  // Meta Llama
   'meta-llama/llama-3.3-70b-instruct:free': 65_536,
+  // NousResearch / Cognitive
+  'nousresearch/hermes-3-llama-3.1-405b:free': 131_072,
+  'cognitivecomputations/dolphin-mistral-24b-venice-edition:free': 32_768,
+  // Stepfun / MiniMax (no tool_choice)
+  'stepfun/step-3.5-flash:free': 256_000,
+  'minimax/minimax-m2.5:free': 196_608,
+  // Generic free route
+  'openrouter/free': 200_000,
 };
 
+// Models that do not support the `tool_choice` parameter
 const MODELS_WITHOUT_TOOL_CHOICE = new Set([
   'stepfun/step-3.5-flash:free',
   'minimax/minimax-m2.5:free',
-  'arcee-ai/trinity-large-preview:free',
+  'nousresearch/hermes-3-llama-3.1-405b:free',
+  'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
+  'microsoft/phi-4-reasoning-plus:free',
+  'microsoft/phi-4-reasoning:free',
+  'deepseek/deepseek-r1-0528:free',
+  'deepseek/deepseek-r1-0528-qwen3-8b:free',
+  'deepseek/deepseek-prover-v2:free',
+  'tngtech/deepseek-r1t-chimera:free',
 ]);
 
 /**
@@ -186,13 +223,21 @@ export function selectModel(complexity: ComplexityLevel, agentModel: string): st
     effectiveComplexity = 'moderate'; // save budget: don't use expensive model
   }
 
+  // Free-model defaults — used when env vars not configured.
+  // Override via MODEL_TIER_SIMPLE / MODEL_TIER_DEFAULT / MODEL_TIER_COMPLEX in .env
+  const FREE_DEFAULTS: Record<ComplexityLevel, string> = {
+    simple: 'nvidia/nemotron-3-nano-30b-a3b:free',
+    moderate: 'qwen/qwen3.6-plus:free',
+    complex: 'qwen/qwen3.6-plus:free',
+  };
+
   switch (effectiveComplexity) {
     case 'simple':
-      return process.env.MODEL_TIER_SIMPLE ?? agentModel;
+      return process.env.MODEL_TIER_SIMPLE ?? agentModel ?? FREE_DEFAULTS.simple;
     case 'complex':
-      return process.env.MODEL_TIER_COMPLEX ?? agentModel;
+      return process.env.MODEL_TIER_COMPLEX ?? agentModel ?? FREE_DEFAULTS.complex;
     default:
-      return process.env.MODEL_TIER_DEFAULT ?? agentModel;
+      return process.env.MODEL_TIER_DEFAULT ?? agentModel ?? FREE_DEFAULTS.moderate;
   }
 }
 

@@ -8,7 +8,7 @@ O sistema de memória do Hawk OS é inspirado no OpenViking e usa embeddings vet
 
 Enquanto o contexto L0/L1/L2 é gerado dinamicamente dos dados do banco a cada mensagem, as **memórias** são entidades curadas que representam conhecimento consolidado sobre seus padrões, preferências e identidade.
 
-## Os 6 Tipos de Memória
+## Os 7 Tipos de Memória
 
 ### 1. `profile` — Fatos sobre quem você é
 
@@ -85,6 +85,18 @@ Comportamentos recorrentes observados ao longo do tempo.
 
 **Criação**: automática — extraída de múltiplas sessões que mostram o mesmo padrão.
 
+### 7. `procedure` — Regras aprendidas / comportamentos corrigidos
+
+Regras que o agente aprendeu a seguir, geralmente a partir de correções do usuário.
+
+```text
+"Quando eu digo 'registra', sempre usar a tool create_transaction, nunca save_memory"
+"Preferência de formato: relatórios financeiros sempre com breakdown por categoria"
+"Nunca sugerir treino em dia de descanso programado"
+```
+
+**Criação**: automática — o LLM identifica correções e regras implícitas nas conversas. Half-life de 365 dias (quase permanente).
+
 ## Como Memórias São Criadas
 
 ### Manual — Tool `save_memory`
@@ -105,13 +117,13 @@ Ao final de cada sessão (30 minutos de inatividade), o Session Compactor analis
 
 ## Scoring e Recuperação
 
-Quando uma mensagem chega, o sistema busca as **top 5 memórias mais relevantes** usando um score composto:
+Quando uma mensagem chega, o sistema busca as **top 5 memórias mais relevantes** usando um score composto de 4 sinais:
 
-```
-score = (semântica × 0.5) + (hotness × 0.3) + (importância × 0.2)
+```text
+score = (semântica × 0.45) + (hotness × 0.25) + (importância × 0.15) + (confiança × 0.15)
 ```
 
-### Similaridade Semântica (50%)
+### Similaridade Semântica (45%)
 
 Busca por embeddings no pgvector. O texto da mensagem é convertido em embedding e comparado com os embeddings de todas as memórias via distância coseno.
 
@@ -123,7 +135,7 @@ ORDER BY similarity DESC
 LIMIT 20;
 ```
 
-### Hotness Score (30%)
+### Hotness Score (25%)
 
 Mede frequência de acesso e recência combinadas:
 
@@ -159,11 +171,25 @@ Memórias de módulos diferentes têm velocidades de decaimento diferentes:
 | `legal` | 90 | Obrigações têm ciclos longos |
 | `assets` | 120 | Patrimônio muda raramente |
 | `people` | 180 | Relacionamentos são duráveis |
+| `procedure` | 365 | Regras aprendidas — quase permanente |
 | `default` | 180 | Para módulos sem half-life definido |
 
-### Importância (20%)
+> 💡 **Dica:** O sistema usa half-lives adaptativos via `getAdaptiveHalfLife(module)`. Se houver dados suficientes de acesso, o half-life é ajustado automaticamente. Caso contrário, usa os valores hardcoded acima.
 
-Campo manual em cada memória, escala 1-5. O LLM atribui importância ao criar a memória. Memórias críticas (type `profile`, fatos fundamentais) recebem 5.
+### Importância (15%)
+
+Campo em cada memória, escala 1-10. O LLM atribui importância ao criar a memória. Memórias críticas (type `profile`, fatos fundamentais) recebem 9-10.
+
+### Confiança (15%)
+
+Campo `confidence` (0.0-1.0) indica a certeza da informação extraída:
+
+- **1.0** — Afirmado diretamente pelo usuário ("eu tenho 27 anos")
+- **0.8** — Default, informação clara mas não explicitamente confirmada
+- **0.5** — Implícito, inferido do contexto
+- **0.3** — Incerto, pode estar errado
+
+NaN guard aplicado: se o valor for inválido, usa 0.5 como fallback.
 
 ### Busca em Paralelo
 
@@ -269,6 +295,23 @@ Ao final do pipeline:
 - Novas memórias salvas em `agent_memories`
 - Memórias mescladas atualizadas
 
+## RRF Hybrid Search
+
+Quando a feature flag `rrf-hybrid-search` está habilitada, a busca de memórias usa **Reciprocal Rank Fusion** combinando dois sinais:
+
+1. **Vector search** (pgvector) — similaridade semântica via embeddings
+2. **Trigram search** (pg_trgm) — correspondência textual via GIN index
+
+A fórmula RRF combina os rankings:
+
+```text
+score = Σ(weight_i / (k + rank_i))
+```
+
+Com k=60 (default do Onyx) e pesos default 0.6 vector / 0.4 keyword.
+
+**Fallback chain**: Se a RPC `hybrid_search_memories_rrf` não existir no banco, o sistema cai para busca simples ponderada e depois para vector-only.
+
 ## Visualizando Memórias
 
 Acesse `/dashboard/memory` — a página unificada de Memória com 6 abas:
@@ -285,7 +328,7 @@ Acesse `/dashboard/memory` — a página unificada de Memória com 6 abas:
 -- Memórias persistentes
 agent_memories (
   id, user_id, type, content, module,
-  importance, access_count, embedding,
+  importance, confidence, access_count, embedding,
   created_at, updated_at
 )
 
