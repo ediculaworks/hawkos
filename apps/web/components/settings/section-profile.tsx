@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { ProfileData } from '@/lib/actions/settings';
 import { updateProfileSettings } from '@/lib/actions/settings';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, UserCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface SectionProfileProps {
@@ -13,60 +13,34 @@ interface SectionProfileProps {
   onSaved: () => void;
 }
 
-const WEEKDAYS = [
-  { value: 'sunday', label: 'Domingo' },
-  { value: 'monday', label: 'Segunda' },
-  { value: 'tuesday', label: 'Terça' },
-  { value: 'wednesday', label: 'Quarta' },
-  { value: 'thursday', label: 'Quinta' },
-  { value: 'friday', label: 'Sexta' },
-  { value: 'saturday', label: 'Sábado' },
-];
-
 function meta(profile: ProfileData, key: string, fallback: string): string {
   return (profile.metadata[key] as string) ?? fallback;
 }
 
 export function SectionProfile({ profile, onSaved }: SectionProfileProps) {
+  const [name, setName] = useState(profile.name);
+  const [birthDate, setBirthDate] = useState(profile.birth_date ?? '');
   const [bio, setBio] = useState(meta(profile, 'bio', ''));
-  const [goals, setGoals] = useState(meta(profile, 'goals_summary', ''));
-  const [checkinMorning, setCheckinMorning] = useState(meta(profile, 'checkin_morning', '09:00'));
-  const [checkinEvening, setCheckinEvening] = useState(meta(profile, 'checkin_evening', '22:00'));
-  const [weeklyDay, setWeeklyDay] = useState(meta(profile, 'weekly_review_day', 'sunday'));
-  const [weeklyTime, setWeeklyTime] = useState(meta(profile, 'weekly_review_time', '20:00'));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    setName(profile.name);
+    setBirthDate(profile.birth_date ?? '');
     setBio(meta(profile, 'bio', ''));
-    setGoals(meta(profile, 'goals_summary', ''));
-    setCheckinMorning(meta(profile, 'checkin_morning', '09:00'));
-    setCheckinEvening(meta(profile, 'checkin_evening', '22:00'));
-    setWeeklyDay(meta(profile, 'weekly_review_day', 'sunday'));
-    setWeeklyTime(meta(profile, 'weekly_review_time', '20:00'));
   }, [profile]);
 
   const isDirty =
-    bio !== meta(profile, 'bio', '') ||
-    goals !== meta(profile, 'goals_summary', '') ||
-    checkinMorning !== meta(profile, 'checkin_morning', '09:00') ||
-    checkinEvening !== meta(profile, 'checkin_evening', '22:00') ||
-    weeklyDay !== meta(profile, 'weekly_review_day', 'sunday') ||
-    weeklyTime !== meta(profile, 'weekly_review_time', '20:00');
+    name !== profile.name ||
+    birthDate !== (profile.birth_date ?? '') ||
+    bio !== meta(profile, 'bio', '');
 
   const handleSave = async () => {
     setSaving(true);
     const result = await updateProfileSettings({
-      name: profile.name,
-      birth_date: profile.birth_date,
-      metadata: {
-        bio,
-        goals_summary: goals,
-        checkin_morning: checkinMorning,
-        checkin_evening: checkinEvening,
-        weekly_review_day: weeklyDay,
-        weekly_review_time: weeklyTime,
-      },
+      name,
+      birth_date: birthDate || null,
+      metadata: { bio },
     });
     setSaving(false);
     if (result.success) {
@@ -76,104 +50,79 @@ export function SectionProfile({ profile, onSaved }: SectionProfileProps) {
     }
   };
 
-  const selectClass =
-    'w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-0)] px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--color-text-primary)]';
+  // Calculate age from birth date
+  const age = birthDate
+    ? Math.floor((Date.now() - new Date(birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    : null;
 
   return (
     <div className="space-y-[var(--space-8)]">
       <div>
-        <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Perfil</h2>
-        <p className="text-sm text-[var(--color-text-muted)] mt-[var(--space-1)]">
-          Conte ao agente sobre você e configure os horários de check-in.
+        <div className="flex items-center gap-[var(--space-2)] mb-[var(--space-1)]">
+          <UserCircle className="h-5 w-5 text-[var(--color-accent)]" />
+          <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Perfil</h2>
+        </div>
+        <p className="text-sm text-[var(--color-text-muted)]">
+          Informacoes pessoais usadas pelo agente para personalizar interacoes.
         </p>
       </div>
 
       <div className="space-y-[var(--space-5)] max-w-lg">
-        <div className="grid gap-[var(--space-2)]">
-          <Label htmlFor="prof_bio">Bio</Label>
-          <textarea
-            id="prof_bio"
-            rows={3}
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            placeholder="Conte um pouco sobre você para o agente..."
-            className={`${selectClass} resize-none`}
-          />
-          <p className="text-xs text-[var(--color-text-muted)]">
-            O agente usa isso para personalizar interações.
-          </p>
-        </div>
-
-        <div className="grid gap-[var(--space-2)]">
-          <Label htmlFor="prof_goals">Objetivos atuais</Label>
-          <textarea
-            id="prof_goals"
-            rows={3}
-            value={goals}
-            onChange={(e) => setGoals(e.target.value)}
-            placeholder="Quais são seus objetivos de vida atuais?"
-            className={`${selectClass} resize-none`}
-          />
-          <p className="text-xs text-[var(--color-text-muted)]">
-            Aparece no contexto do agente para alinhar sugestões.
-          </p>
-        </div>
-
-        <div className="border-t border-[var(--color-border)] pt-[var(--space-5)]">
-          <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-[var(--space-4)]">
-            Horários de check-in
-          </h3>
-          <div className="grid grid-cols-2 gap-[var(--space-4)]">
-            <div className="grid gap-[var(--space-2)]">
-              <Label htmlFor="prof_morning">Manhã</Label>
-              <Input
-                id="prof_morning"
-                type="time"
-                value={checkinMorning}
-                onChange={(e) => setCheckinMorning(e.target.value)}
-              />
+        {/* Avatar placeholder + Name */}
+        <div className="p-[var(--space-4)] rounded-[var(--radius-lg)] bg-[var(--color-surface-1)] border border-[var(--color-border)]">
+          <div className="flex items-start gap-[var(--space-4)]">
+            {/* Avatar circle */}
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent)]/60 flex items-center justify-center shrink-0">
+              <span className="text-2xl font-bold text-white">
+                {name ? name.charAt(0).toUpperCase() : '?'}
+              </span>
             </div>
-            <div className="grid gap-[var(--space-2)]">
-              <Label htmlFor="prof_evening">Noite</Label>
-              <Input
-                id="prof_evening"
-                type="time"
-                value={checkinEvening}
-                onChange={(e) => setCheckinEvening(e.target.value)}
-              />
+            <div className="flex-1 space-y-[var(--space-3)]">
+              <div className="grid gap-[var(--space-2)]">
+                <Label htmlFor="prof_name">Nome</Label>
+                <Input
+                  id="prof_name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Seu nome"
+                />
+              </div>
+              <div className="grid gap-[var(--space-2)]">
+                <Label htmlFor="prof_birth">Data de nascimento</Label>
+                <div className="flex items-center gap-[var(--space-3)]">
+                  <Input
+                    id="prof_birth"
+                    type="date"
+                    value={birthDate}
+                    onChange={(e) => setBirthDate(e.target.value)}
+                    className="flex-1"
+                  />
+                  {age !== null && age > 0 && (
+                    <span className="text-sm text-[var(--color-text-muted)] whitespace-nowrap">
+                      {age} anos
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="border-t border-[var(--color-border)] pt-[var(--space-5)]">
-          <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-[var(--space-4)]">
-            Weekly review
-          </h3>
-          <div className="grid grid-cols-2 gap-[var(--space-4)]">
-            <div className="grid gap-[var(--space-2)]">
-              <Label htmlFor="prof_wday">Dia</Label>
-              <select
-                id="prof_wday"
-                value={weeklyDay}
-                onChange={(e) => setWeeklyDay(e.target.value)}
-                className={selectClass}
-              >
-                {WEEKDAYS.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid gap-[var(--space-2)]">
-              <Label htmlFor="prof_wtime">Horário</Label>
-              <Input
-                id="prof_wtime"
-                type="time"
-                value={weeklyTime}
-                onChange={(e) => setWeeklyTime(e.target.value)}
-              />
-            </div>
+        {/* Bio */}
+        <div className="p-[var(--space-4)] rounded-[var(--radius-lg)] bg-[var(--color-surface-1)] border border-[var(--color-border)]">
+          <div className="grid gap-[var(--space-2)]">
+            <Label htmlFor="prof_bio">Bio</Label>
+            <textarea
+              id="prof_bio"
+              rows={4}
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="Conte um pouco sobre voce para o agente..."
+              className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-0)] px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--color-text-primary)] resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40 transition-colors"
+            />
+            <p className="text-xs text-[var(--color-text-muted)]">
+              O agente usa isso para personalizar respostas e sugestoes.
+            </p>
           </div>
         </div>
       </div>

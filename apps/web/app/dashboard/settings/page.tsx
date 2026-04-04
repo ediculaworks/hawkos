@@ -2,16 +2,14 @@
 
 import { SectionAgent } from '@/components/settings/section-agent';
 import { SectionAppearance } from '@/components/settings/section-appearance';
-import { SectionAutomations } from '@/components/settings/section-automations';
+import { SectionChannels } from '@/components/settings/section-channels';
 import { SectionData } from '@/components/settings/section-data';
+import { SectionExtensions } from '@/components/settings/section-extensions';
 import { SectionGeneral } from '@/components/settings/section-general';
-import { SectionIntegrations } from '@/components/settings/section-integrations';
-import { SectionModules } from '@/components/settings/section-modules';
 import { SectionNotifications } from '@/components/settings/section-notifications';
 import { SectionProfile } from '@/components/settings/section-profile';
 import { SettingsNav, type SettingsSection } from '@/components/settings/settings-nav';
-import type { ModuleRow } from '@/lib/actions/settings';
-import { fetchModules, fetchProfileSettings } from '@/lib/actions/settings';
+import { fetchProfileSettings } from '@/lib/actions/settings';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Settings } from 'lucide-react';
 import { useState } from 'react';
@@ -20,15 +18,9 @@ export default function SettingsPage() {
   const [section, setSection] = useState<SettingsSection>('general');
   const queryClient = useQueryClient();
 
-  const { data: profile, isLoading: profileLoading } = useQuery({
+  const { data: profile, isLoading } = useQuery({
     queryKey: ['settings', 'profile'],
     queryFn: fetchProfileSettings,
-    staleTime: 60_000,
-  });
-
-  const { data: modules, isLoading: modulesLoading } = useQuery({
-    queryKey: ['settings', 'modules'],
-    queryFn: fetchModules,
     staleTime: 60_000,
   });
 
@@ -36,14 +28,6 @@ export default function SettingsPage() {
     queryClient.invalidateQueries({ queryKey: ['settings', 'profile'] });
     queryClient.invalidateQueries({ queryKey: ['profile'] });
   };
-
-  const handleModuleToggle = (id: string, enabled: boolean) => {
-    queryClient.setQueryData<ModuleRow[]>(['settings', 'modules'], (prev) =>
-      prev?.map((m) => (m.id === id ? { ...m, enabled } : m)),
-    );
-  };
-
-  const isLoading = profileLoading || modulesLoading;
 
   if (isLoading) {
     return (
@@ -58,7 +42,7 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="flex items-center gap-[var(--space-3)]">
         <Settings className="h-6 w-6 text-[var(--color-accent)]" />
-        <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">Configurações</h1>
+        <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">Configuracoes</h1>
       </div>
 
       {/* Layout: sidebar + content */}
@@ -74,13 +58,10 @@ export default function SettingsPage() {
               <SectionProfile profile={profile} onSaved={handleProfileSaved} />
             )}
             {section === 'agent' && <SectionAgent />}
-            {section === 'modules' && modules && (
-              <SectionModules modules={modules} onToggle={handleModuleToggle} />
-            )}
             {section === 'appearance' && <SectionAppearance />}
             {section === 'notifications' && <SectionNotifications />}
-            {section === 'automations' && <SectionAutomations />}
-            {section === 'integrations' && <SectionIntegrations />}
+            {section === 'channels' && <SectionChannels />}
+            {section === 'extensions' && <SectionExtensions />}
             {section === 'data' && <SectionData />}
           </div>
         </div>

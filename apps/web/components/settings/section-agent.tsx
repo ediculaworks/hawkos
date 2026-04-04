@@ -5,11 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { agentHeaders, getAgentApiUrl } from '@/lib/config';
-import { Loader2, Save, Zap } from 'lucide-react';
+import { Bot, Loader2, Save, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 const TIMEZONES = [
-  { id: 'America/Sao_Paulo', label: 'São Paulo (GMT-3)' },
+  { id: 'America/Sao_Paulo', label: 'Sao Paulo (GMT-3)' },
   { id: 'America/New_York', label: 'New York (GMT-5)' },
   { id: 'America/Los_Angeles', label: 'Los Angeles (GMT-8)' },
   { id: 'Europe/London', label: 'London (GMT+0)' },
@@ -18,9 +18,9 @@ const TIMEZONES = [
 ];
 
 const LANGUAGES = [
-  { id: 'pt-BR', label: 'Português (Brasil)' },
+  { id: 'pt-BR', label: 'Portugues (Brasil)' },
   { id: 'en-US', label: 'English (US)' },
-  { id: 'es-ES', label: 'Español' },
+  { id: 'es-ES', label: 'Espanol' },
 ];
 
 interface AgentSettings {
@@ -35,14 +35,6 @@ interface AgentSettings {
   enabled_channels: string[];
   timezone: string;
   language: string;
-  checkin_morning_enabled: boolean;
-  checkin_morning_time: string;
-  checkin_evening_enabled: boolean;
-  checkin_evening_time: string;
-  weekly_review_enabled: boolean;
-  weekly_review_time: string;
-  alerts_enabled: boolean;
-  alerts_time: string;
   big_purchase_threshold: number;
   react_mode: 'auto' | 'always' | 'never';
   cost_tracking_enabled: boolean;
@@ -61,19 +53,29 @@ const DEFAULTS: AgentSettings = {
   enabled_channels: ['discord', 'web'],
   timezone: 'America/Sao_Paulo',
   language: 'pt-BR',
-  checkin_morning_enabled: true,
-  checkin_morning_time: '09:00',
-  checkin_evening_enabled: true,
-  checkin_evening_time: '22:00',
-  weekly_review_enabled: true,
-  weekly_review_time: '20:00',
-  alerts_enabled: true,
-  alerts_time: '08:00',
-  big_purchase_threshold: 500,
+  big_purchase_threshold: 0,
   react_mode: 'auto',
   cost_tracking_enabled: true,
   history_compression_enabled: true,
 };
+
+// Heartbeat config
+const HB_MIN = 10;
+const HB_MAX = 120;
+const HB_STEP = 5;
+
+function estimateTokensPerDay(heartbeatSeconds: number): { tokens: number; cost: string } {
+  const beatsPerDay = (24 * 60 * 60) / heartbeatSeconds;
+  // ~50 tokens per heartbeat (ping + response)
+  const tokensPerBeat = 50;
+  const total = Math.round(beatsPerDay * tokensPerBeat);
+  // Free models = $0, but show estimated for paid
+  const costUsd = total * 0.000001; // ~$1/M tokens average
+  return {
+    tokens: total,
+    cost: costUsd < 0.01 ? 'Free (modelos gratuitos)' : `~$${costUsd.toFixed(2)}/dia`,
+  };
+}
 
 export function SectionAgent() {
   const [settings, setSettings] = useState<AgentSettings | null>(null);
@@ -101,19 +103,6 @@ export function SectionAgent() {
           enabled_channels: data.settings?.enabled_channels ?? DEFAULTS.enabled_channels,
           timezone: data.settings?.timezone ?? DEFAULTS.timezone,
           language: data.settings?.language ?? DEFAULTS.language,
-          checkin_morning_enabled:
-            data.settings?.checkin_morning_enabled ?? DEFAULTS.checkin_morning_enabled,
-          checkin_morning_time:
-            data.settings?.checkin_morning_time ?? DEFAULTS.checkin_morning_time,
-          checkin_evening_enabled:
-            data.settings?.checkin_evening_enabled ?? DEFAULTS.checkin_evening_enabled,
-          checkin_evening_time:
-            data.settings?.checkin_evening_time ?? DEFAULTS.checkin_evening_time,
-          weekly_review_enabled:
-            data.settings?.weekly_review_enabled ?? DEFAULTS.weekly_review_enabled,
-          weekly_review_time: data.settings?.weekly_review_time ?? DEFAULTS.weekly_review_time,
-          alerts_enabled: data.settings?.alerts_enabled ?? DEFAULTS.alerts_enabled,
-          alerts_time: data.settings?.alerts_time ?? DEFAULTS.alerts_time,
           big_purchase_threshold:
             data.settings?.big_purchase_threshold ?? DEFAULTS.big_purchase_threshold,
           react_mode: data.settings?.react_mode ?? DEFAULTS.react_mode,
@@ -160,14 +149,6 @@ export function SectionAgent() {
     setSettings((prev) => (prev ? { ...prev, ...patch } : prev));
   };
 
-  const toggleChannel = (channel: string, enabled: boolean) => {
-    if (!settings) return;
-    const channels = enabled
-      ? [...settings.enabled_channels, channel]
-      : settings.enabled_channels.filter((c) => c !== channel);
-    update({ enabled_channels: channels });
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
@@ -179,81 +160,88 @@ export function SectionAgent() {
   if (!settings) return null;
 
   const selectClass =
-    'w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-0)] px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--color-text-primary)]';
+    'w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-0)] px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40 transition-colors';
+
+  const hbEstimate = estimateTokensPerDay(settings.heartbeat_interval);
+  const hbPercent = ((settings.heartbeat_interval - HB_MIN) / (HB_MAX - HB_MIN)) * 100;
 
   return (
     <div className="space-y-[var(--space-8)]">
       <div>
-        <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Agente</h2>
-        <p className="text-sm text-[var(--color-text-muted)] mt-[var(--space-1)]">
-          Configurações do agente e automações.
+        <div className="flex items-center gap-[var(--space-2)] mb-[var(--space-1)]">
+          <Bot className="h-5 w-5 text-[var(--color-accent)]" />
+          <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Agente</h2>
+        </div>
+        <p className="text-sm text-[var(--color-text-muted)]">
+          Configuracoes do agente AI.
         </p>
         {offline && (
           <p className="text-xs text-[var(--color-warning)] mt-[var(--space-2)]">
-            Agente offline. Mostrando valores padrão.
+            Agente offline. Mostrando valores padrao.
           </p>
         )}
       </div>
 
-      {/* Identity */}
       <div className="space-y-[var(--space-5)] max-w-lg">
-        <div className="grid grid-cols-2 gap-[var(--space-4)]">
-          <div className="grid gap-[var(--space-2)]">
-            <Label htmlFor="agent_name">Nome do Agente</Label>
-            <Input
-              id="agent_name"
-              value={settings.agent_name}
-              onChange={(e) => update({ agent_name: e.target.value })}
-              placeholder="Hawk"
-            />
+        {/* Identity */}
+        <div className="p-[var(--space-4)] rounded-[var(--radius-lg)] bg-[var(--color-surface-1)] border border-[var(--color-border)] space-y-[var(--space-4)]">
+          <h3 className="text-sm font-medium text-[var(--color-text-primary)]">Identidade</h3>
+          <div className="grid grid-cols-2 gap-[var(--space-4)]">
+            <div className="grid gap-[var(--space-2)]">
+              <Label htmlFor="agent_name">Nome do Agente</Label>
+              <Input
+                id="agent_name"
+                value={settings.agent_name}
+                onChange={(e) => update({ agent_name: e.target.value })}
+                placeholder="Hawk"
+              />
+            </div>
+            <div className="grid gap-[var(--space-2)]">
+              <Label htmlFor="tenant_name">Workspace</Label>
+              <Input
+                id="tenant_name"
+                value={settings.tenant_name}
+                onChange={(e) => update({ tenant_name: e.target.value })}
+                placeholder="My Agent"
+              />
+            </div>
           </div>
-          <div className="grid gap-[var(--space-2)]">
-            <Label htmlFor="tenant_name">Nome do Workspace</Label>
-            <Input
-              id="tenant_name"
-              value={settings.tenant_name}
-              onChange={(e) => update({ tenant_name: e.target.value })}
-              placeholder="My Agent"
-            />
+          <div className="grid grid-cols-2 gap-[var(--space-4)]">
+            <div className="grid gap-[var(--space-2)]">
+              <Label htmlFor="agent_tz">Fuso Horario</Label>
+              <select
+                id="agent_tz"
+                value={settings.timezone}
+                onChange={(e) => update({ timezone: e.target.value })}
+                className={selectClass}
+              >
+                {TIMEZONES.map((tz) => (
+                  <option key={tz.id} value={tz.id}>
+                    {tz.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-[var(--space-2)]">
+              <Label htmlFor="agent_lang">Idioma</Label>
+              <select
+                id="agent_lang"
+                value={settings.language}
+                onChange={(e) => update({ language: e.target.value })}
+                className={selectClass}
+              >
+                {LANGUAGES.map((lang) => (
+                  <option key={lang.id} value={lang.id}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
-        {/* Language & Timezone */}
-        <div className="grid grid-cols-2 gap-[var(--space-4)]">
-          <div className="grid gap-[var(--space-2)]">
-            <Label htmlFor="timezone">Fuso Horário</Label>
-            <select
-              id="timezone"
-              value={settings.timezone}
-              onChange={(e) => update({ timezone: e.target.value })}
-              className={selectClass}
-            >
-              {TIMEZONES.map((tz) => (
-                <option key={tz.id} value={tz.id}>
-                  {tz.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="grid gap-[var(--space-2)]">
-            <Label htmlFor="language">Idioma</Label>
-            <select
-              id="language"
-              value={settings.language}
-              onChange={(e) => update({ language: e.target.value })}
-              className={selectClass}
-            >
-              {LANGUAGES.map((lang) => (
-                <option key={lang.id} value={lang.id}>
-                  {lang.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Smart Routing — informativo */}
-        <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-2)] p-4">
+        {/* Smart Routing */}
+        <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-2)] p-[var(--space-4)]">
           <div className="flex items-center gap-2 mb-2">
             <Zap className="h-4 w-4 text-[var(--color-accent)]" />
             <span className="text-sm font-medium text-[var(--color-text-primary)]">
@@ -261,23 +249,34 @@ export function SectionAgent() {
             </span>
           </div>
           <p className="text-xs text-[var(--color-text-muted)]">
-            O modelo é selecionado automaticamente por complexidade usando modelos free do
-            OpenRouter. Configure via variáveis de ambiente{' '}
-            <code className="font-mono">MODEL_TIER_SIMPLE</code> /{' '}
-            <code className="font-mono">DEFAULT</code> / <code className="font-mono">COMPLEX</code>{' '}
-            no servidor.
+            O modelo e selecionado automaticamente por complexidade usando modelos free do
+            OpenRouter. Configure via variaveis de ambiente no servidor.
           </p>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] font-mono text-[var(--color-text-muted)]">
-            <div>simples → nemotron-nano</div>
-            <div>padrão → qwen3.6-plus</div>
-            <div>complexo → qwen3.6-plus</div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {[
+              { tier: 'Simples', model: 'nemotron-nano', color: 'var(--color-success)' },
+              { tier: 'Padrao', model: 'qwen3.6-plus', color: 'var(--color-accent)' },
+              { tier: 'Complexo', model: 'qwen3.6-plus', color: 'var(--color-warning)' },
+            ].map((t) => (
+              <div
+                key={t.tier}
+                className="p-[var(--space-2)] rounded-[var(--radius-md)] bg-[var(--color-surface-1)] text-center"
+              >
+                <div className="text-[10px] font-medium" style={{ color: t.color }}>
+                  {t.tier}
+                </div>
+                <div className="text-[10px] font-mono text-[var(--color-text-muted)]">
+                  {t.model}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Financial Settings */}
-        <div className="border-t border-[var(--color-border)] pt-[var(--space-5)]">
+        {/* Budget */}
+        <div className="p-[var(--space-4)] rounded-[var(--radius-lg)] bg-[var(--color-surface-1)] border border-[var(--color-border)]">
           <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-[var(--space-4)]">
-            Finanças
+            Limites
           </h3>
           <div className="grid gap-[var(--space-2)]">
             <Label htmlFor="purchase_threshold">Limite para confirmar gastos (R$)</Label>
@@ -291,45 +290,75 @@ export function SectionAgent() {
               }}
             />
             <p className="text-xs text-[var(--color-text-muted)]">
-              O agente confirmará gastos acima deste valor
+              O agente confirmara gastos acima deste valor. 0 = sem limite.
             </p>
           </div>
         </div>
 
-        {/* System settings */}
-        <div className="border-t border-[var(--color-border)] pt-[var(--space-5)]">
+        {/* Heartbeat slider */}
+        <div className="p-[var(--space-4)] rounded-[var(--radius-lg)] bg-[var(--color-surface-1)] border border-[var(--color-border)]">
           <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-[var(--space-4)]">
-            Sistema
+            Heartbeat
           </h3>
-          <div className="space-y-[var(--space-4)]">
-            <div className="grid grid-cols-2 gap-[var(--space-4)]">
-              <div className="grid gap-[var(--space-2)]">
-                <Label htmlFor="agent_hb">Heartbeat (s)</Label>
-                <Input
-                  id="agent_hb"
-                  type="number"
-                  value={settings.heartbeat_interval}
-                  onChange={(e) => {
-                    const val = Number.parseInt(e.target.value);
-                    if (!Number.isNaN(val)) update({ heartbeat_interval: val });
-                  }}
+          <div className="space-y-[var(--space-3)]">
+            <div className="flex items-center justify-between">
+              <Label>Intervalo</Label>
+              <span className="text-sm font-mono text-[var(--color-accent)]">
+                {settings.heartbeat_interval}s
+              </span>
+            </div>
+
+            {/* Slider */}
+            <div className="relative">
+              <div className="h-2 rounded-full bg-[var(--color-surface-3)]">
+                <div
+                  className="h-2 rounded-full bg-[var(--color-accent)] transition-all duration-150"
+                  style={{ width: `${hbPercent}%` }}
                 />
               </div>
-              <div className="grid gap-[var(--space-2)]">
-                <Label htmlFor="agent_ot">Offline threshold (s)</Label>
-                <Input
-                  id="agent_ot"
-                  type="number"
-                  value={settings.offline_threshold}
-                  onChange={(e) => {
-                    const val = Number.parseInt(e.target.value);
-                    if (!Number.isNaN(val)) update({ offline_threshold: val });
-                  }}
-                />
+              <input
+                type="range"
+                min={HB_MIN}
+                max={HB_MAX}
+                step={HB_STEP}
+                value={settings.heartbeat_interval}
+                onChange={(e) => update({ heartbeat_interval: Number(e.target.value) })}
+                className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer"
+              />
+            </div>
+
+            <div className="flex justify-between text-[10px] text-[var(--color-text-muted)]">
+              <span>{HB_MIN}s</span>
+              <span>{HB_MAX}s</span>
+            </div>
+
+            {/* Token estimator */}
+            <div className="grid grid-cols-2 gap-[var(--space-3)] p-[var(--space-3)] rounded-[var(--radius-md)] bg-[var(--color-surface-2)]">
+              <div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">
+                  Tokens/dia estimados
+                </div>
+                <div className="text-sm font-mono text-[var(--color-text-primary)]">
+                  {hbEstimate.tokens.toLocaleString()}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">
+                  Custo estimado
+                </div>
+                <div className="text-sm font-mono text-[var(--color-text-primary)]">
+                  {hbEstimate.cost}
+                </div>
               </div>
             </div>
-            <div className="flex items-center justify-between">
-              <Label>Auto-restart</Label>
+
+            <div className="flex items-center justify-between pt-[var(--space-2)]">
+              <div className="grid gap-[var(--space-1)]">
+                <Label>Auto-restart</Label>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Reiniciar automaticamente se offline
+                </p>
+              </div>
               <Switch
                 checked={settings.auto_restart}
                 onCheckedChange={(checked) => update({ auto_restart: checked })}
@@ -339,7 +368,7 @@ export function SectionAgent() {
         </div>
 
         {/* Behaviour */}
-        <div className="border-t border-[var(--color-border)] pt-[var(--space-5)]">
+        <div className="p-[var(--space-4)] rounded-[var(--radius-lg)] bg-[var(--color-surface-1)] border border-[var(--color-border)]">
           <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-[var(--space-4)]">
             Comportamento
           </h3>
@@ -354,12 +383,12 @@ export function SectionAgent() {
                 }
                 className={selectClass}
               >
-                <option value="auto">Auto — decide automaticamente</option>
+                <option value="auto">Auto - decide automaticamente</option>
                 <option value="always">Sempre ativo</option>
                 <option value="never">Nunca</option>
               </select>
               <p className="text-xs text-[var(--color-text-muted)]">
-                Controla quando o agente usa raciocínio passo a passo (ReAct)
+                Controla quando o agente usa raciocinio passo a passo
               </p>
             </div>
             <div className="flex items-center justify-between">
@@ -376,37 +405,14 @@ export function SectionAgent() {
             </div>
             <div className="flex items-center justify-between">
               <div className="grid gap-[var(--space-1)]">
-                <Label>Compressão de Histórico</Label>
+                <Label>Compressao de Historico</Label>
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  Comprime sessões antigas para reduzir tokens no contexto
+                  Comprime sessoes antigas para reduzir tokens no contexto
                 </p>
               </div>
               <Switch
                 checked={settings.history_compression_enabled}
                 onCheckedChange={(checked) => update({ history_compression_enabled: checked })}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Channels */}
-        <div className="border-t border-[var(--color-border)] pt-[var(--space-5)]">
-          <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-[var(--space-4)]">
-            Canais
-          </h3>
-          <div className="space-y-[var(--space-3)]">
-            <div className="flex items-center justify-between">
-              <Label>Discord</Label>
-              <Switch
-                checked={settings.enabled_channels.includes('discord')}
-                onCheckedChange={(checked) => toggleChannel('discord', checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label>Web</Label>
-              <Switch
-                checked={settings.enabled_channels.includes('web')}
-                onCheckedChange={(checked) => toggleChannel('web', checked)}
               />
             </div>
           </div>

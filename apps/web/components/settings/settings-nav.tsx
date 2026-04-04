@@ -4,12 +4,11 @@ import { cn } from '@/lib/utils/cn';
 import {
   Bell,
   Bot,
-  Boxes,
-  Clock,
   Database,
   type LucideIcon,
   Palette,
-  Plug,
+  Puzzle,
+  Radio,
   Settings,
   User,
 } from 'lucide-react';
@@ -18,11 +17,10 @@ export type SettingsSection =
   | 'general'
   | 'profile'
   | 'agent'
-  | 'modules'
   | 'appearance'
   | 'notifications'
-  | 'automations'
-  | 'integrations'
+  | 'channels'
+  | 'extensions'
   | 'data';
 
 interface NavItem {
@@ -35,11 +33,10 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'Geral', icon: Settings },
   { id: 'profile', label: 'Perfil', icon: User },
   { id: 'agent', label: 'Agente', icon: Bot },
-  { id: 'modules', label: 'Módulos', icon: Boxes },
-  { id: 'appearance', label: 'Aparência', icon: Palette },
-  { id: 'notifications', label: 'Notificações', icon: Bell },
-  { id: 'automations', label: 'Automações', icon: Clock },
-  { id: 'integrations', label: 'Integrações', icon: Plug },
+  { id: 'appearance', label: 'Aparencia', icon: Palette },
+  { id: 'notifications', label: 'Notificacoes', icon: Bell },
+  { id: 'channels', label: 'Canais', icon: Radio },
+  { id: 'extensions', label: 'Extensoes', icon: Puzzle },
   { id: 'data', label: 'Dados', icon: Database },
 ];
 
