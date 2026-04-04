@@ -2,8 +2,52 @@
 
 **Ultima atualizacao:** 2026-04-04
 
+## Ollama Local Inference + Alpha Fixes (2026-04-04)
+**Status: [✅ Completo — deployado na VPS]**
+
+Sessão de pré-alpha: performance, estabilidade e inferência local.
+
+### Performance — 22s → ~2s para mensagens simples
+
+| Fix | Ficheiro | O que mudou |
+|-----|----------|------------|
+| Model routing bug | `model-router.ts` | `selectModel()` usava `agentModel` (120B) como fallback antes dos FREE_DEFAULTS — "Olá" era roteado para Nemotron 120B em vez de nano. Renomeado para `_agentModel` (unused). |
+| Context fast path | `middleware/context.ts` | `isLikelySimpleMessage()` exportado de model-router. Mensagens simples saltam embedding lookup + memory retrieval (~4s poupados). |
+| History fast path | `middleware/history.ts` | Skip history para new sessions E mensagens simples (fix para web channel que hardcoda `isNewSession: false`). |
+| Persistence fire-and-forget | `middleware/persistence.ts` | Save de mensagem do user era awaited antes do pipeline — movido para fire-and-forget. |
+| Token display React bug | `chat-message.tsx` | `{0 && <span>}` renderizava "0" — corrigido para `{tokensUsed != null && tokensUsed > 0 && ...}`. |
+
+### Ollama Local Inference
+
+| Ficheiro | Mudança |
+|----------|---------|
+| `docker-compose.yml` | Serviço `ollama` (4G RAM, `ollama_data` volume, healthcheck) |
+| `middleware/llm.ts` | Substituído `getClient()` hardcoded por `getClientForModel(model)` — modelos sem `/` usam Ollama via `getWorkerClient()` |
+| `model-router.ts` | `FREE_DEFAULTS.simple` = `qwen3:4b` quando `OLLAMA_BASE_URL` set; qwen3/ministral-3 adicionados a `MODEL_CONTEXT_LIMITS` |
+| `llm-client.ts` | `WORKER_MODEL` respeita `OLLAMA_WORKER_MODEL` env var |
+| `.env.example` | Documentado `OLLAMA_BASE_URL` e `OLLAMA_WORKER_MODEL` |
+
+Modelo: `qwen3:4b` (Alibaba 2025, 256K ctx, tool calling nativo, 100+ idiomas, ~2.5GB Q4).
+Simple tier → Ollama local (gratuito). Moderate/complex → OpenRouter (qwen3.6-plus:free).
+
+### Pré-Alpha Fixes
+
+| Fix | Ficheiro | O que mudou |
+|-----|----------|------------|
+| Sidebar stubs removidos | `apps/web/lib/modules.ts` | `assets`, `entertainment`, `housing` removidos do MODULE_CONFIG (código das páginas mantido). Sidebar agora mostra 8 módulos. |
+| Session compactor lock per-tenant | `automations/session-compactor.ts` | Lock global `isCompacting: boolean` → `Set<string>` keyed por `getCurrentSchema()`. Elimina spam "Previous run still active" nos logs. |
+| Multi-service log viewer | `api/server.ts`, `docker-logs.ts` (novo), `admin-dashboard.tsx` | `GET /admin/logs/stream?service=agent\|web\|postgres\|caddy`. Docker HTTP API via unix socket `/var/run/docker.sock`. Pills de serviço no admin dashboard. |
+| Rate limiting no login | `apps/web/app/api/auth/login/route.ts` | Map in-memory IP → {count, resetAt}, 5 tentativas/min, HTTP 429. |
+
+### VPS Deploy (2026-04-04)
+- Todos os serviços rodando: postgres, pgbouncer, caddy, web, agent, ollama
+- 6 tenants activos (ten1-ten6)
+- `OLLAMA_BASE_URL` adicionado ao `.env` da VPS
+- `qwen3:4b` baixa automaticamente na 1ª mensagem simples (~2.5GB)
+- Ver `.claude/rules/deploy.md` para SSH, comandos e troubleshooting
+
 ## Multi-Tenant Dinâmico — Single-Process Agent (2026-04-04)
-**Status: [✅ Completo — code-level, pendente deploy/teste]**
+**Status: [✅ Completo — deployado]**
 
 Refactora completa do sistema multi-tenant: de 6 containers hardcoded para 1 processo agent dinâmico.
 
