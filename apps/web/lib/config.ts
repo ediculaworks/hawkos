@@ -9,7 +9,7 @@ function getTenantConfig() {
     const host = window.location.host; // includes port if non-standard
     return {
       apiUrl: '/api/agent',
-      wsUrl: `${proto}://${host}/agent/${t.slug}/ws`,
+      wsUrl: `${proto}://${host}/agent/ws`,
       token: '',
     };
   }

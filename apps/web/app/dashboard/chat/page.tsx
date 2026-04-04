@@ -38,12 +38,7 @@ function ChatPageInner() {
   };
 
   const handleNewSession = () => {
-    chat.createSession(chat.selectedAgent?.id);
-  };
-
-  const handleSelectAgent = (agent: (typeof chat.agents)[number]) => {
-    chat.setSelectedAgent(agent);
-    chat.createSession(agent.id);
+    chat.createSession();
   };
 
   const handleSuggest = (text: string) => {
@@ -54,15 +49,10 @@ function ChatPageInner() {
     <div className="flex h-[calc(100vh-var(--topbar-height)-var(--space-12))] gap-[var(--space-4)]">
       {/* Sidebar */}
       <ChatSidebar
-        agents={chat.agents}
-        selectedAgent={chat.selectedAgent}
         sessions={chat.sessions}
         activeSession={chat.activeSession}
         connected={chat.connected}
         loading={chat.initializing || chat.sessionsLoading}
-        onSelectAgent={(agent) => {
-          chat.setSelectedAgent(agent);
-        }}
         onNewSession={handleNewSession}
         onSelectSession={(id) => chat.selectSession(id)}
         onDeleteSession={(id) => chat.deleteSession(id)}
@@ -95,12 +85,7 @@ function ChatPageInner() {
               </div>
             </div>
           ) : chat.messages.length === 0 ? (
-            <ChatEmpty
-              agent={chat.selectedAgent}
-              agents={chat.agents}
-              onSelectAgent={handleSelectAgent}
-              onSuggest={handleSuggest}
-            />
+            <ChatEmpty onSuggest={handleSuggest} />
           ) : (
             <>
               {chat.messages.map((msg, i) => (

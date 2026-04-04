@@ -201,49 +201,57 @@ async function main() {
       console.log(`[${user.slug}] ${MODULES.length} modules seeded in admin.tenant_modules`);
     }
 
-    // ── 5. Create schema ─────────────────────────────────────────────────
-    await sql.unsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
-    console.log(`[${user.slug}] Schema "${schemaName}" ensured`);
+    // ── 5. Create schema + run migrations (new tenants only) ────────────
+    // Skip for existing tenants: seed migrations have bare INSERTs that would
+    // create duplicate rows (habits, categories, accounts, etc.) on every run.
+    const isNewTenant = existing.length === 0;
 
-    // Grant privileges so authenticated role can use this schema
-    await sql.unsafe(`GRANT USAGE ON SCHEMA "${schemaName}" TO authenticated`);
-    await sql.unsafe(
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT ALL ON TABLES TO authenticated`,
-    );
-    await sql.unsafe(
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT ALL ON SEQUENCES TO authenticated`,
-    );
+    if (isNewTenant) {
+      await sql.unsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+      console.log(`[${user.slug}] Schema "${schemaName}" ensured`);
 
-    // ── 6. Apply all migrations in the tenant schema ─────────────────────
-    console.log(`[${user.slug}] Applying ${migrations.length} migrations...`);
-    let applied = 0;
-    let skipped = 0;
+      // Grant privileges so authenticated role can use this schema
+      await sql.unsafe(`GRANT USAGE ON SCHEMA "${schemaName}" TO authenticated`);
+      await sql.unsafe(
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT ALL ON TABLES TO authenticated`,
+      );
+      await sql.unsafe(
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT ALL ON SEQUENCES TO authenticated`,
+      );
 
-    for (const migration of migrations) {
-      try {
-        await sql.begin(async (tx) => {
-          await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
-          await tx.unsafe(migration.sql);
-        });
-        applied++;
-      } catch (err) {
-        // Expected: some migrations reference admin schema tables or create
-        // things that already exist. Continue on error.
-        skipped++;
-        const message = err instanceof Error ? err.message : String(err);
-        // Only log if it's not a common "already exists" type error
-        if (
-          !message.includes('already exists') &&
-          !message.includes('duplicate key') &&
-          !message.includes('does not exist') &&
-          !message.includes('relation') &&
-          !message.includes('column')
-        ) {
-          console.log(`  [${user.slug}] Migration ${migration.name}: ${message.slice(0, 120)}`);
+      // ── 6. Apply all migrations in the tenant schema ─────────────────────
+      console.log(`[${user.slug}] Applying ${migrations.length} migrations...`);
+      let applied = 0;
+      let skipped = 0;
+
+      for (const migration of migrations) {
+        try {
+          await sql.begin(async (tx) => {
+            await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+            await tx.unsafe(migration.sql);
+          });
+          applied++;
+        } catch (err) {
+          // Expected: some migrations reference admin schema tables or create
+          // things that already exist. Continue on error.
+          skipped++;
+          const message = err instanceof Error ? err.message : String(err);
+          // Only log if it's not a common "already exists" type error
+          if (
+            !message.includes('already exists') &&
+            !message.includes('duplicate key') &&
+            !message.includes('does not exist') &&
+            !message.includes('relation') &&
+            !message.includes('column')
+          ) {
+            console.log(`  [${user.slug}] Migration ${migration.name}: ${message.slice(0, 120)}`);
+          }
         }
       }
+      console.log(`[${user.slug}] Migrations: ${applied} applied, ${skipped} skipped (already exist or N/A)`);
+    } else {
+      console.log(`[${user.slug}] Existing tenant — skipping schema/migration step to avoid duplicate seed data`);
     }
-    console.log(`[${user.slug}] Migrations: ${applied} applied, ${skipped} skipped (already exist or N/A)`);
 
     // ── 7. Create auth_users row ─────────────────────────────────────────
     const passwordHash = hashSync(user.password, BCRYPT_ROUNDS);

@@ -2,54 +2,21 @@
 
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { Agent, ChatSession } from '@/lib/agent-chat';
-import { Check, ChevronDown, Pencil, Plus, Trash2, X } from 'lucide-react';
-
-// ─── Agent emoji ─────────────────────────────────────────────────────────────
-
-const AGENT_EMOJIS: Record<string, string> = {
-  '🦅': '🦅',
-  '🦉': '🦉',
-  '🐺': '🐺',
-  '🦚': '🦚',
-  '🐝': '🐝',
-  '🦫': '🦫',
-  '🐂': '🐂',
-  '🦊': '🦊',
-  '🐻': '🐻',
-  '🦁': '🦁',
-  '🐯': '🐯',
-  '🦈': '🦈',
-  '🐬': '🐬',
-  '🦜': '🦜',
-  '🐸': '🐸',
-  '🦎': '🦎',
-};
-
-function getAgentEmoji(agent: { avatar?: string; name: string }): string {
-  if (agent.avatar && AGENT_EMOJIS[agent.avatar]) return agent.avatar;
-  const nameMap: Record<string, string> = {
-    Hawk: '🦅',
-    Owl: '🦉',
-    Wolf: '🐺',
-    Peacock: '🦚',
-    Bee: '🐝',
-    Beaver: '🦫',
-    Bull: '🐂',
-    Fox: '🦊',
-  };
-  return nameMap[agent.name] || agent.name.slice(0, 2).toUpperCase();
-}
+import type { ChatSession } from '@/lib/agent-chat';
+import { Check, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 
+// Hawk is the only user-facing agent
+function getSessionEmoji(agentName?: string): string {
+  if (!agentName || agentName === 'Hawk') return '🦅';
+  return agentName.slice(0, 2).toUpperCase();
+}
+
 interface ChatSidebarProps {
-  agents: Agent[];
-  selectedAgent: Agent | null;
   sessions: ChatSession[];
   activeSession: string | null;
   connected: boolean;
   loading?: boolean;
-  onSelectAgent: (agent: Agent) => void;
   onNewSession: () => void;
   onSelectSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
@@ -93,20 +60,15 @@ function getSessionGroup(dateStr?: string): string {
 }
 
 export function ChatSidebar({
-  agents,
-  selectedAgent,
   sessions,
   activeSession,
   connected,
   loading,
-  onSelectAgent,
   onNewSession,
   onSelectSession,
   onDeleteSession,
   onRenameSession,
 }: ChatSidebarProps) {
-  const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
-
   // Group sessions by date
   const grouped = new Map<string, ChatSession[]>();
   for (const session of sessions) {
@@ -115,65 +77,8 @@ export function ChatSidebar({
     grouped.get(group)?.push(session);
   }
 
-  const userFacingAgents = agents.filter((a) => a.is_user_facing !== false);
-
   return (
     <div className="w-[264px] flex-shrink-0 flex flex-col rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-1)] overflow-hidden">
-      {/* Agent selector */}
-      <div className="p-3 border-b border-[var(--color-border-subtle)]">
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setAgentDropdownOpen(!agentDropdownOpen)}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer"
-          >
-            <div className="w-6 h-6 rounded-full bg-[var(--color-surface-3)] border border-[var(--color-border-subtle)] flex items-center justify-center text-sm leading-none flex-shrink-0">
-              {selectedAgent ? getAgentEmoji(selectedAgent) : '🤖'}
-            </div>
-            <span className="flex-1 text-sm font-medium text-[var(--color-text-primary)] text-left truncate">
-              {selectedAgent?.name ?? 'Selecionar agente'}
-            </span>
-            <ChevronDown
-              className={`h-3.5 w-3.5 text-[var(--color-text-muted)] transition-transform ${agentDropdownOpen ? 'rotate-180' : ''}`}
-            />
-          </button>
-
-          {agentDropdownOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setAgentDropdownOpen(false)}
-                onKeyDown={() => {}}
-              />
-              <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-2)] shadow-[var(--shadow-lg)] py-1 max-h-60 overflow-y-auto">
-                {userFacingAgents.map((agent) => (
-                  <button
-                    key={agent.id}
-                    type="button"
-                    onClick={() => {
-                      onSelectAgent(agent);
-                      setAgentDropdownOpen(false);
-                    }}
-                    className={`flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer ${
-                      selectedAgent?.id === agent.id ? 'bg-[var(--color-accent)]/10' : ''
-                    }`}
-                  >
-                    <div className="w-5 h-5 rounded-full bg-[var(--color-surface-3)] border border-[var(--color-border-subtle)] flex items-center justify-center text-xs leading-none flex-shrink-0">
-                      {getAgentEmoji(agent)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm text-[var(--color-text-primary)] block truncate">
-                        {agent.name}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
       {/* Sessions header */}
       <div className="flex items-center justify-between px-3 py-2">
         <span className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
@@ -290,7 +195,7 @@ function SessionItem({
     >
       {/* Agent emoji mini avatar */}
       <div className="w-5 h-5 rounded-full bg-[var(--color-surface-3)] border border-[var(--color-border-subtle)] flex items-center justify-center text-xs leading-none flex-shrink-0">
-        {getAgentEmoji({ name: session.agentName ?? 'H' })}
+        {getSessionEmoji(session.agentName)}
       </div>
 
       {editing ? (

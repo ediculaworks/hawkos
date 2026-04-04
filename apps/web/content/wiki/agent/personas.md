@@ -1,177 +1,142 @@
-# Personas do Agente (Templates)
+# Agentes
 
-## O que são Personas
+## Arquitetura: Hawk + Task Agents
 
-Personas são configurações de agente que especializam o comportamento do LLM para um domínio específico. Cada persona tem:
+O Hawk OS usa um modelo de **agente único** com **delegação dinâmica**:
 
-- **System prompt customizado**: estilo de comunicação, foco, restrições
-- **Módulos habilitados**: quais módulos de dados o agente pode acessar
-- **Tools permitidas**: filtradas pelos módulos habilitados
-- **Canal Discord**: qual canal Discord usa esta persona
+- **Hawk** é o único agente persistente e user-facing. Toda conversa — Discord ou web — passa pelo Hawk.
+- **Task Agents** são agentes criados pelo Hawk para delegar tarefas específicas. Têm vida curta: criados quando necessário, excluídos ao concluir.
 
-O agente Hawk padrão é generalista. As personas especializadas são mais eficientes — enviam menos contexto, usam menos tokens e respondem mais focado.
+Não há mais personas fixas (CFO, Coach, etc.). O conceito de "selecionar um agente" foi removido da interface.
 
-> 🧩 **Para leigos:** Pense nas personas como diferentes "modos" do assistente. O modo Hawk sabe de tudo. O modo CFO só fala de dinheiro. O modo Coach só fala de saúde e hábitos. Você escolhe qual modo usar em qual canal do Discord.
+---
 
-## Os 7 Templates
+## Hawk
 
-### 1. Hawk (Padrão)
+| Campo | Valor |
+|-------|-------|
+| `id` | `00000000-0000-0000-0000-000000000001` |
+| `agent_tier` | `orchestrator` |
+| `llm_model` | `null` → usa smart routing via `MODEL_TIER_*` |
+| `tools_enabled` | todas |
+| `is_user_facing` | `true` |
 
-**Foco**: Generalista, todos os módulos
-**Módulos**: Todos os 11 módulos activos
-**Quando usar**: Canal principal, conversa geral do dia a dia
+Hawk é generalista. Acessa todos os módulos, todas as tools, carrega contexto L0/L1/L2 conforme a mensagem. O modelo usado depende da complexidade detectada — veja [Smart Routing](#smart-routing).
 
-O Hawk é o agente completo. Responde sobre qualquer módulo, tem acesso a todas as tools e carrega contexto de todos os módulos. É o "sistema operacional" completo.
+---
 
-```
-System prompt: "Você é o Hawk, assistente pessoal de [nome].
-Você gerencia todos os aspectos da vida dele: finanças, saúde,
-objetivos, relacionamentos, rotina e mais. Seja direto e prático."
-```
+## Smart Routing (modelo por complexidade)
 
-### 2. CFO
+Cada mensagem é classificada antes de chamar o LLM:
 
-**Foco**: Finanças, patrimônio, jurídico
-**Módulos**: `finances`, `legal`, `assets`
-**Quando usar**: Canal dedicado a dinheiro e questões empresariais
+| Complexidade | Critério | Env var |
+|---|---|---|
+| `simple` | Saudações, CRUD simples (<100 chars, 1 módulo) | `MODEL_TIER_SIMPLE` |
+| `moderate` | Padrão | `MODEL_TIER_DEFAULT` |
+| `complex` | Multi-módulo, análise, planejamento | `MODEL_TIER_COMPLEX` |
 
-O CFO foca em análise financeira, planejamento tributário, gestão de patrimônio e obrigações legais. Responde como um CFO de startup — dados precisos, análise crítica, sem rodeios.
+Se as env vars não estiverem definidas, usa `OPENROUTER_MODEL` (default: `openrouter/auto`).
 
-```
-Tools disponíveis: create_transaction, get_financial_summary,
-get_budget_vs_actual, get_accounts, get_portfolio_positions,
-search_documents, + universais
-```
-
-### 3. Coach
-
-**Foco**: Saúde e rotina
-**Módulos**: `health`, `routine`
-**Quando usar**: Canal de bem-estar e hábitos
-
-O Coach atua como personal trainer + coach de vida. Registra treinos, monitora hábitos e acompanha o bem-estar geral. Tom mais próximo e encorajador que o Hawk.
-
-```
-Tools disponíveis: log_workout, add_workout_set, log_sleep,
-log_weight, get_exercise_progress, estimate_1rm,
-create_habit, log_habit, get_habits_at_risk, + universais
-```
-
-### 4. Career Coach
-
-**Foco**: Carreira e objetivos
-**Módulos**: `career`, `objectives`
-**Quando usar**: Canal de produtividade e crescimento profissional
-
-O Career Coach ajuda a gerenciar projetos, rastrear horas de trabalho, definir e acompanhar objetivos. Tom estratégico e orientado a resultados.
-
-```
-Tools disponíveis: log_work, find_workspace_by_name,
-create_objective, create_task, + universais
-```
-
-### 5. Chief of Staff
-
-**Foco**: Agenda, objetivos, pessoas
-**Módulos**: `calendar`, `objectives`, `people`
-**Quando usar**: Canal de coordenação e relacionamentos
-
-O Chief of Staff gerencia sua agenda, acompanha relacionamentos importantes e garante que objetivos estratégicos estão avançando. Funciona como um EA (Executive Assistant) inteligente.
-
-```
-Tools disponíveis: create_event, find_free_slots,
-create_objective, create_task,
-create_person, find_person_by_name, log_interaction, + universais
-```
-
-### 6. House Manager
-
-**Foco**: Moradia e patrimônio
-**Módulos**: `housing`, `assets`
-**Quando usar**: Canal doméstico e gestão de ativos
-
-O House Manager cuida das questões práticas da vida: contas de moradia, manutenções, e inventário de bens. Tom pragmático e organizado.
-
-```
-Tools disponíveis: search_documents, + universais
-(maioria das operações de housing/assets são via dashboard)
-```
-
-> 💡 **Dica:** O House Manager é ótimo para registrar despesas de moradia ("conta de luz chegou R$180") e consultas sobre documentos ("qual o vencimento do meu seguro do carro?").
-
-### 7. Creative Director
-
-**Foco**: Entretenimento e mídia
-**Módulos**: `entertainment`
-**Quando usar**: Canal criativo e de mídia
-
-O Creative Director rastreia mídias que você consome e recomenda novas. Tom mais descontraído e criativo.
-
-```
-Tools disponíveis: create_media, + universais
-```
-
-## Roteamento por Canal Discord
-
-O `DISCORD_CHANNEL_MAP` no `.env` mapeia canais Discord para templates de agente:
+**Cost-aware downgrade**: quando >80% do budget diário é consumido, queries complexas são rebaixadas para moderate. Quando >95%, tudo rebaixa para simple.
 
 ```env
-DISCORD_CHANNEL_MAP=1234567890:hawk-default,9876543210:cfo-template,1111111111:coach-template
-# Formato: channelId:agentTemplateId,...
+MODEL_TIER_SIMPLE=nvidia/nemotron-3-nano-30b-a3b:free
+MODEL_TIER_DEFAULT=qwen/qwen3.6-plus:free
+MODEL_TIER_COMPLEX=qwen/qwen3.6-plus:free
+MODEL_DAILY_BUDGET_USD=5.00
 ```
 
-Quando uma mensagem chega no Discord, o sistema:
-1. Identifica o canal de origem
-2. Busca o template correspondente no mapa
-3. Carrega as configurações da persona (system prompt, módulos, tools)
-4. Processa com o contexto correto
+---
 
-Se o canal não está no mapa, usa o template padrão (Hawk).
+## Task Agents (delegação dinâmica)
 
-## Gerenciando Personas
+Quando Hawk precisa delegar uma tarefa especializada — análise financeira profunda, geração de imagem, busca de vagas — ele pode criar um **task agent** com escopo limitado.
 
-### Via Dashboard
+### Características
 
-Acesse `/dashboard/agents` para:
-- Ver todos os agentes configurados
-- Criar nova persona com formulário
-- Editar system prompt, módulos e configurações
-- Deletar personas (exceto o Hawk — agente do sistema)
+- **Escopo restrito**: `tools_enabled` contém apenas as tools necessárias para a tarefa
+- **Vida curta**: criado para a tarefa, excluído ao completar (ou manualmente via `/dashboard/agents`)
+- **Não user-facing**: `is_user_facing = false` — o usuário não vê nem seleciona estes agentes
+- **Modelo específico**: pode ter `llm_model` diferente do Hawk (ex: modelo de visão para imagens)
 
-> ⚠️ **Atenção:** O agente `hawk` é protegido pelo sistema e não pode ser deletado. Todos os outros podem ser editados ou removidos livremente.
+### Criando um Task Agent
 
-### Criando uma Persona Nova
-
-Via `/dashboard/agents/new`:
+Via `/dashboard/agents/new` ou via tool `create_agent` (futura):
 
 ```
-Nome: "CFO Pessoal"
-System Prompt: "Você é o CFO pessoal. Análise financeira rigorosa..."
-Módulos Habilitados: finances, legal, assets
-Tools Habilitadas: null (herda dos módulos) ou lista específica
-Canal Discord: ID do canal
+Nome:            "Análise Fiscal Q1"
+Tier:            specialist
+Tools:           get_financial_summary, get_budget_vs_actual, search_documents
+Modelo:          qwen/qwen3.6-plus:free
+Is user-facing:  false
+Tempo de vida:   até conclusão da tarefa
 ```
 
-## Como Templates Afetam o Escopo de Tools
+### Excluindo
 
-O campo `toolsEnabled` no template funciona como lista de permissão adicional:
+Task agents devem ser excluídos quando a tarefa conclui. Via `/dashboard/agents` → botão Deletar. Hawk pode ser instruído a excluir agents que criou:
+
+```
+"Exclui o agente de análise fiscal que você criou semana passada"
+```
+
+---
+
+## Workers (internos)
+
+Workers são agentes background usados pelo sistema. Não aparecem no chat, não são user-facing.
+
+| Nome | ID | Função |
+|------|-----|--------|
+| Memory Extractor | `...0020` | Extrai memórias no fim de sessão |
+| Title Generator | `...0021` | Gera títulos de sessão automaticamente |
+| Insight Synthesizer | `...0022` | Resume dados para insights proativos |
+| Dedup Judge | `...0023` | Deduplica memórias similares |
+
+Estes workers são **permanentes** — usados por automações e pelo session compactor.
+
+---
+
+## Roteamento Discord
+
+O Discord mapeia canais para agentes via `DISCORD_CHANNEL_MAP`. Com o modelo de agente único, todos os canais usam Hawk por padrão:
+
+```env
+# Canal principal → Hawk (default, sem configuração necessária)
+DISCORD_CHANNEL_ID=1234567890
+```
+
+Se um task agent precisar de canal dedicado (caso de uso avançado):
+
+```env
+DISCORD_CHANNEL_MAP=9876543210:task-agent-id
+```
+
+---
+
+## Como Afeta o Escopo de Tools
+
+O campo `tools_enabled` em qualquer agente funciona como allowlist adicional:
 
 ```typescript
-// null = todas as tools dos módulos habilitados
-toolsEnabled: null
+// null → todas as tools dos módulos detectados (Hawk padrão)
+tools_enabled: null
 
-// array = apenas estas tools específicas
-toolsEnabled: ['create_transaction', 'get_financial_summary', 'save_memory']
+// array → apenas estas tools (task agent restrito)
+tools_enabled: ['get_financial_summary', 'save_memory']
 ```
 
-O pipeline combina duas listas:
-1. Tools detectadas pelos módulos da mensagem
-2. Tools permitidas pelo template (`toolsEnabled`)
+O pipeline combina:
+1. Tools dos módulos detectados na mensagem (routing dinâmico)
+2. Interseção com `tools_enabled` do agente (se não-null)
 
-A interseção é o que o LLM recebe. Isso permite criar personas muito restritas (ex: um agente que só pode ler dados, nunca escrever).
+---
 
-> 🧩 **Para leigos:** `toolsEnabled: null` significa "pode fazer tudo que o módulo permite". Se você colocar uma lista específica, o agente só consegue fazer exatamente o que está na lista. Útil para criar agentes muito focados ou seguros.
+## Gerenciando Agentes
 
-## Automações e Personas
+Acesse `/dashboard/agents` para:
+- Ver Hawk e workers configurados
+- Criar task agents com escopo específico
+- Deletar task agents concluídos
 
-Cada automação (daily check-in, weekly review, etc.) usa o template Hawk por padrão. Você pode configurar automações específicas para usar outras personas no código de cada automação em `apps/agent/src/automations/`.
+> ⚠️ Hawk (`00000000-0000-0000-0000-000000000001`) é protegido e não pode ser deletado.

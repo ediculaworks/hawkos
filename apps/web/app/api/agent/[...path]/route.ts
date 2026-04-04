@@ -36,8 +36,11 @@ async function proxyToAgent(
   const headers = new Headers();
   const contentType = request.headers.get('content-type');
   if (contentType) headers.set('Content-Type', contentType);
-  if (tenant.agentApiSecret) {
-    headers.set('Authorization', `Bearer ${tenant.agentApiSecret}`);
+  // In single-process multi-tenant mode all tenants share one AGENT_API_SECRET.
+  // Prefer the env var; fall back to the per-tenant DB secret for legacy setups.
+  const secret = process.env.AGENT_API_SECRET || tenant.agentApiSecret;
+  if (secret) {
+    headers.set('Authorization', `Bearer ${secret}`);
   }
 
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';

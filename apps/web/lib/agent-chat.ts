@@ -69,7 +69,7 @@ export function useChat() {
   const [loading, setLoading] = useState(false);
   const [typing, setTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [agents, setAgents] = useState<Agent[]>([]);
+  // Hawk is the only agent — loaded once on connect, never changed by user
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -77,14 +77,11 @@ export function useChat() {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const activeSessionRef = useRef<string | null>(activeSession);
-  const selectedAgentRef = useRef<Agent | null>(selectedAgent);
   const streamBufferRef = useRef<string>('');
   const streamFlushTimerRef = useRef<number | null>(null);
-  const pendingAgentIdRef = useRef<string | null>(null);
 
-  // Keep refs in sync with state
+  // Keep ref in sync with state
   activeSessionRef.current = activeSession;
-  selectedAgentRef.current = selectedAgent;
 
   const setActiveSession = useCallback((sessionId: string | null) => {
     _setActiveSession(sessionId);
@@ -97,17 +94,7 @@ export function useChat() {
     try {
       const res = await fetch(`${getAgentApiUrl()}/chat/sessions`, { headers: agentHeaders() });
       const data = await res.json();
-      const loadedSessions: ChatSession[] = data.sessions ?? [];
-      setSessions(loadedSessions);
-
-      // Restore agent from active session on page refresh
-      const storedId = activeSessionRef.current;
-      if (storedId) {
-        const activeSessionData = loadedSessions.find((s) => s.id === storedId);
-        if (activeSessionData?.agentId) {
-          pendingAgentIdRef.current = activeSessionData.agentId;
-        }
-      }
+      setSessions(data.sessions ?? []);
     } catch (_err) {
     } finally {
       setSessionsLoading(false);
@@ -127,7 +114,7 @@ export function useChat() {
         socket.send(JSON.stringify({ type: 'chat_join', sessionId: storedSession }));
       }
       loadSessions();
-      loadAgents();
+      loadHawk();
     };
 
     socket.onmessage = (event) => {
@@ -237,34 +224,22 @@ export function useChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setActiveSession, loadSessions]);
 
-  const loadAgents = async () => {
+  // Load only Hawk (orchestrator) for display purposes — user cannot change agent
+  const loadHawk = async () => {
     try {
       const res = await fetch('/api/agents');
       if (res.ok) {
         const data = await res.json();
-        setAgents(data.agents ?? []);
-        if (data.agents?.length > 0 && !selectedAgentRef.current) {
-          const pendingId = pendingAgentIdRef.current;
-          const match = pendingId
-            ? (data.agents as Agent[]).find((a: Agent) => a.id === pendingId)
-            : null;
-          const hawk = (data.agents as Agent[]).find((a: Agent) => a.agent_tier === 'orchestrator');
-          setSelectedAgent(match ?? hawk ?? data.agents[0]);
-          pendingAgentIdRef.current = null;
-        }
+        const hawk = (data.agents as Agent[]).find((a: Agent) => a.agent_tier === 'orchestrator');
+        if (hawk) setSelectedAgent(hawk);
       }
     } catch (_err) {
       try {
         const res = await fetch(`${getAgentApiUrl()}/agents`, { headers: agentHeaders() });
         if (res.ok) {
           const data = await res.json();
-          setAgents(data.agents ?? []);
-          if (data.agents?.length > 0 && !selectedAgentRef.current) {
-            const hawk = (data.agents as Agent[]).find(
-              (a: Agent) => a.agent_tier === 'orchestrator',
-            );
-            setSelectedAgent(hawk ?? data.agents[0]);
-          }
+          const hawk = (data.agents as Agent[]).find((a: Agent) => a.agent_tier === 'orchestrator');
+          if (hawk) setSelectedAgent(hawk);
         }
       } catch (_err2) {}
     }
@@ -285,14 +260,14 @@ export function useChat() {
     }
   };
 
-  // Creates a session and returns the sessionId (or null on failure)
-  const ensureSession = async (agentId?: string): Promise<string | null> => {
+  // Creates a session and returns the sessionId (or null on failure).
+  // No agentId is sent — backend defaults to the Hawk orchestrator.
+  const ensureSession = async (): Promise<string | null> => {
     try {
-      const body = agentId ? { agentId } : {};
       const res = await fetch(`${getAgentApiUrl()}/chat/sessions`, {
         method: 'POST',
         headers: agentHeaders(),
-        body: JSON.stringify(body),
+        body: JSON.stringify({}),
       });
 
       if (!res.ok) {
@@ -332,7 +307,7 @@ export function useChat() {
     // Auto-create session if none active
     let sid = activeSessionRef.current;
     if (!sid) {
-      sid = await ensureSession(selectedAgentRef.current?.id);
+      sid = await ensureSession();
       if (!sid) return;
     }
 
@@ -348,23 +323,14 @@ export function useChat() {
     );
   };
 
-  const createSession = async (agentId?: string) => {
-    await ensureSession(agentId);
+  const createSession = async () => {
+    await ensureSession();
   };
 
   const selectSession = (sessionId: string) => {
     setActiveSession(sessionId);
     setError(null);
     loadMessages(sessionId);
-
-    // Sync selectedAgent with the session's agent
-    const session = sessions.find((s) => s.id === sessionId);
-    if (session?.agentId) {
-      const agent = agents.find((a) => a.id === session.agentId);
-      if (agent) {
-        setSelectedAgent(agent);
-      }
-    }
   };
 
   const deleteSession = async (sessionId: string) => {
@@ -420,9 +386,7 @@ export function useChat() {
     loading,
     typing,
     error,
-    agents,
-    selectedAgent,
-    setSelectedAgent,
+    selectedAgent, // always Hawk — read-only, loaded on connect
     sendMessage,
     createSession,
     selectSession,
