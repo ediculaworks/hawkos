@@ -420,7 +420,7 @@ export default function SetupPage() {
       const ackText = step.ack(value, newPayload);
       const followUp = isLast
         ? `${ackText}\n\n${buildSummary(newPayload, tzRef.current)}`
-        : `${ackText}\n\n${STEPS[nextIdx].question(tzRef.current, newPayload)}`;
+        : `${ackText}\n\n${STEPS[nextIdx]?.question(tzRef.current, newPayload) ?? ''}`;
 
       setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: followUp }]);
       setPayload(newPayload);
