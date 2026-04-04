@@ -45,7 +45,7 @@ function isSkip(text: string) {
 function parseTime(input: string): string | null {
   const clean = input.toLowerCase().trim().replace(/\s/g, '');
   const m = clean.match(/^(\d{1,2})(?:[h:](\d{2}))?/);
-  if (!m) return null;
+  if (!m || !m[1]) return null;
   const h = Number.parseInt(m[1]);
   const min = Number.parseInt(m[2] ?? '0');
   if (h > 23 || min > 59) return null;
