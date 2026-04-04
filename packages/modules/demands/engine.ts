@@ -1,5 +1,5 @@
 // Engine: executa steps de demands de forma assíncrona
-import { db } from '@hawk/db';
+import { db, getPool } from '@hawk/db';
 import OpenAI from 'openai';
 import {
   createLog,
@@ -103,15 +103,84 @@ ${step.description ? `INSTRUÇÃO: ${step.description}` : ''}
   return prompt;
 }
 
+// ── Atomic Task Checkout (Paperclip pattern) ─────────────────────────
+
+const WORKER_ID = `worker-${process.pid}-${Date.now()}`;
+
 /**
- * Execute a single step
+ * Atomically checkout a step — prevents double execution.
+ * Uses PostgreSQL UPDATE ... WHERE to guarantee exclusivity.
+ * Returns the step if claimed, null if already claimed by another worker.
+ */
+async function checkoutStep(stepId: string): Promise<DemandStep | null> {
+  try {
+    const sql = getPool();
+    const rows = await sql.unsafe(
+      `UPDATE demand_steps
+       SET status = 'running',
+           claimed_at = NOW(),
+           claimed_by = $2,
+           started_at = COALESCE(started_at, NOW())
+       WHERE id = $1
+         AND status = 'ready'
+         AND claimed_at IS NULL
+       RETURNING *`,
+      [stepId, WORKER_ID],
+    );
+    return (rows[0] as unknown as DemandStep) ?? null;
+  } catch (err) {
+    console.warn(`[demand-engine] checkoutStep failed for ${stepId}:`, err);
+    return null;
+  }
+}
+
+/**
+ * Release a step claim (on completion or failure).
+ */
+async function releaseStep(
+  stepId: string,
+  status: 'completed' | 'failed' | 'ready',
+  result?: string,
+  error?: string,
+): Promise<void> {
+  const updates: Record<string, unknown> = {
+    status,
+    claimed_at: null,
+    claimed_by: null,
+  };
+  if (result !== undefined) updates.result = result;
+  if (error !== undefined) updates.error_message = error;
+  if (status === 'completed') updates.completed_at = new Date().toISOString();
+  await updateStep(stepId, updates);
+}
+
+/**
+ * Recover stale claims — steps that were claimed but not completed within timeout.
+ * Called at the start of each queue processing cycle.
+ */
+async function recoverStaleClaims(): Promise<number> {
+  try {
+    const sql = getPool();
+    const rows = await sql.unsafe('SELECT recover_stale_demand_steps() AS recovered');
+    return Number((rows[0] as unknown as { recovered: number })?.recovered ?? 0);
+  } catch (err) {
+    // RPC may not exist if migration hasn't been applied yet
+    console.warn(
+      '[demand-engine] recover_stale_demand_steps RPC failed (migration may be pending):',
+      err,
+    );
+    return 0;
+  }
+}
+
+/**
+ * Execute a single step (with atomic checkout)
  */
 async function executeStep(demand: Demand, step: DemandStep): Promise<void> {
-  // Mark as running
-  await updateStep(step.id, {
-    status: 'running',
-    started_at: new Date().toISOString(),
-  });
+  // Atomic checkout — if another worker already claimed this step, skip it
+  const claimed = await checkoutStep(step.id);
+  if (!claimed) return; // Already claimed by another worker
+
   await createLog(demand.id, step.id, {
     log_type: 'status_change',
     agent_id: step.assigned_agent_id ?? undefined,
@@ -143,24 +212,23 @@ async function executeStep(demand: Demand, step: DemandStep): Promise<void> {
       ? `${agentInfo.identity}\n\nVocê está executando uma etapa de uma demanda do Hawk OS.`
       : 'Você é um agente especialista executando uma etapa de uma demanda do Hawk OS.';
 
-    const response = await getClient().chat.completions.create({
-      model: agentInfo?.model ?? DEFAULT_MODEL,
-      max_tokens: agentInfo?.maxTokens ?? 4096,
-      temperature: agentInfo?.temperature ?? 0.3,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: prompt },
-      ],
-    });
+    const response = await getClient().chat.completions.create(
+      {
+        model: agentInfo?.model ?? DEFAULT_MODEL,
+        max_tokens: agentInfo?.maxTokens ?? 4096,
+        temperature: agentInfo?.temperature ?? 0.3,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ],
+      },
+      { signal: AbortSignal.timeout(60_000) },
+    );
 
     const result = response.choices[0]?.message.content ?? 'Sem resultado';
 
-    // Mark as completed
-    await updateStep(step.id, {
-      status: 'completed',
-      result,
-      completed_at: new Date().toISOString(),
-    });
+    // Release claim and mark as completed
+    await releaseStep(step.id, 'completed', result);
 
     await createLog(demand.id, step.id, {
       log_type: 'agent_action',
@@ -171,22 +239,16 @@ async function executeStep(demand: Demand, step: DemandStep): Promise<void> {
     const errorMsg = String(error);
 
     if (step.retry_count < step.max_retries) {
-      // Re-queue for retry
-      await updateStep(step.id, {
-        status: 'ready',
-        retry_count: step.retry_count + 1,
-        error_message: errorMsg,
-      });
+      // Release claim and re-queue for retry
+      await releaseStep(step.id, 'ready', undefined, errorMsg);
+      await updateStep(step.id, { retry_count: step.retry_count + 1 });
       await createLog(demand.id, step.id, {
         log_type: 'retry',
         message: `Retry ${step.retry_count + 1}/${step.max_retries}: ${errorMsg}`,
       });
     } else {
-      // Mark as failed
-      await updateStep(step.id, {
-        status: 'failed',
-        error_message: errorMsg,
-      });
+      // Release claim and mark as failed
+      await releaseStep(step.id, 'failed', undefined, errorMsg);
       await createLog(demand.id, step.id, {
         log_type: 'error',
         message: `Step falhou após ${step.max_retries} tentativas: ${errorMsg}`,
@@ -239,9 +301,16 @@ async function checkDemandCompletion(demand: Demand): Promise<void> {
 }
 
 /**
- * Main queue processor — called by cron every 2 minutes
+ * Main queue processor — called by cron every 2 minutes.
+ * Recovers stale claims before processing new work (Paperclip heartbeat pattern).
  */
 export async function processDemandQueue(): Promise<void> {
+  // Recover steps that were claimed but not completed (crash recovery)
+  const recovered = await recoverStaleClaims();
+  if (recovered > 0) {
+    console.log(`[demand-engine] Recovered ${recovered} stale step claim(s)`);
+  }
+
   const activeDemands = await getActiveDemands();
   const runningDemands = activeDemands.filter((d) => d.status === 'running');
 

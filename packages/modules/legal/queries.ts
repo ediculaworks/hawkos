@@ -34,7 +34,7 @@ export async function listPendingObligations(): Promise<ObligationWithDaysLeft[]
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  return (data ?? []).map((o: any) => {
+  return (data ?? []).map((o: LegalObligation) => {
     const due = new Date(o.due_date as string);
     const daysLeft = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -158,8 +158,8 @@ export async function getExpiringContracts(
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  return (data ?? []).map((c: any) => ({
-    ...(c as Contract),
+  return (data ?? []).map((c: Contract) => ({
+    ...c,
     days_until_expiry: Math.round(
       (new Date(c.end_date as string).getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
     ),

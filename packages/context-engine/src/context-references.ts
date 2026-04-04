@@ -1,6 +1,9 @@
 /**
  * Context References — @file and @url with token budgets.
  *
+ * TODO: NOT YET INTEGRATED — never called from middleware pipeline.
+ * To activate: call extractReferences() + resolveReferences() in context middleware.
+ *
  * Parses user messages for @file:path and @url:endpoint references,
  * fetches content, and injects into context with hard/soft token limits.
  *

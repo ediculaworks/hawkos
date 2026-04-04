@@ -58,18 +58,30 @@ export function Step2Profile({ onNext, onBack, initialValues }: Step2ProfileProp
 
       <div className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="profile-name"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             Nome Completo
           </label>
-          <Input placeholder="João Silva" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input
+            id="profile-name"
+            placeholder="João Silva"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
           {errors.name && <p className="text-xs text-[var(--color-danger)] mt-1">{errors.name}</p>}
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="profile-cpf"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             CPF
           </label>
           <Input
+            id="profile-cpf"
             placeholder="000.000.000-00"
             value={cpf}
             onChange={(e) => handleCPFChange(e.target.value)}
@@ -79,20 +91,32 @@ export function Step2Profile({ onNext, onBack, initialValues }: Step2ProfileProp
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="profile-birthdate"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             Data de Nascimento
           </label>
-          <Input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+          <Input
+            id="profile-birthdate"
+            type="date"
+            value={birthDate}
+            onChange={(e) => setBirthDate(e.target.value)}
+          />
           {errors.birthDate && (
             <p className="text-xs text-[var(--color-danger)] mt-1">{errors.birthDate}</p>
           )}
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="profile-timezone"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             Timezone
           </label>
           <select
+            id="profile-timezone"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
             className="flex h-10 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"

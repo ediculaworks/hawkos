@@ -358,10 +358,10 @@ export async function getMedicationAdherence(days = 30): Promise<
       .gte('scheduled_at', sinceStr),
   ]);
 
-  return (meds ?? []).map((med: any) => {
-    const medLogs = (logs ?? []).filter((l: any) => l.medication_id === med.id);
-    const taken = medLogs.filter((l: any) => l.taken).length;
-    const skipped = medLogs.filter((l: any) => !l.taken).length;
+  return (meds ?? []).map((med: Record<string, unknown>) => {
+    const medLogs = (logs ?? []).filter((l: Record<string, unknown>) => l.medication_id === med.id);
+    const taken = medLogs.filter((l: Record<string, unknown>) => l.taken).length;
+    const skipped = medLogs.filter((l: Record<string, unknown>) => !l.taken).length;
     const total = taken + skipped;
     return {
       medication: med as Medication,

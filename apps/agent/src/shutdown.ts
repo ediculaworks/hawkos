@@ -20,7 +20,7 @@ const _controller = new AbortController();
  * Global abort signal — pass to fetch(), setTimeout, or any cancellable operation.
  * Triggers on SIGTERM/SIGINT/uncaughtException.
  */
-export const shutdownSignal = _controller.signal;
+export const shutdownSignal: AbortSignal = _controller.signal;
 
 /**
  * Check if shutdown has been requested.

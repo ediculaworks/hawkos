@@ -39,7 +39,7 @@ export default function CountUp({
   const getDecimalPlaces = (num: number): number => {
     const str = num.toString();
     if (str.includes('.')) {
-      const decimals = str.split('.')[1];
+      const decimals = str.split('.')[1] ?? '';
       if (Number.parseInt(decimals) !== 0) return decimals.length;
     }
     return 0;

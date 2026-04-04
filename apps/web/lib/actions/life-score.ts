@@ -49,8 +49,18 @@ export async function fetchLifeScore(): Promise<LifeScore> {
 
       let healthScore = 50;
       if (sleeps.length > 0) {
-        const avgSleep = sleeps.reduce((s, r) => s + (r.duration_h ?? 0), 0) / sleeps.length;
-        const avgQuality = sleeps.reduce((s, r) => s + (r.quality ?? 5), 0) / sleeps.length;
+        const avgSleep =
+          sleeps.reduce(
+            (s: number, r: { duration_h: number | null; quality: number | null }) =>
+              s + (r.duration_h ?? 0),
+            0,
+          ) / sleeps.length;
+        const avgQuality =
+          sleeps.reduce(
+            (s: number, r: { duration_h: number | null; quality: number | null }) =>
+              s + (r.quality ?? 5),
+            0,
+          ) / sleeps.length;
         // Ideal: 7-9h sleep, quality 8+
         const sleepScore = Math.min(100, (avgSleep / 8) * 50 + (avgQuality / 10) * 50);
         healthScore = Math.round(sleepScore);
@@ -82,8 +92,16 @@ export async function fetchLifeScore(): Promise<LifeScore> {
 
       let financeScore = 70;
       if (budgetData && budgetData.length > 0) {
-        const totalBudget = budgetData.reduce((s, r) => s + (r.budgeted_amount ?? 0), 0);
-        const totalSpent = budgetData.reduce((s, r) => s + (r.spent_amount ?? 0), 0);
+        const totalBudget = budgetData.reduce(
+          (s: number, r: { budgeted_amount: number | null; spent_amount: number | null }) =>
+            s + (r.budgeted_amount ?? 0),
+          0,
+        );
+        const totalSpent = budgetData.reduce(
+          (s: number, r: { budgeted_amount: number | null; spent_amount: number | null }) =>
+            s + (r.spent_amount ?? 0),
+          0,
+        );
         if (totalBudget > 0) {
           const ratio = totalSpent / totalBudget;
           // Under budget = high score, over budget = low
@@ -152,7 +170,11 @@ export async function fetchLifeScore(): Promise<LifeScore> {
       const logs = habitLogs ?? [];
       const routineScore =
         logs.length > 0
-          ? Math.round((logs.filter((l) => l.completed).length / logs.length) * 100)
+          ? Math.round(
+              (logs.filter((l: { completed: boolean | null }) => l.completed).length /
+                logs.length) *
+                100,
+            )
           : 50;
 
       dimensions.push({

@@ -385,8 +385,8 @@ export async function getObjectivesForTask(taskId: string): Promise<Objective[]>
   }
 
   const ids = (data ?? [])
-    .map((r: any) => r.objective_id)
-    .filter((id: any): id is string => Boolean(id));
+    .map((r: { objective_id: string | null }) => r.objective_id)
+    .filter((id: string | null): id is string => Boolean(id));
   if (ids.length === 0) return [];
 
   const { data: objectives, error: objErr } = await db.from('objectives').select('*').in('id', ids);

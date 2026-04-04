@@ -24,20 +24,25 @@ export async function assembleContext(message: string): Promise<AssembledContext
     .map((mod) => mod.getL0());
   const l0 = l0Parts.join('\n').slice(0, L0_MAX_CHARS);
 
-  // L1: apenas módulos relevantes (sorted by score)
-  const l1Parts = await Promise.all(
+  // L1: apenas módulos relevantes (fault-isolated — one module failing won't crash others)
+  const l1Settled = await Promise.allSettled(
     relevanceScores
       .map((r) => registry.get(r.id))
       .filter((mod): mod is ContextModule => mod !== undefined)
       .map((mod) => mod.getL1()),
   );
+  const l1Parts = l1Settled.map((r) => (r.status === 'fulfilled' ? r.value : ''));
   const l1 = l1Parts.join('\n\n').slice(0, L1_MAX_CHARS);
 
   // L2: primeiro módulo relevante com query específica
   let l2 = '';
   const primaryModule = relevantModules[0] ? registry.get(relevantModules[0]) : undefined;
   if (primaryModule && requiresSpecificData(message)) {
-    l2 = (await primaryModule.getL2(message)).slice(0, L2_MAX_CHARS);
+    try {
+      l2 = (await primaryModule.getL2(message)).slice(0, L2_MAX_CHARS);
+    } catch {
+      // L2 failure is non-fatal — agent responds with L0+L1 context only
+    }
   }
 
   return { l0, l1, l2, modulesLoaded: relevantModules, relevanceScores };

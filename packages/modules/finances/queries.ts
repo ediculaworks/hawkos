@@ -262,7 +262,7 @@ export async function listTransactionsWithCategory(
   }
 
   const total = count ?? 0;
-  const items = (data ?? []).map((t: any) => {
+  const items = (data ?? []).map((t: Record<string, unknown>) => {
     const cat = (t as Record<string, unknown>).finance_categories as {
       name: string;
       icon: string | null;

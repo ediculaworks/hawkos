@@ -1,267 +1,376 @@
 # Tools do Agente
 
-## O que são Tools
+## O que sao Tools
 
-Tools são funções que o LLM pode chamar para ler ou escrever dados. Quando você diz "registra que fui na academia", o LLM não "escreve" nada por conta própria — ele gera uma chamada de tool (`log_habit` ou `log_workout`) e o sistema executa a operação no banco.
+Tools sao funcoes que o LLM pode chamar para ler ou escrever dados. Quando voce diz "registra que fui na academia", o LLM nao "escreve" nada por conta propria — ele gera uma chamada de tool (`log_habit` ou `log_workout`) e o sistema executa a operacao no banco.
 
 Isso garante que:
-1. Dados estruturados vão para as tabelas corretas
-2. Operações são validadas antes de executar
-3. O LLM não pode fazer nada que o código não permite explicitamente
-4. Toda ação fica registrada no `activity_log`
 
-> 🧩 **Para leigos:** Imagine que o agente é um gerente de escritório super inteligente, mas ele não tem acesso direto aos arquivos. Para arquivar algo, ele precisa pedir pra uma secretária específica (a "tool"). Isso garante que nada é guardado no lugar errado e tudo fica registrado.
+1. Dados estruturados vao para as tabelas corretas
+2. Operacoes sao validadas antes de executar (Zod schemas)
+3. O LLM nao pode fazer nada que o codigo nao permite explicitamente
+4. Toda acao fica registrada no `activity_log`
+5. Tools perigosas requerem confirmacao do usuario
 
-## Tool Routing Dinâmico
+> 🧩 **Para leigos:** Imagine que o agente e um gerente de escritorio super inteligente, mas ele nao tem acesso direto aos arquivos. Para arquivar algo, ele precisa pedir pra uma secretaria especifica (a "tool"). Isso garante que nada e guardado no lugar errado e tudo fica registrado.
 
-O Hawk OS tem 30+ tools, mas enviar todas a cada chamada LLM seria desperdício. O sistema filtra dinamicamente:
+## Estrutura Modular
+
+As tools vivem em `apps/agent/src/tools/` como ficheiros separados por modulo:
+
+```text
+apps/agent/src/tools/
+├── index.ts          ← agrega todas as tools + getToolsForModules()
+├── types.ts          ← ToolDefinition type
+├── finances.ts       ← tools de financas
+├── health.ts         ← tools de saude
+├── routine.ts        ← tools de habitos
+├── objectives.ts     ← tools de objetivos/tarefas
+├── people.ts         ← tools de pessoas/CRM
+├── calendar.ts       ← tools de agenda
+├── career.ts         ← tools de carreira
+├── media.ts          ← tools de entretenimento
+├── demands.ts        ← tools de demandas
+├── knowledge.ts      ← tools de conhecimento
+├── analytics.ts      ← tools de analytics
+├── universal.ts      ← tools universais (save_memory, etc.)
+├── web.ts            ← web search + page extraction
+├── extensions.ts     ← GitHub, ClickUp integrations
+├── github.ts         ← git/GitHub operations
+├── git.ts            ← git commands
+├── filesystem.ts     ← file operations
+├── shell.ts          ← shell commands
+└── other-modules.ts  ← housing, assets, legal, etc.
+```
+
+Cada ficheiro exporta um objeto `Record<string, ToolDefinition>`. O `index.ts` agrega todos num unico `TOOLS` record.
+
+## ToolDefinition
 
 ```typescript
-// Cada tool declara a quais módulos pertence
-const tools = {
-  create_transaction: {
-    name: 'create_transaction',
-    modules: ['finances'],  // ← só carregada quando finances é detectado
-    description: 'Registra uma transação financeira',
-    parameters: { ... },
-    handler: async (args) => { ... },
-  },
+// apps/agent/src/tools/types.ts
 
-  save_memory: {
-    name: 'save_memory',
-    modules: [],  // ← [] = universal, sempre carregada
-    description: 'Salva uma memória permanente',
-    parameters: { ... },
-    handler: async (args) => { ... },
-  },
+type ToolDefinition = {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;     // JSON Schema
+  modules: ModuleId[];                      // [] = universal
+  dangerous?: boolean;                      // requer confirmacao
+  handler: (args: any) => Promise<string>;
 };
+```
 
-// Filtragem na hora de chamar o LLM
-function getToolsForModules(
-  detectedModules: ModuleId[],
-  agentAllowedModules: ModuleId[] | null
-): Tool[] {
-  return Object.values(tools).filter(tool => {
+Campos importantes:
+
+- **`modules`** — Lista de modulos aos quais a tool pertence. `[]` significa universal (sempre disponivel)
+- **`dangerous`** — Se `true`, o sistema pede confirmacao ao usuario antes de executar (feature flag `tool-approval`)
+- **`description`** — Critico: o LLM usa isso para decidir quando chamar a tool
+
+## Tool Routing Dinamico
+
+O Hawk OS tem 40+ tools, mas enviar todas a cada chamada LLM seria desperdicio. O sistema filtra dinamicamente:
+
+```typescript
+// apps/agent/src/tools/index.ts
+
+export function getToolsForModules(detectedModules: string[]): {
+  tools: OpenAI.ChatCompletionTool[];
+  toolMap: Map<string, ToolDefinition>;
+} {
+  const detected = new Set(detectedModules);
+
+  const filtered = Object.values(TOOLS).filter(tool => {
     // Universal tools: sempre inclui
     if (tool.modules.length === 0) return true;
-
-    // Verifica se o módulo foi detectado na mensagem
-    const isDetected = tool.modules.some(m => detectedModules.includes(m));
-
-    // Verifica se o agente tem permissão (null = todos)
-    const isAllowed = agentAllowedModules === null ||
-      tool.modules.some(m => agentAllowedModules.includes(m));
-
-    return isDetected && isAllowed;
+    // Module-specific: inclui se algum modulo bate
+    return tool.modules.some(m => detected.has(m));
   });
+
+  return { tools: filtered.map(toOpenAI), toolMap: new Map(filtered.map(t => [t.name, t])) };
 }
 ```
 
-**Resultado prático**: Uma mensagem sobre finanças carrega ~8 tools (finances + universais). Uma mensagem sobre agenda carrega ~5 tools. Uma mensagem genérica carrega apenas as universais (2 tools).
+**Resultado pratico**: Uma mensagem sobre financas carrega ~8 tools (finances + universais). Uma mensagem sobre agenda carrega ~5 tools. Uma mensagem generica carrega apenas as universais.
 
-> 💡 **Dica:** Se o agente não encontrar uma tool que precisa (ex: você fala de treino mas o agente não carregou tools de health), você pode dizer "use as tools de saúde" e o sistema usa `request_more_tools` para carregar o módulo correto.
+> 💡 **Dica:** Se o agente nao encontrar uma tool que precisa (ex: voce fala de treino mas o agente nao carregou tools de health), voce pode dizer "use as tools de saude". O middleware de routing redetecta os modulos necessarios.
+
+## Tool Approval
+
+Tools marcadas com `dangerous: true` passam por um sistema de confirmacao:
+
+1. LLM chama a tool → sistema detecta que e perigosa
+2. Retorna aviso ao usuario pedindo confirmacao
+3. Usuario confirma → segunda chamada executa a tool
+4. Aprovacoes expiram apos 5 minutos
+5. Eventos `tool_approved` / `tool_denied` logados no `activity_log`
+
+Controlado pela feature flag `tool-approval`.
 
 ## Tools Universais
 
-Sempre disponíveis, independente do módulo ou agente:
+Sempre disponiveis, independente do modulo ou agente:
 
 ### `save_memory`
 
-Salva uma memória permanente no banco com embedding vetorial.
+Salva uma memoria permanente no banco com embedding vetorial.
 
 ```typescript
 save_memory({
-  type: 'preference' | 'profile' | 'entity' | 'event' | 'case' | 'pattern',
-  content: string,       // o conteúdo da memória
-  importance: 1 | 2 | 3 | 4 | 5,  // 5 = mais importante
-  module?: string,       // módulo relacionado (para half-life)
+  content: string,
+  memory_type: 'profile' | 'preference' | 'entity' | 'event' | 'case' | 'pattern' | 'procedure',
+  module?: string,
+  importance?: number,   // 1-10 (default 5)
+  confidence?: number,   // 0.0-1.0 (default 0.8)
 })
 ```
 
-### `request_more_tools`
+Os 7 tipos de memoria:
 
-Pede ao sistema que carregue tools de módulos adicionais. Útil quando a mensagem não ativou o módulo correto via keywords.
+| Tipo | O que guarda |
+| ---- | ------------ |
+| `profile` | Fatos sobre identidade (idade, profissao, localizacao) |
+| `preference` | Preferencias (comunicacao, horarios, ferramentas) |
+| `entity` | Pessoas, empresas, projetos nomeados |
+| `event` | Marcos e ocorrencias significativas |
+| `case` | Situacoes + aprendizados (correcao de erros) |
+| `pattern` | Padroes comportamentais recorrentes |
+| `procedure` | Regras aprendidas / comportamentos corrigidos |
+
+O campo `confidence` indica certeza: 1.0 = afirmado diretamente pelo usuario, 0.5 = implicito, 0.3 = incerto.
+
+### `call_agent`
+
+Consulta outro agente especialista e retorna a resposta.
 
 ```typescript
-request_more_tools({
-  modules: ['finances', 'career'],  // módulos a carregar
-  reason: string,                    // por que precisa
+call_agent({
+  agent_id: string,      // UUID do agente destino
+  query: string,         // pergunta ou tarefa
+  session_context?: string,
 })
 ```
 
-Após executar, o pipeline recarrega as tools e chama o LLM novamente.
+### `handoff_to_agent`
 
-## Tools por Módulo
+Transfere a conversa para outro agente. A proxima mensagem sera respondida pelo agente destino.
 
-### Finanças (`finances`)
+### `explore_memory_graph`
+
+Explora o grafo de conhecimento a partir de uma memoria, retornando memorias conectadas por ate N saltos (BFS multi-hop).
+
+```typescript
+explore_memory_graph({
+  memory_id: string,     // UUID da memoria raiz
+  max_hops?: number,     // 1-3, default 2
+})
+```
+
+### `ask_deepening_question` / `mark_question_answered`
+
+Ferramentas do fluxo de onboarding — buscam perguntas de aprofundamento para conhecer melhor o usuario.
+
+### `lookup_cep` / `lookup_cnpj`
+
+Consultas a BrasilAPI para buscar enderecos por CEP e dados de empresas por CNPJ.
+
+## Tools por Modulo
+
+### Financas (`finances`)
 
 | Tool | O que faz |
-|------|-----------|
+| ---- | --------- |
 | `create_transaction` | Registra receita ou despesa com categoria, conta, data |
-| `get_financial_summary` | Saldo total, gastos do mês, orçamento vs real |
-| `get_budget_vs_actual` | Comparação por categoria no período |
-| `get_categories` | Lista categorias disponíveis para classificação |
+| `get_financial_summary` | Saldo total, gastos do mes, orcamento vs real |
+| `get_budget_vs_actual` | Comparacao por categoria no periodo |
+| `get_categories` | Lista categorias disponiveis para classificacao |
 | `get_accounts` | Lista contas com saldos atuais |
-| `get_portfolio_positions` | Posições de investimento |
+| `get_portfolio_positions` | Posicoes de investimento |
 
-### Saúde (`health`)
+### Saude (`health`)
 
 | Tool | O que faz |
-|------|-----------|
-| `log_workout` | Cria sessão de treino (tipo, duração, notas) |
-| `add_workout_set` | Adiciona série a um treino (exercício, peso, reps) |
-| `log_sleep` | Registra sono (início, fim, qualidade) |
+| ---- | --------- |
+| `log_workout` | Cria sessao de treino (tipo, duracao, notas) |
+| `add_workout_set` | Adiciona serie a um treino (exercicio, peso, reps) |
+| `log_sleep` | Registra sono (inicio, fim, qualidade) |
 | `log_weight` | Registra peso corporal |
-| `get_exercise_progress` | Histórico de progresso num exercício específico |
-| `estimate_1rm` | Calcula 1RM estimado baseado em série registrada |
-
-### Memória / Onboarding (`memory`)
-
-| Tool | O que faz |
-|------|-----------|
-| `get_next_question` | Próxima pergunta do fluxo de onboarding |
-| `mark_question_answered` | Marca pergunta como respondida |
-| `save_memory` | Salva memória no sistema de memória do agente |
+| `get_exercise_progress` | Historico de progresso num exercicio especifico |
+| `estimate_1rm` | Calcula 1RM estimado baseado em serie registrada |
 
 ### Objetivos (`objectives`)
 
 | Tool | O que faz |
-|------|-----------|
-| `create_objective` | Cria meta/objetivo com prazo e área |
+| ---- | --------- |
+| `create_objective` | Cria meta/objetivo com prazo e area |
 | `create_task` | Cria tarefa vinculada a um objetivo |
 
 ### Pessoas (`people`)
 
 | Tool | O que faz |
-|------|-----------|
+| ---- | --------- |
 | `create_person` | Adiciona pessoa ao CRM |
 | `find_person_by_name` | Busca pessoa por nome (fuzzy) |
-| `log_interaction` | Registra interação com pessoa (ligação, mensagem, encontro) |
+| `log_interaction` | Registra interacao com pessoa (ligacao, mensagem, encontro) |
 
 ### Rotina (`routine`)
 
 | Tool | O que faz |
-|------|-----------|
-| `create_habit` | Cria novo hábito com frequência e meta |
-| `find_habit_by_name` | Busca hábito por nome (fuzzy) |
-| `log_habit` | Marca hábito como feito (com notas opcionais) |
-| `get_habits_at_risk` | Lista hábitos com streak em risco de quebrar |
+| ---- | --------- |
+| `create_habit` | Cria novo habito com frequencia e meta |
+| `find_habit_by_name` | Busca habito por nome (fuzzy) |
+| `log_habit` | Marca habito como feito (com notas opcionais) |
+| `get_habits_at_risk` | Lista habitos com streak em risco de quebrar |
 
 ### Agenda (`calendar`)
 
 | Tool | O que faz |
-|------|-----------|
-| `create_event` | Cria evento com título, data, duração, participantes |
-| `find_free_slots` | Encontra slots livres num período |
+| ---- | --------- |
+| `create_event` | Cria evento com titulo, data, duracao, participantes |
+| `find_free_slots` | Encontra slots livres num periodo |
 
 ### Carreira (`career`)
 
 | Tool | O que faz |
-|------|-----------|
-| `log_work` | Registra sessão de trabalho (workspace, duração, tarefas) |
+| ---- | --------- |
+| `log_work` | Registra sessao de trabalho (workspace, duracao, tarefas) |
 | `find_workspace_by_name` | Busca workspace/projeto por nome |
 
-### Entretenimento (`entertainment`)
+### Entretenimento (`media`)
 
 | Tool | O que faz |
-|------|-----------|
-| `create_media` | Adiciona filme, série, música, livro à lista |
+| ---- | --------- |
+| `create_media` | Adiciona filme, serie, musica, livro a lista |
 
-### Patrimônio (`assets`)
+### Patrimonio (`assets`)
 
 | Tool | O que faz |
-|------|-----------|
+| ---- | --------- |
 | `search_documents` | Busca documentos no acervo |
+
+### Web (`web`)
+
+| Tool | O que faz |
+| ---- | --------- |
+| `web_search` | Busca na web via Brave Search ou DuckDuckGo (fallback) |
+| `extract_page` | Extrai conteudo de URL como Markdown (Readability + Turndown) |
+
+A tool `extract_page` usa validacao SSRF para bloquear IPs privados e metadata endpoints. Suporta formatos: `markdown`, `text`, `raw`.
+
+### Analytics
+
+| Tool | O que faz |
+| ---- | --------- |
+| `get_weekly_summary` | Resumo semanal com metricas de todos os modulos |
+| `get_module_trends` | Tendencias e padroes de um modulo especifico |
+
+### Demandas (`demands`)
+
+| Tool | O que faz |
+| ---- | --------- |
+| `create_demand` | Cria demanda para tarefa complexa |
+| `update_demand` | Atualiza status de demanda |
 
 ## Criando uma Nova Tool
 
 Para adicionar uma tool ao sistema:
 
+1. Criar ou editar o ficheiro do modulo em `apps/agent/src/tools/`
+2. Definir a tool seguindo o type `ToolDefinition`
+3. Exportar do ficheiro e importar no `index.ts`
+
 ```typescript
-// apps/agent/src/tools.ts
+// apps/agent/src/tools/my-module.ts
 
-const my_new_tool: Tool = {
-  name: 'my_new_tool',
-  modules: ['finances'],  // ou [] para universal
-  description: 'Descrição clara do que a tool faz e quando usar',
-  parameters: {
-    type: 'object',
-    properties: {
-      amount: {
-        type: 'number',
-        description: 'Valor em reais',
+import type { ToolDefinition } from './types.js';
+
+export const myModuleTools: Record<string, ToolDefinition> = {
+  my_new_tool: {
+    name: 'my_new_tool',
+    modules: ['finances'],      // ou [] para universal
+    description: 'Descricao clara do que a tool faz e quando usar',
+    dangerous: false,           // true se modifica dados criticos
+    parameters: {
+      type: 'object',
+      properties: {
+        amount: { type: 'number', description: 'Valor em reais' },
+        category: {
+          type: 'string',
+          description: 'Categoria da transacao',
+          enum: ['alimentacao', 'transporte', 'lazer'],
+        },
       },
-      category: {
-        type: 'string',
-        description: 'Categoria da transação',
-        enum: ['alimentacao', 'transporte', 'lazer'],
-      },
+      required: ['amount'],
     },
-    required: ['amount'],
-  },
-  handler: async (args: { amount: number; category?: string }) => {
-    // Chamar queries do módulo correspondente
-    const result = await createTransaction({
-      amount: args.amount,
-      category: args.category,
-      userId: getCurrentUserId(),
-    });
-
-    // Retornar string descritiva (vai para o contexto do LLM)
-    return `Transação de R$${args.amount} registrada. ID: ${result.id}`;
+    handler: async (args: { amount: number; category?: string }) => {
+      const result = await createTransaction({ amount: args.amount, category: args.category });
+      return `Transacao de R$${args.amount} registrada. ID: ${result.id}`;
+    },
   },
 };
+```
 
-// Adicionar ao objeto tools
-export const tools = {
-  // ... tools existentes
-  my_new_tool,
+Depois, importar no `index.ts`:
+
+```typescript
+// apps/agent/src/tools/index.ts
+import { myModuleTools } from './my-module.js';
+
+export const TOOLS: Record<string, ToolDefinition> = {
+  ...financeTools,
+  // ...outros
+  ...myModuleTools,
 };
 ```
 
 **Checklist para nova tool:**
-- [ ] `name` único e descritivo (snake_case)
+
+- [ ] `name` unico e descritivo (snake_case)
 - [ ] `modules` correto (ou `[]` para universal)
 - [ ] `description` clara — o LLM usa isso para decidir quando chamar
-- [ ] `parameters` bem tipados com descriptions
+- [ ] `parameters` bem tipados com descriptions (JSON Schema)
 - [ ] `handler` retorna string descritiva do resultado
-- [ ] Usa queries do módulo, não acessa banco diretamente
-- [ ] Erros são capturados e retornados como string de erro
+- [ ] `dangerous: true` se modifica dados criticos ou faz operacoes irreversiveis
+- [ ] Usa queries do modulo, nao acessa banco diretamente
+- [ ] Erros sao capturados e retornados como string de erro
 
-> ⚠️ **Atenção:** A `description` da tool é crítica. É o que o LLM lê para decidir se deve chamar aquela tool ou não. Uma description vaga ou confusa faz o LLM escolher a tool errada ou não chamar quando deveria.
+> ⚠️ **Atencao:** A `description` da tool e critica. E o que o LLM le para decidir se deve chamar aquela tool ou nao. Uma description vaga ou confusa faz o LLM escolher a tool errada ou nao chamar quando deveria.
 
-## Fluxo de Execução das Tools
+## Fluxo de Execucao das Tools
 
-```
+```text
 LLM retorna tool_calls
          │
          ▼
-Promise.all([executeTool(tc) for tc in tool_calls])
+Promise.allSettled([executeToolCall(tc) for tc in tool_calls])
          │
-         ├─ Valida parâmetros contra schema
+         ├─ Valida parametros (Zod schema)
+         ├─ Verifica tool approval (se dangerous)
          ├─ Chama handler(args)
          ├─ Loga no activity_log
          └─ Retorna resultado como string
          │
          ▼
-Adiciona ao histórico de mensagens:
+Adiciona ao historico de tools:
   { role: 'assistant', tool_calls: [...] }
   { role: 'tool', content: resultado, tool_call_id: ... }
          │
          ▼
 Chama LLM novamente com o contexto atualizado
+(max 5 rounds de tool calls)
          │
          ▼
-LLM formula resposta final para o usuário
+LLM formula resposta final para o usuario
 ```
+
+> 💡 **Dica:** Tools sao executadas em paralelo via `Promise.allSettled`. Se uma tool falhar, as outras continuam e o LLM recebe o erro como texto para decidir como proceder.
 
 ### Activity Log
 
-Toda execução de tool é registrada:
+Toda execucao de tool e registrada:
 
 ```sql
-INSERT INTO activity_log (user_id, tool_name, args, result, duration_ms, created_at)
-VALUES ($1, $2, $3, $4, $5, NOW());
+INSERT INTO activity_log (user_id, event_type, description, metadata, created_at)
+VALUES ($1, 'tool_call', $2, $3, NOW());
 ```
 
-Isso permite auditoria completa de tudo que o agente fez. Visível no widget de atividade do agente na dashboard principal.
+Isso permite auditoria completa de tudo que o agente fez. Visivel no widget de atividade do agente na dashboard principal.

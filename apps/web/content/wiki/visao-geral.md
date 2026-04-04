@@ -26,7 +26,7 @@ Todos os dados ficam na sua instância Supabase. Nenhum dado pessoal vai para se
 
 ## Arquitetura
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                         INTERFACES                          │
 │                                                             │
@@ -35,27 +35,38 @@ Todos os dados ficam na sua instância Supabase. Nenhum dado pessoal vai para se
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────┐
-│                      AGENT CORE                             │
+│                  MIDDLEWARE PIPELINE (7 stages)              │
 │                                                             │
-│   Handler ──► Context Engine ──► OpenRouter LLM             │
-│       │              │                  │                   │
-│       │         L0/L1/L2            Tool Calls              │
-│       │         Memories                │                   │
-│       └─────────────────────────────────┘                   │
+│   Persistence → Security → Context → History →              │
+│   Routing → Message Builder → LLM + Tool Loop               │
+│                                                             │
+│   • Injection scanning + secret redaction                   │
+│   • L0/L1/L2 context + memórias (fault-isolated)            │
+│   • Smart model routing (simple/moderate/complex)           │
+│   • Cost-aware downgrade + fallback chain                   │
+│   • Tool approval para operações perigosas                  │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────┐
+│                  TOOLS (40+ em 21 ficheiros)                │
+│                                                             │
+│  finances  health  routine  objectives  people  calendar    │
+│  career    media   demands  web  analytics  extensions      │
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────┐
 │                    11 MÓDULOS ATIVOS                        │
 │                                                             │
-│  finances  health   people   career   objectives  routine    │
-│  assets    legal    housing  calendar entertainment          │
+│  finances  health   people   career   objectives  routine   │
+│  assets    legal    housing  calendar entertainment         │
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────┐
-│                    SUPABASE (PostgreSQL)                    │
+│               PostgreSQL 17 + pgvector + pg_trgm            │
 │                                                             │
-│   pgvector (embeddings) + RLS em todas as tabelas           │
-│   Migrations versionadas em packages/db/supabase/           │
+│   RRF hybrid search (vector + trigram)                      │
+│   Schema-based tenant isolation                             │
+│   90+ migrations versionadas em packages/db/supabase/       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -94,9 +105,12 @@ O bot roda em `apps/agent/`. Configure o canal no `DISCORD_CHANNEL_MAP` e fale c
 
 Acesse `http://localhost:3000/dashboard` para visualizar dados, editar registros, configurar agentes e ver memórias. O dashboard tem uma página por módulo + widgets configuráveis na tela principal.
 
-### Múltiplos Agentes
+### Múltiplos Agentes (Multi-Tenant)
 
-Você pode ter diferentes canais Discord com personas diferentes:
+O sistema suporta múltiplos tenants num único processo. Cada tenant tem schema PostgreSQL isolado, Discord bot dedicado e feature flags independentes. Tenants são carregados dinamicamente da tabela `admin.tenants` no startup, sem necessidade de reiniciar.
+
+Dentro de cada tenant, você pode ter diferentes canais Discord com personas diferentes:
+
 - Canal geral → Hawk (generalista, todos os módulos)
 - Canal financeiro → CFO (especialista em finanças/jurídico/patrimônio)
 - Canal saúde → Coach (especialista em saúde/rotina)
@@ -112,11 +126,11 @@ bun install
 cp .env.example .env
 # Editar .env com suas credenciais
 
-# Aplicar migrations no Supabase
-bun db:migrate
+# Subir PostgreSQL + PgBouncer via Docker
+docker compose up -d postgres pgbouncer
 
-# Gerar tipos TypeScript
-bun db:types
+# Aplicar migrations
+bun db:migrate
 
 # Rodar o agente Discord
 bun agent
@@ -124,19 +138,23 @@ bun agent
 # Rodar o dashboard web
 bun dev
 
-# Ou rodar tudo junto
-bun dev  # roda agent + web em paralelo via Turborepo
+# Ou rodar tudo junto (agent + web em paralelo via Turborepo)
+bun dev
 ```
 
 ## Estrutura do Monorepo
 
-```
-apps/agent/     → Bot Discord + AI handler + automações
-apps/web/       → Next.js 15 dashboard
-packages/db/    → Supabase client + migrations SQL
-packages/modules/  → 12 módulos isolados
-packages/context-engine/  → Assembler L0/L1/L2
-packages/shared/  → errors, constants, types compartilhados
+```text
+apps/agent/          → Bot Discord + middleware pipeline + 18 automações
+apps/web/            → Next.js 15 dashboard
+packages/db/         → PostgreSQL client + 90+ migrations
+packages/modules/    → 16 módulos isolados (11 ativos)
+packages/context-engine/ → Assembler L0/L1/L2
+packages/shared/     → errors, constants, security, types
+packages/admin/      → Administração multi-tenant
+packages/auth/       → Camada de autenticação
+packages/extensions/ → Integrações third-party (GitHub, ClickUp)
+packages/mcp/        → MCP client/server scaffold
 ```
 
 Cada módulo em `packages/modules/<nome>/` tem sua própria lógica isolada: tipos, queries no banco, comandos Discord e funções de contexto. Módulos se comunicam apenas através dos seus `index.ts`.

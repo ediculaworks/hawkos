@@ -75,7 +75,7 @@ export async function findExpiredSessions(ttlMs = 30 * 60 * 1000): Promise<strin
   }
 
   // Deduplicate session IDs
-  const sessionIds = new Set<string>((data ?? []).map((m: any) => m.session_id as string));
+  const sessionIds = new Set<string>((data ?? []).map((m: { session_id: string }) => m.session_id));
 
   // Filter out sessions that already have archives (batch query instead of N+1)
   const sessionIdArray = Array.from(sessionIds);
@@ -86,7 +86,9 @@ export async function findExpiredSessions(ttlMs = 30 * 60 * 1000): Promise<strin
     .select('session_id')
     .in('session_id', sessionIdArray);
 
-  const archivedIds = new Set((existingArchives ?? []).map((a: any) => a.session_id as string));
+  const archivedIds = new Set(
+    (existingArchives ?? []).map((a: { session_id: string }) => a.session_id),
+  );
   return sessionIdArray.filter((id) => !archivedIds.has(id));
 }
 

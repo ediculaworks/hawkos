@@ -135,17 +135,18 @@ export async function listUpcomingBirthdays(
   today.setHours(0, 0, 0, 0);
 
   const upcoming = (data ?? [])
-    .map((p: any) => {
+    .map((p: Record<string, unknown>) => {
       const birthday = new Date(p.birthday as string);
-      // Calcular aniversário deste ano
       const thisYear = new Date(today.getFullYear(), birthday.getMonth(), birthday.getDate());
-      // Se já passou, calcular para o próximo ano
       if (thisYear < today) thisYear.setFullYear(today.getFullYear() + 1);
       const daysUntil = Math.round((thisYear.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return { ...(p as Person), days_until: daysUntil };
+      return { ...(p as unknown as Person), days_until: daysUntil };
     })
-    .filter((p: any) => p.days_until <= days)
-    .sort((a: any, b: any) => a.days_until - b.days_until);
+    .filter((p: Person & { days_until: number }) => p.days_until <= days)
+    .sort(
+      (a: Person & { days_until: number }, b: Person & { days_until: number }) =>
+        a.days_until - b.days_until,
+    );
 
   return upcoming;
 }
@@ -279,7 +280,7 @@ export async function listRecentInteractions(limit = 20): Promise<InteractionWit
     throw new HawkError(`Failed to list recent interactions: ${error.message}`, 'DB_QUERY_FAILED');
   }
 
-  return (data ?? []).map((row: any) => {
+  return (data ?? []).map((row: Record<string, unknown>) => {
     const person = (row as Record<string, unknown>).people as {
       name: string;
       relationship: string | null;
@@ -313,10 +314,11 @@ export async function getNetworkStats(): Promise<NetworkStats> {
 
   const active = people ?? [];
   const withFrequency = active.filter(
-    (p: any) => p.contact_frequency && p.contact_frequency !== 'as_needed',
+    (p: Record<string, unknown>) => p.contact_frequency && p.contact_frequency !== 'as_needed',
   );
   const overdue = active.filter(
-    (p: any) => p.next_contact_reminder && p.next_contact_reminder <= todayStr,
+    (p: Record<string, unknown>) =>
+      p.next_contact_reminder && (p.next_contact_reminder as string) <= todayStr,
   );
   const onSchedule =
     withFrequency.length > 0 ? (withFrequency.length - overdue.length) / withFrequency.length : 1;
@@ -335,7 +337,7 @@ export async function getNetworkStats(): Promise<NetworkStats> {
     .select('sentiment')
     .gte('date', monthAgo.toISOString());
 
-  const sentimentValues: number[] = (monthInteractions ?? []).map((i: any) =>
+  const sentimentValues: number[] = (monthInteractions ?? []).map((i: Record<string, unknown>) =>
     i.sentiment === 'positive' ? 1 : i.sentiment === 'negative' ? -1 : 0,
   );
   const avgSentiment =
@@ -481,8 +483,7 @@ export async function listPendingReminders(): Promise<
     throw new HawkError(`Failed to list pending reminders: ${error.message}`, 'DB_QUERY_FAILED');
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: contact_reminders join result not typed
-  return (data ?? []).map((row: any) => {
+  return (data ?? []).map((row: Record<string, unknown>) => {
     const person = (row as Record<string, unknown>).people as { name: string } | null;
     return {
       ...(row as unknown as ContactReminder),

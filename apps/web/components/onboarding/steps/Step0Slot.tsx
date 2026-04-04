@@ -26,11 +26,15 @@ export function Step0Slot({ onNext }: Step0WelcomeProps) {
       </div>
 
       <div className="max-w-xs mx-auto space-y-2 text-left">
-        <label className="block text-xs font-medium text-[var(--color-text-secondary)]">
+        <label
+          htmlFor="onboarding-workspace"
+          className="block text-xs font-medium text-[var(--color-text-secondary)]"
+        >
           Nome do workspace{' '}
           <span className="text-[var(--color-text-muted)] font-normal">(opcional)</span>
         </label>
         <Input
+          id="onboarding-workspace"
           placeholder="ex: Lucas OS, Meu Sistema..."
           value={workspaceLabel}
           onChange={(e) => setWorkspaceLabel(e.target.value)}

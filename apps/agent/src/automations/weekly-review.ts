@@ -171,7 +171,8 @@ export function startWeeklyReviewCron(): void {
       if (!settings.weekly_review_enabled) return;
 
       const timezone =
-        ((settings as Record<string, unknown>).timezone as string) ?? 'America/Sao_Paulo';
+        ((settings as unknown as Record<string, unknown>).timezone as string) ??
+        'America/Sao_Paulo';
       const now = getLocalTime(timezone);
       const [hours, minutes] = settings.weekly_review_time.split(':').map(Number);
 

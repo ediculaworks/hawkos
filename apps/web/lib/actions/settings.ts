@@ -68,7 +68,7 @@ export async function fetchModules(): Promise<ModuleRow[]> {
   return withTenant(async () => {
     const { data } = await db.from('modules').select('id, enabled, config').order('id');
 
-    return (data ?? []).map((m) => ({
+    return (data ?? []).map((m: { id: string; enabled: boolean | null; config: unknown }) => ({
       id: m.id,
       enabled: m.enabled ?? true,
       config: (m.config as Record<string, unknown>) ?? {},

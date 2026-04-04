@@ -1,6 +1,9 @@
 /**
  * Credential Pool with Rotation
  *
+ * TODO: NOT YET INTEGRATED — this module is implemented but never imported.
+ * To activate: wire into llm-client.ts to use getNextKey() instead of env var.
+ *
  * Manages multiple API keys per provider with configurable rotation strategies.
  * Supports automatic cooldown after rate limits and failover to next key.
  *

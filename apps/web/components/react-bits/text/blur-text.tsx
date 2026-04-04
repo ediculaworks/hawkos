@@ -26,7 +26,7 @@ function buildKeyframes(
   const keys = new Set<string>([...Object.keys(from), ...steps.flatMap((s) => Object.keys(s))]);
   const keyframes: Record<string, Array<string | number>> = {};
   for (const k of keys) {
-    keyframes[k] = [from[k], ...steps.map((s) => s[k])];
+    keyframes[k] = [from[k] ?? 0, ...steps.map((s) => s[k] ?? 0)];
   }
   return keyframes;
 }
@@ -53,7 +53,7 @@ export default function BlurText({
     if (!ref.current) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
+        if (entry?.isIntersecting) {
           setInView(true);
           observer.unobserve(ref.current as Element);
         }

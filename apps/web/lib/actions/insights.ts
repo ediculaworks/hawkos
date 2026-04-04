@@ -104,7 +104,8 @@ export async function fetchInsights(): Promise<Insight[]> {
           .limit(20);
         if (data && data.length > 0) {
           const overBudget = data.filter(
-            (r) => (r.spent_amount ?? 0) > (r.budgeted_amount ?? 0) * 1.1,
+            (r: { spent_amount: number | null; budgeted_amount: number | null }) =>
+              (r.spent_amount ?? 0) > (r.budgeted_amount ?? 0) * 1.1,
           );
           if (overBudget.length > 0) {
             insights.push({
@@ -112,7 +113,9 @@ export async function fetchInsights(): Promise<Insight[]> {
               type: 'alert',
               module: 'finances',
               title: `${overBudget.length} categoria${overBudget.length > 1 ? 's' : ''} acima do orçamento`,
-              description: overBudget.map((r) => r.category_name).join(', '),
+              description: overBudget
+                .map((r: { category_name: string | null }) => r.category_name)
+                .join(', '),
               severity: overBudget.length >= 3 ? 'critical' : 'warning',
               actionLabel: 'Ver orçamento',
               actionHref: '/dashboard/finances',
@@ -150,7 +153,7 @@ export async function fetchInsights(): Promise<Insight[]> {
           .gte('date', sevenDaysAgo);
         if (data && data.length > 0) {
           const total = data.length;
-          const completed = data.filter((l) => l.completed).length;
+          const completed = data.filter((l: { completed: boolean | null }) => l.completed).length;
           const rate = completed / total;
           if (rate < 0.5) {
             insights.push({

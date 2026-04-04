@@ -121,17 +121,21 @@ export async function fetchCurrentContext(): Promise<CurrentContext> {
     let recentInteractions: { id: string; personName: string; date: string }[] = [];
     if (interactions.data && interactions.data.length > 0) {
       const personIds = [
-        ...new Set(interactions.data.map((i) => i.person_id).filter(Boolean)),
+        ...new Set(
+          interactions.data.map((i: { person_id: string | null }) => i.person_id).filter(Boolean),
+        ),
       ] as string[];
       if (personIds.length > 0) {
         const { data: people } = await db
           .from('people')
           .select('id, name')
           .in('id', personIds.slice(0, 5));
-        const personMap = new Map(people?.map((p) => [p.id, p.name]) ?? []);
+        const personMap = new Map(
+          people?.map((p: { id: string; name: string }) => [p.id, p.name]) ?? [],
+        );
         recentInteractions = interactions.data
-          .filter((i) => i.person_id)
-          .map((i) => ({
+          .filter((i: { person_id: string | null }) => i.person_id)
+          .map((i: { id: string; person_id: string | null; date: string }) => ({
             id: i.id,
             personName: personMap.get(i.person_id) ?? 'Unknown',
             date: i.date,
@@ -150,16 +154,20 @@ export async function fetchCurrentContext(): Promise<CurrentContext> {
             status: media.data.status,
           }
         : null,
-      activeObjectives: (objectives.data ?? []).map((o) => ({
-        id: o.id,
-        title: o.title,
-        progress: o.progress,
-      })),
-      upcomingEvents: (events.data ?? []).map((e) => ({
-        id: e.id,
-        title: e.title,
-        date: e.start_at,
-      })),
+      activeObjectives: (objectives.data ?? []).map(
+        (o: { id: string; title: string; progress: number }) => ({
+          id: o.id,
+          title: o.title,
+          progress: o.progress,
+        }),
+      ),
+      upcomingEvents: (events.data ?? []).map(
+        (e: { id: string; title: string; start_at: string }) => ({
+          id: e.id,
+          title: e.title,
+          date: e.start_at,
+        }),
+      ),
       recentInteractions,
     };
   });

@@ -117,10 +117,14 @@ export function AddPersonForm({ expanded = true, onToggle }: Props) {
           />
 
           <div className="flex items-center gap-[var(--space-2)]">
-            <label className="text-[11px] text-[var(--color-text-muted)] flex-shrink-0">
+            <label
+              htmlFor="add-person-importance"
+              className="text-[11px] text-[var(--color-text-muted)] flex-shrink-0"
+            >
               Importância
             </label>
             <input
+              id="add-person-importance"
               type="range"
               min="1"
               max="10"

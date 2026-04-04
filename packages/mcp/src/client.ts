@@ -1,6 +1,9 @@
 /**
  * MCP Client — Discovery-first setup.
  *
+ * TODO: NOT YET INTEGRATED — transports are stubs, never imported by agent.
+ * To activate: implement real JSON-RPC transport and wire into tool-executor.
+ *
  * Connects to MCP servers, discovers available tools/resources/prompts,
  * and exposes them as Hawk OS tools for the agent to use.
  *

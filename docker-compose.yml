@@ -1,37 +1,16 @@
-# Hawk OS — Multi-Tenant Docker Compose
-# PostgreSQL + PgBouncer + 1 Web Dashboard + N Agent instances
-# All services share the same .env.
-# Each agent differentiates by AGENT_SLOT (ten1-ten6).
+# Hawk OS — Docker Compose
+# PostgreSQL + PgBouncer + Web Dashboard + Single Multi-Tenant Agent
+#
+# The agent loads ALL active tenants from the admin schema on startup.
+# New tenants created via onboarding are hot-loaded automatically.
+# No per-tenant containers or AGENT_SLOT needed.
 #
 # Usage:
-#   docker compose up -d              # start all
-#   docker compose up -d postgres     # start database only
-#   docker compose up -d web          # start web only
-#   docker compose up -d agent-ten1   # start single agent
-#   docker compose logs -f agent-ten1 # follow agent logs
-
-x-agent-defaults: &agent-defaults
-  build:
-    context: .
-    dockerfile: docker/Dockerfile.agent
-  env_file: .env
-  restart: unless-stopped
-  extra_hosts:
-    - "host.docker.internal:host-gateway"
-  depends_on:
-    postgres:
-      condition: service_healthy
-  deploy:
-    resources:
-      limits:
-        memory: 512M
-  volumes:
-    - backups:/data/backups
-  logging:
-    driver: "json-file"
-    options:
-      max-size: "10m"
-      max-file: "3"
+#   docker compose up -d                  # start all
+#   docker compose up -d postgres         # database only
+#   docker compose up -d web              # dashboard only
+#   docker compose up -d agent            # agent only
+#   docker compose logs -f agent          # follow agent logs
 
 services:
   # ── PostgreSQL 17 + pgvector ───────────────────────────────────────────
@@ -144,87 +123,40 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # ── Agent Instances (one per tenant) ───────────────────────────────────
-  # Each agent reads AGENT_SLOT → queries Admin Supabase → decrypts tenant
-  # credentials → connects to tenant's Supabase, Discord, OpenRouter.
-
-  agent-ten1:
-    <<: *agent-defaults
-    environment:
-      - AGENT_SLOT=ten1
+  # ── Agent (single process, serves ALL tenants) ─────────────────────────
+  # On startup: loads all active tenants from admin.tenants
+  # Creates one Discord client per tenant, scoped crons via withSchema()
+  # Hot-loads new tenants via POST /admin/tenants/:slug/start
+  agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agent
+    env_file: .env
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
-      - "3011:3001"
+      - "3001:3001"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    volumes:
+      - backups:/data/backups
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 15s
-
-  agent-ten2:
-    <<: *agent-defaults
-    environment:
-      - AGENT_SLOT=ten2
-    ports:
-      - "3012:3001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-
-  agent-ten3:
-    <<: *agent-defaults
-    environment:
-      - AGENT_SLOT=ten3
-    ports:
-      - "3013:3001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-
-  agent-ten4:
-    <<: *agent-defaults
-    environment:
-      - AGENT_SLOT=ten4
-    ports:
-      - "3014:3001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-
-  agent-ten5:
-    <<: *agent-defaults
-    environment:
-      - AGENT_SLOT=ten5
-    ports:
-      - "3015:3001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-
-  agent-ten6:
-    <<: *agent-defaults
-    environment:
-      - AGENT_SLOT=ten6
-    ports:
-      - "3016:3001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   pgdata:

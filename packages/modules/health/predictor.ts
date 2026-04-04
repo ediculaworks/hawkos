@@ -289,8 +289,12 @@ export async function predictMoodEnergy(): Promise<MoodPrediction | null> {
     (sleepRes.data?.duration_h as number) ?? 7,
     (sleepRes.data?.quality as number) ?? 5,
     workoutRes.data && workoutRes.data.length > 0 ? 1 : 0,
-    (substanceRes.data ?? []).some((s: any) => s.substance === 'cannabis') ? 1 : 0,
-    (substanceRes.data ?? []).some((s: any) => s.substance === 'tobacco') ? 1 : 0,
+    (substanceRes.data ?? []).some((s: Record<string, unknown>) => s.substance === 'cannabis')
+      ? 1
+      : 0,
+    (substanceRes.data ?? []).some((s: Record<string, unknown>) => s.substance === 'tobacco')
+      ? 1
+      : 0,
     dayOfWeek === 0 || dayOfWeek === 6 ? 1 : 0,
   ];
 

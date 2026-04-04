@@ -29,12 +29,18 @@ export async function handleChatRoute(
     }
 
     // Batch-load agent templates to avoid N+1 queries
+    type ConversationRow = {
+      session_id: string;
+      template_id: string | null;
+      title: string | null;
+      last_message_at: string | null;
+      channel: string | null;
+    };
     const templateIds = [
       ...new Set(
-        // biome-ignore lint/suspicious/noExplicitAny: DB query returns untyped rows
-        allConversations
-          .filter((c: any) => c.template_id)
-          .map((c: any) => c.template_id as string),
+        (allConversations as ConversationRow[])
+          .filter((c) => c.template_id)
+          .map((c) => c.template_id as string),
       ),
     ];
     const agentMap = new Map<string, { name: string; avatar_seed?: string }>();
@@ -43,15 +49,14 @@ export async function handleChatRoute(
         .from('agent_templates')
         .select('id, name, avatar_seed')
         .in('id', templateIds);
+      type AgentRow = { id: string; name: string; avatar_seed?: string | null };
       for (const a of agents ?? []) {
-        // biome-ignore lint/suspicious/noExplicitAny: DB query returns untyped rows
-        const agent = a as any;
-        agentMap.set(agent.id, { name: agent.name, avatar_seed: agent.avatar_seed });
+        const agent = a as AgentRow;
+        agentMap.set(agent.id, { name: agent.name, avatar_seed: agent.avatar_seed ?? undefined });
       }
     }
 
-    // biome-ignore lint/suspicious/noExplicitAny: DB query returns untyped rows
-    const sessionList = allConversations.map((conv: any) => {
+    const sessionList = (allConversations as ConversationRow[]).map((conv) => {
       const agent = conv.template_id ? agentMap.get(conv.template_id) : undefined;
       return {
         id: conv.session_id,

@@ -15,17 +15,18 @@ Hawk OS is a modular, self-hosted system that combines:
 
 ```
 apps/
-  agent/          Discord bot + AI handler + 18 automations
+  agent/          Discord bot + middleware pipeline + 18 automations
   web/            Next.js 15 dashboard (App Router, Server Components)
 
 packages/
-  db/             PostgreSQL client + 85 migrations
-  modules/        18 isolated domain modules
+  db/             PostgreSQL client + 90+ migrations
+  modules/        16 domain modules (11 active)
   context-engine/ L0/L1/L2 context assembler
-  shared/         Errors, constants, utilities
+  shared/         Errors, constants, utilities, security
   auth/           Authentication layer
   admin/          Multi-tenant administration
   extensions/     Third-party integrations (GitHub, ClickUp)
+  mcp/            MCP client/server scaffold
   ui/             Shared UI primitives
 ```
 
@@ -138,17 +139,18 @@ The AI agent runs 18 scheduled automations:
 
 ## Multi-Tenant
 
-Hawk OS supports up to 6 tenants on a single deployment. Each tenant gets:
+Hawk OS supports multiple tenants on a single deployment. A single agent process dynamically loads all active tenants from the `admin.tenants` table at startup. Each tenant gets:
 
 - Isolated PostgreSQL schema
 - Dedicated Discord agent instance
 - Independent AI context and memory
-- Per-tenant feature flags
+- Per-tenant feature flags and budget limits
 
 ```bash
-docker compose up -d                 # Start everything
-docker compose up -d agent-ten1      # Start single tenant agent
+docker compose up -d                 # Start everything (single agent serves all tenants)
 ```
+
+New tenants can be hot-loaded without restart via `POST /admin/tenants/:slug/start`.
 
 ## Scripts
 
@@ -187,8 +189,9 @@ git pull
 ├── apps/
 │   ├── agent/                 # Discord bot + AI handler
 │   │   └── src/
-│   │       ├── handler.ts     # LLM orchestration
-│   │       ├── tools.ts       # Dynamic tool routing
+│   │       ├── handler.ts     # Entry point (delegates to middleware)
+│   │       ├── middleware/    # 7-stage pipeline (security, context, routing, llm, etc.)
+│   │       ├── tools/         # 21 modular tool files (dynamic routing)
 │   │       └── automations/   # 18 scheduled jobs
 │   └── web/                   # Next.js dashboard
 │       ├── app/dashboard/     # Module pages
@@ -199,10 +202,14 @@ git pull
 │           ├── actions/       # Server Actions
 │           └── widgets/       # Widget registry
 ├── packages/
-│   ├── db/                    # Database client + migrations
-│   ├── modules/               # 18 domain modules
+│   ├── db/                    # Database client + 90+ migrations
+│   ├── modules/               # 16 domain modules (11 active)
 │   ├── context-engine/        # L0/L1/L2 assembler
-│   └── shared/                # Errors, constants, utils
+│   ├── shared/                # Errors, constants, security, utils
+│   ├── admin/                 # Multi-tenant administration
+│   ├── auth/                  # Authentication layer
+│   ├── extensions/            # Third-party integrations
+│   └── mcp/                   # MCP client/server scaffold
 ├── docker/                    # Dockerfiles + Caddy config
 ├── docker-compose.yml
 └── .env.example

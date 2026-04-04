@@ -13,8 +13,9 @@ config({ path: resolve(process.cwd(), '../../.env') });
 
 const nextConfig: NextConfig = {
   typescript: {
-    // TODO: Fix compat DB client types, then remove this
-    ignoreBuildErrors: true,
+    // .next/types/validator.ts has 2 errors from deleted onboarding routes
+    // that only appear if .next cache exists — safe to ignore on fresh build
+    ignoreBuildErrors: false,
   },
   output: 'standalone',
   outputFileTracingRoot: resolve(process.cwd(), '../../'),

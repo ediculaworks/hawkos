@@ -75,8 +75,14 @@ function EditEntitySheet({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-xs text-[var(--color-text-muted)] mb-1">Nome</label>
+        <label
+          htmlFor="edit-entity-name"
+          className="block text-xs text-[var(--color-text-muted)] mb-1"
+        >
+          Nome
+        </label>
         <input
+          id="edit-entity-name"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -84,8 +90,14 @@ function EditEntitySheet({
         />
       </div>
       <div>
-        <label className="block text-xs text-[var(--color-text-muted)] mb-1">Tipo</label>
+        <label
+          htmlFor="edit-entity-type"
+          className="block text-xs text-[var(--color-text-muted)] mb-1"
+        >
+          Tipo
+        </label>
         <Select
+          id="edit-entity-type"
           value={type}
           onChange={(e) => setType(e.target.value as LegalEntityType)}
           size="sm"
@@ -93,8 +105,14 @@ function EditEntitySheet({
         />
       </div>
       <div>
-        <label className="block text-xs text-[var(--color-text-muted)] mb-1">CPF / CNPJ</label>
+        <label
+          htmlFor="edit-entity-document"
+          className="block text-xs text-[var(--color-text-muted)] mb-1"
+        >
+          CPF / CNPJ
+        </label>
         <input
+          id="edit-entity-document"
           type="text"
           value={document}
           onChange={(e) => setDocument(e.target.value)}
@@ -103,10 +121,14 @@ function EditEntitySheet({
         />
       </div>
       <div>
-        <label className="block text-xs text-[var(--color-text-muted)] mb-1">
+        <label
+          htmlFor="edit-entity-registration-date"
+          className="block text-xs text-[var(--color-text-muted)] mb-1"
+        >
           Data de abertura
         </label>
         <input
+          id="edit-entity-registration-date"
           type="date"
           value={registrationDate}
           onChange={(e) => setRegistrationDate(e.target.value)}
@@ -114,8 +136,14 @@ function EditEntitySheet({
         />
       </div>
       <div>
-        <label className="block text-xs text-[var(--color-text-muted)] mb-1">Observações</label>
+        <label
+          htmlFor="edit-entity-notes"
+          className="block text-xs text-[var(--color-text-muted)] mb-1"
+        >
+          Observações
+        </label>
         <textarea
+          id="edit-entity-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}

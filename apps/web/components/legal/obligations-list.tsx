@@ -108,8 +108,14 @@ function EditObligationSheet({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-xs text-[var(--color-text-muted)] mb-1">Nome</label>
+        <label
+          htmlFor="edit-obligation-name"
+          className="block text-xs text-[var(--color-text-muted)] mb-1"
+        >
+          Nome
+        </label>
         <input
+          id="edit-obligation-name"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -118,8 +124,14 @@ function EditObligationSheet({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-[var(--color-text-muted)] mb-1">Tipo</label>
+          <label
+            htmlFor="edit-obligation-type"
+            className="block text-xs text-[var(--color-text-muted)] mb-1"
+          >
+            Tipo
+          </label>
           <Select
+            id="edit-obligation-type"
             value={type}
             onChange={(e) => setType(e.target.value as ObligationType)}
             size="sm"
@@ -127,8 +139,14 @@ function EditObligationSheet({
           />
         </div>
         <div>
-          <label className="block text-xs text-[var(--color-text-muted)] mb-1">Status</label>
+          <label
+            htmlFor="edit-obligation-status"
+            className="block text-xs text-[var(--color-text-muted)] mb-1"
+          >
+            Status
+          </label>
           <Select
+            id="edit-obligation-status"
             value={status}
             onChange={(e) => setStatus(e.target.value as ObligationStatus)}
             size="sm"
@@ -138,8 +156,14 @@ function EditObligationSheet({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-[var(--color-text-muted)] mb-1">Vencimento</label>
+          <label
+            htmlFor="edit-obligation-due-date"
+            className="block text-xs text-[var(--color-text-muted)] mb-1"
+          >
+            Vencimento
+          </label>
           <input
+            id="edit-obligation-due-date"
             type="date"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
@@ -147,8 +171,14 @@ function EditObligationSheet({
           />
         </div>
         <div>
-          <label className="block text-xs text-[var(--color-text-muted)] mb-1">Valor (R$)</label>
+          <label
+            htmlFor="edit-obligation-amount"
+            className="block text-xs text-[var(--color-text-muted)] mb-1"
+          >
+            Valor (R$)
+          </label>
           <input
+            id="edit-obligation-amount"
             type="number"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
@@ -160,8 +190,14 @@ function EditObligationSheet({
         </div>
       </div>
       <div>
-        <label className="block text-xs text-[var(--color-text-muted)] mb-1">Frequência</label>
+        <label
+          htmlFor="edit-obligation-frequency"
+          className="block text-xs text-[var(--color-text-muted)] mb-1"
+        >
+          Frequência
+        </label>
         <Select
+          id="edit-obligation-frequency"
           value={frequency}
           onChange={(e) => setFrequency(e.target.value)}
           size="sm"
@@ -169,8 +205,14 @@ function EditObligationSheet({
         />
       </div>
       <div>
-        <label className="block text-xs text-[var(--color-text-muted)] mb-1">Observações</label>
+        <label
+          htmlFor="edit-obligation-notes"
+          className="block text-xs text-[var(--color-text-muted)] mb-1"
+        >
+          Observações
+        </label>
         <textarea
+          id="edit-obligation-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}

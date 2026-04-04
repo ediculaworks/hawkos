@@ -111,7 +111,7 @@ export async function detectSpendingAnomalies(
   recentStart.setDate(recentStart.getDate() - recentDays);
 
   const recentTransactions = historicalData.filter(
-    (tx: any) => new Date(tx.date as string) >= recentStart,
+    (tx: Record<string, unknown>) => new Date(tx.date as string) >= recentStart,
   );
 
   const anomalies: SpendingAnomaly[] = [];

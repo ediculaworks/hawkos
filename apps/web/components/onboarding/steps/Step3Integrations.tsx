@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { OPENROUTER_MODELS } from '@/lib/onboarding/types';
-import { CheckCircle, ChevronDown, ChevronUp, ExternalLink, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle, ExternalLink, Loader2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 
 type TestStatus = 'idle' | 'loading' | 'ok' | 'error';
@@ -64,7 +64,7 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
   });
   const [discordStatus, setDiscordStatus] = useState<TestStatus>('idle');
   const [discordError, setDiscordError] = useState('');
-  const [discordExpanded, setDiscordExpanded] = useState(!!initialValues?.discord?.botToken);
+  const [_discordExpanded, _setDiscordExpanded] = useState(!!initialValues?.discord?.botToken);
 
   const testOpenRouter = async () => {
     if (!openrouter.apiKey.trim()) {
@@ -173,10 +173,14 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="discord-bot-token"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             Bot Token
           </label>
           <Input
+            id="discord-bot-token"
             type="password"
             placeholder="MTIz... (Bot → Token)"
             value={discord.botToken}
@@ -187,40 +191,56 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="discord-client-id"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             Client ID
           </label>
           <Input
+            id="discord-client-id"
             placeholder="123456789 (General → App ID)"
             value={discord.clientId}
             onChange={(e) => setDiscord({ ...discord, clientId: e.target.value })}
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="discord-guild-id"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             Guild / Server ID
           </label>
           <Input
+            id="discord-guild-id"
             placeholder="123456789 (Server Settings → Widget)"
             value={discord.guildId}
             onChange={(e) => setDiscord({ ...discord, guildId: e.target.value })}
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="discord-channel-id"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             Channel ID
           </label>
           <Input
+            id="discord-channel-id"
             placeholder="123456789 (Right-click channel → Copy ID)"
             value={discord.channelId}
             onChange={(e) => setDiscord({ ...discord, channelId: e.target.value })}
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="discord-user-id"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             Seu User ID
           </label>
           <Input
+            id="discord-user-id"
             placeholder="123456789 (Right-click seu nome → Copy ID)"
             value={discord.userId}
             onChange={(e) => setDiscord({ ...discord, userId: e.target.value })}
@@ -268,10 +288,14 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="openrouter-api-key"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             API Key
           </label>
           <Input
+            id="openrouter-api-key"
             type="password"
             placeholder="sk-or-v1-..."
             value={openrouter.apiKey}
@@ -282,10 +306,14 @@ export function Step3Integrations({ onNext, onBack, initialValues }: Step3Integr
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="openrouter-model"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             Modelo (gratuitos)
           </label>
           <select
+            id="openrouter-model"
             value={openrouter.model}
             onChange={(e) => setOpenrouter({ ...openrouter, model: e.target.value })}
             className="flex h-10 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"

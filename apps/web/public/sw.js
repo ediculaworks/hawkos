@@ -9,10 +9,7 @@ const CACHE_VERSION = 'hawk-v1';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 
-const PRECACHE_URLS = [
-  '/manifest.json',
-  '/favicon.svg',
-];
+const PRECACHE_URLS = ['/manifest.json', '/favicon.svg'];
 
 // ── Install: precache static resources ─────────────────────────────────────
 self.addEventListener('install', (event) => {

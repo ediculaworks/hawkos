@@ -195,8 +195,14 @@ function EditNoteForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-[var(--space-4)]">
       <div className="space-y-[var(--space-1-5)]">
-        <label className="text-xs font-medium text-[var(--color-text-secondary)]">Título</label>
+        <label
+          htmlFor="note-title"
+          className="text-xs font-medium text-[var(--color-text-secondary)]"
+        >
+          Título
+        </label>
         <input
+          id="note-title"
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -206,8 +212,14 @@ function EditNoteForm({
       </div>
 
       <div className="space-y-[var(--space-1-5)]">
-        <label className="text-xs font-medium text-[var(--color-text-secondary)]">Conteúdo</label>
+        <label
+          htmlFor="note-content"
+          className="text-xs font-medium text-[var(--color-text-secondary)]"
+        >
+          Conteúdo
+        </label>
         <textarea
+          id="note-content"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           rows={6}
@@ -217,10 +229,14 @@ function EditNoteForm({
       </div>
 
       <div className="space-y-[var(--space-1-5)]">
-        <label className="text-xs font-medium text-[var(--color-text-secondary)]">
+        <label
+          htmlFor="note-tags"
+          className="text-xs font-medium text-[var(--color-text-secondary)]"
+        >
           Tags (separadas por vírgula)
         </label>
         <input
+          id="note-tags"
           type="text"
           value={tagsStr}
           onChange={(e) => setTagsStr(e.target.value)}

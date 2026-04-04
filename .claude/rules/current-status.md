@@ -1,6 +1,171 @@
 # Current Status
 
-**Ultima atualizacao:** 2026-04-03
+**Ultima atualizacao:** 2026-04-04
+
+## Multi-Tenant Dinâmico — Single-Process Agent (2026-04-04)
+**Status: [✅ Completo — code-level, pendente deploy/teste]**
+
+Refactora completa do sistema multi-tenant: de 6 containers hardcoded para 1 processo agent dinâmico.
+
+### Problema resolvido
+1. **6 slots hardcoded** (ten1-ten6) em SQL VIEW, AdminClient, docker-compose
+2. **Deploy manual do agent** — onboarding criava tenant mas agent precisava AGENT_SLOT + restart container
+3. **Complexidade** — wizard 7 steps com retry loops, verify-install redundante, .env download
+
+### O que mudou
+
+| Ficheiro | Mudança |
+|----------|---------|
+| `apps/agent/src/tenant-manager.ts` | **Novo** — TenantContext + TenantManager singleton. loadAll(), addTenant(), removeTenant(), shutdownAll() |
+| `apps/agent/src/credential-manager.ts` | Refactorado — loadAllActiveTenants() novo. initializeFromAdminDb() mantido como legacy compat. Não seta mais process.env (só no legacy mode) |
+| `apps/agent/src/index.ts` | Refactorado — main() detecta multi-tenant vs legacy. Multi-tenant: carrega todos os tenants, startTenantServices() por tenant, crons scoped via withSchema() |
+| `apps/agent/src/channels/discord.ts` | Refactorado — 1 Discord Client por tenant via startDiscordBotForTenant(ctx). clientMeta Map para per-client metadata. Handlers rodm dentro de withSchema() |
+| `apps/agent/src/channels/discord-adapter.ts` | Refactorado — connectDiscordForTenant() + disconnectTenantDiscord() novos |
+| `apps/agent/src/api/server.ts` | Adicionado — /admin/tenants/:slug/start, /stop, /admin/reload, GET /admin/tenants. /health inclui tenant summary |
+| `packages/admin/src/client.ts` | Refactorado — getAvailableSlots() dinâmico (sem hardcoded array). getNextSlug() auto-gera ten1..tenN. createTenant() usa slug dinâmico |
+| `apps/web/app/api/admin/tenants/route.ts` | Adicionado — notifica agent via POST /admin/tenants/:slug/start após criar tenant |
+| `apps/web/components/onboarding/steps/Step5Configure.tsx` | Simplificado — 3 sub-steps (era 5). Removido account-exists flow, verify-install, ndjson stream |
+| `apps/web/components/onboarding/steps/Step6Complete.tsx` | Simplificado — removido download .env. Mensagem: "agent detecta automaticamente" |
+| `docker-compose.yml` | Simplificado — 1 service "agent" (era 6 agent-tenX). Removido x-agent-defaults anchor. Memory 1G (era 6×512M=3G) |
+| `packages/db/supabase/migrations/20260419000000_dynamic_tenants.sql` | **Novo** — DROP VIEW tenant_availability hardcoded, agent_port nullable |
+
+### Fluxo novo (100% automático)
+1. User acede /onboarding → wizard 7 steps (funcional, simplificado internamente)
+2. Step5: POST /api/admin/tenants → cria tenant com slug auto-gerado (ten1, ten2, ..., tenN)
+3. Tenant API notifica agent: POST /admin/tenants/:slug/start
+4. Agent hot-loads: TenantManager.addTenant() → carrega credentials → conecta Discord → start crons
+5. Zero intervenção manual. Sem AGENT_SLOT. Sem docker-compose editing.
+
+### Legacy compat
+- Se AGENT_SLOT env var está set → agent entra em legacy single-tenant mode
+- initializeFromAdminDb() ainda funciona mas logga warning de migração
+
+### Pendente (não-bloqueante)
+- Automations (alerts, checkin, etc.) ainda lêem CHANNEL_ID de process.env no module level — funciona para primeiro tenant, refactor granular tracked separadamente
+- Web dashboard proxy (apps/web/app/api/agent/[...path]) precisa update para single-service routing
+- Testes de integração multi-tenant (2+ tenants simultâneos)
+
+## Bugfix Audit (2026-04-03 → 2026-04-04)
+**Status: [✅ Completo]**
+
+Auditoria critica de todo o codebase. Duas rondas de correcoes aplicadas:
+
+### Ronda 1 — P0/P1 (bugs criticos + estruturais)
+
+| Fix | Ficheiro | O que mudou |
+|-----|----------|------------|
+| Fire-and-forget promises | `handler.ts` | 6 promises nao-awaited com `.catch(() => {})` → awaited com logging estruturado. Handlers Discord deduplicados (era 95% copy-paste). |
+| Silent catch blocks | `embeddings.ts`, `engine.ts`, `persistence.ts`, `index.ts` | ~10 `catch {}` silenciosos → todos logam erro com contexto |
+| Provider sync race condition | `provider.ts` | `syncModule()` podia correr 2x em paralelo → module-level lock com Set + finally cleanup |
+| N+1 query finances | `context.ts` | Carregava 500 transacoes e filtrava em JS → usa `getTransactionsByCategory()` com GROUP BY |
+| Dead code marcado | 7 ficheiros | credential-pool, MCP client/server, plugin-sdk, SSE packets, context-references, DataProvider → todos marcados com TODO: NOT YET INTEGRATED |
+
+### Ronda 2 — WAVE8 bugfix items restantes
+
+| Fix | Ficheiro | O que mudou |
+|-----|----------|------------|
+| M2: Multimodal token estimation | `middleware/llm.ts` | `callLLMOnce()` ignorava ContentPart[] para token count → extrai texto de arrays multimodal |
+| H3: Confidence wiring | `tool-executor.ts`, `tools/universal.ts` | Campo `confidence` (0.0-1.0) adicionado ao schema Zod, parametros da tool, e persistido no DB. LLM pode agora indicar certeza ao salvar memorias. |
+| C2: Per-tenant budget | `model-router.ts` | Ja estava wired — `loadDailyUsageFromDb()` chama `getTenantBudgetLimit()` no startup (confirmado). |
+| L2: Fallback models | `middleware/llm.ts` | Ja estava correcto — fallback models so existem em llm.ts (handler.ts ja nao faz LLM calls). |
+| H1/L1/L8: Dead code routing.ts | `middleware/routing.ts` | Ja limpo — PLATFORM_HINTS e REACT_INSTRUCTION so existem em message-builder.ts. |
+| M3: Tool loop messages | `middleware/llm.ts` | Ja correcto — usa `toolHistory` accumulator, `[...ctx.messages, ...toolHistory]` sem duplicacao. |
+
+### Ronda 3 — Testes + analise RLS
+
+| Item | O que mudou |
+|------|------------|
+| +39 testes novos | 4 ficheiros: `prompts.test.ts` (14), `web-tools.test.ts` (8), `retrieval.test.ts` (8), `engine.test.ts` (9) |
+| Test suite total | 219 testes passing (era ~161). 2 pre-existentes falham (agent-resolver, linked-memories — mock hoisting). |
+| RLS analise | Confirmado: schema-based isolation e o boundary real. `USING (true)` e decorativo mas NAO e vulnerabilidade — tenants vivem em schemas separados. Agent e web ambos correm server-side. |
+
+### Ronda 4 — Code review final (deploy readiness)
+
+| Fix | Ficheiro | O que mudou |
+|-----|----------|------------|
+| DATABASE_URL required | `index.ts:42` | Movido de "warned" para "required". Agent agora falha no startup se DATABASE_URL nao existir. |
+| selectModel budget cache | `model-router.ts:178` | Usa `_tenantBudgetCache?.value` em vez de ler sempre o env var. Cost-aware downgrade agora funciona por tenant. |
+| Assembler fault isolation | `assembler.ts:28` | `Promise.all` → `Promise.allSettled` para L1. L2 wrapped em try/catch. Um modulo falhar nao crashe todo o contexto. |
+| LLM timeout | `middleware/llm.ts` | 90s timeout via `AbortSignal.timeout()` em streaming e non-streaming calls. Previne requests pendurados. |
+
+### Ronda 5 — Cobertura total (zero pendentes)
+
+| Item | O que mudou |
+|------|------------|
+| Test hoisting fix | `agent-resolver.test.ts`, `linked-memories.test.ts` — `vi.hoisted()` fix. 0 test failures agora. |
+| TypeScript zero errors | ~50 erros corrigidos em 15 ficheiros (implicit any, QueryBuilder await, type casts). `ignoreBuildErrors: false` no next.config.ts. |
+| Missing RPC | `20260418000000_get_all_habit_scores_rpc.sql` — batch function para scores de habitos (elimina N+1). |
+| `.next/types` cache | Cache stale removido (referenciava rotas de onboarding apagadas). |
+| Test suite final | **25 ficheiros, 233 testes, 0 falhas** |
+
+### Status real do dead code (~1350 linhas):
+
+| Ficheiro | Status | Para activar |
+|----------|--------|-------------|
+| `credential-pool.ts` | Scaffolding, zero imports | Wire into llm-client.ts |
+| `packages/mcp/src/client.ts` | Stubs, transports mock | Implement real JSON-RPC |
+| `packages/mcp/src/server.ts` | Nunca inicializado | Call startMCPServer() |
+| `plugin-sdk.ts` | initAllPlugins() nunca chamado | Call in agent startup |
+| `sse-packets.ts` | createPacket() nunca chamado | Replace raw JSON in api/server.ts |
+| `context-references.ts` | Nunca wired no middleware | Call in context middleware |
+| `provider.ts` | Zero providers concretos | Implement first provider |
+
+## Wave 8 — Reference Repo Integration (2026-04-03)
+**Status: [⚠️ Parcial — core funcional, 7 features são scaffolding]**
+
+Integração de padrões de 12 repositórios de referência. **Funcional e integrado:** middleware pipeline, web extraction, atomic checkout, memory confidence scoring, prompt pattern library. **Scaffolding sem integração:** credential pool, MCP, plugin SDK, SSE typed packets, context references, DataProvider.
+
+### O que está FUNCIONAL e integrado:
+
+| Area | O que mudou |
+|------|------------|
+| Middleware Chain (DeerFlow) | `apps/agent/src/middleware/` — Pipeline composável de 7 middlewares (security, context, history, routing, message-builder, llm, persistence) substituindo o handler.ts monolítico. Padrão next() com fault isolation por componente. |
+| Web Extraction (Crawl4AI) | `apps/agent/src/tools/web.ts` — HTML→Markdown via `@mozilla/readability` + `turndown` + `linkedom`. Parâmetro `format: 'markdown'|'text'|'raw'`. Fallback para regex extraction. User-Agent realista. |
+| Atomic Task Checkout (Paperclip) | `packages/modules/demands/engine.ts` — `checkoutStep()` atómico via UPDATE...WHERE. `releaseStep()` para conclusão/falha. `recoverStaleClaims()` no início de cada ciclo. |
+| Memory Confidence (DeerFlow) | `packages/modules/memory/retrieval.ts` — Campo `confidence` (0.0-1.0) com peso 0.15 no ranking. NaN guard aplicado. |
+| Prompt Pattern Library (Fabric) | `packages/shared/src/prompts/` — Registry com 14 patterns. Template com `{{variable}}` interpolation via replaceAll (sem ReDoS). |
+
+### O que é SCAFFOLDING (não integrado):
+
+| Area | Status |
+|------|--------|
+| Per-Tenant Budget (Paperclip) | Código existe mas `selectModel()` é sync e `getTenantBudgetLimit()` é async. Cache nunca populado. |
+| DataProvider Interface (OpenBB) | Interface + registry sem providers concretos. |
+| Credential Pool (Hermes) | 208 linhas, zero imports. |
+| MCP Client/Server (Hermes) | Transports são stubs. |
+| Plugin SDK (OpenClaw) | Lifecycle completo mas nunca inicializado. |
+| SSE Typed Packets (Onyx) | 45 event types definidos, nunca usados. |
+| Context References (Hermes) | Parser existe, nunca chamado. |
+
+### Ficheiros novos:
+
+| Ficheiro | Tipo |
+|----------|------|
+| `apps/agent/src/middleware/types.ts` | Novo — HandlerContext, Middleware, createPipeline |
+| `apps/agent/src/middleware/security.ts` | Novo — injection scanning + secret redaction |
+| `apps/agent/src/middleware/context.ts` | Novo — L0/L1/L2, memories, previous session |
+| `apps/agent/src/middleware/history.ts` | Novo — session history loading |
+| `apps/agent/src/middleware/routing.ts` | Novo — module detection, tool filtering, model selection |
+| `apps/agent/src/middleware/message-builder.ts` | Novo — messages array, compression, compaction |
+| `apps/agent/src/middleware/llm.ts` | Novo — LLM call + fallback chain + tool loop |
+| `apps/agent/src/middleware/persistence.ts` | Novo — save messages, log activity, hooks |
+| `apps/agent/src/middleware/index.ts` | Novo — pipeline runner + runPipeline() |
+| `packages/shared/src/prompts/types.ts` | Novo — PatternDefinition types |
+| `packages/shared/src/prompts/index.ts` | Novo — pattern registry + 14 built-in patterns |
+| `packages/extensions/core/provider.ts` | Novo — DataProvider interface + registry |
+| `packages/db/supabase/migrations/20260417000000_*.sql` | Novo — atomic checkout + confidence + budget |
+
+### Ficheiros modificados:
+
+| Ficheiro | Tipo |
+|----------|------|
+| `apps/agent/src/handler.ts` | Simplificado — usa runPipeline() em vez de lógica inline |
+| `apps/agent/src/tools/web.ts` | Melhorado — Readability + Turndown para Markdown |
+| `packages/modules/demands/engine.ts` | Melhorado — atomic checkout + stale recovery |
+| `packages/modules/memory/retrieval.ts` | Melhorado — confidence weight no scoring |
+| `apps/agent/src/model-router.ts` | Melhorado — per-tenant budget via feature_flags |
+| `packages/shared/src/index.ts` | Modificado — exporta prompts |
+| `packages/extensions/core/index.ts` | Modificado — exporta provider |
 
 ## Wave 7 — Platform & UX (2026-04-03)
 **Status: [✅ Completo]**

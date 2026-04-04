@@ -62,10 +62,14 @@ export function Step1Account({ onNext, onBack, initialValues }: Step1AccountProp
 
       <div className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="onboarding-email"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             Email
           </label>
           <Input
+            id="onboarding-email"
             type="email"
             placeholder="seu@email.com"
             value={email}
@@ -77,11 +81,15 @@ export function Step1Account({ onNext, onBack, initialValues }: Step1AccountProp
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="onboarding-password"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             Senha
           </label>
           <div className="relative">
             <Input
+              id="onboarding-password"
               type={showPassword ? 'text' : 'password'}
               placeholder="********"
               value={password}
@@ -150,10 +158,14 @@ export function Step1Account({ onNext, onBack, initialValues }: Step1AccountProp
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+          <label
+            htmlFor="onboarding-confirm-password"
+            className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1"
+          >
             Confirmar Senha
           </label>
           <Input
+            id="onboarding-confirm-password"
             type={showPassword ? 'text' : 'password'}
             placeholder="********"
             value={confirmPassword}

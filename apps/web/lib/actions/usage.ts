@@ -37,7 +37,7 @@ export async function fetchUsageHistory(days = 7): Promise<DailyUsageEntry[]> {
         [days],
       );
     });
-    return (rows as DailyUsageEntry[]) ?? [];
+    return (rows as unknown as DailyUsageEntry[]) ?? [];
   } catch {
     return [];
   }
@@ -67,7 +67,7 @@ export async function fetchErrorSummary(days = 7): Promise<ErrorSummaryEntry[]> 
         [days],
       );
     });
-    return (rows as ErrorSummaryEntry[]) ?? [];
+    return (rows as unknown as ErrorSummaryEntry[]) ?? [];
   } catch {
     return [];
   }

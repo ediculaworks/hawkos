@@ -1,17 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
 // ── Mock the db client directly to avoid env var requirements ─────────────────
-const mockFrom = vi.fn();
+const { mockFrom } = vi.hoisted(() => ({ mockFrom: vi.fn() }));
 
-vi.mock('../../../../packages/db/src/client.ts', () => {
-  return {
-    db: {
-      from: mockFrom,
-    },
-    tenantStore: { getStore: () => null, run: vi.fn() },
-    createTenantClient: vi.fn(),
-  };
-});
+vi.mock('../../../../packages/db/src/client.ts', () => ({
+  db: { from: mockFrom },
+  tenantStore: { getStore: () => null, run: vi.fn() },
+  createTenantClient: vi.fn(),
+}));
 
 import { buildSystemPrompt, resolveAgent } from '../agent-resolver';
 import type { ResolvedAgent } from '../agent-resolver';

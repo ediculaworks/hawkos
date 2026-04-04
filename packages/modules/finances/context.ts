@@ -1,4 +1,9 @@
-import { getAccounts, getCategories, getFinanceSummary, listTransactions } from './queries';
+import {
+  getAccounts,
+  getFinanceSummary,
+  getTransactionsByCategory,
+  listTransactions,
+} from './queries';
 
 /**
  * L0 Context: Resumo ultra-rápido do mês atual
@@ -37,21 +42,11 @@ export async function loadL1(): Promise<string> {
     const monthStart =
       new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0] ?? '';
 
-    const [summary, accounts, categories] = await Promise.all([
+    const [summary, accounts, categoryExpenses] = await Promise.all([
       getFinanceSummary(undefined, monthStart),
       getAccounts(),
-      getCategories(),
+      getTransactionsByCategory(monthStart),
     ]);
-
-    // Load transactions ONCE, then group by category (avoids N+1 per category)
-    const allTransactions = await listTransactions(undefined, monthStart, undefined, 500);
-    const expenseCategories = categories.filter((c) => c.type === 'expense');
-    const categoryExpenses = expenseCategories.map((cat) => {
-      const total = allTransactions
-        .filter((t) => t.category_id === cat.id)
-        .reduce((sum, t) => sum + t.amount, 0);
-      return { name: cat.name, total };
-    });
 
     const lines = [
       '## Finanças Detalhadas',
@@ -60,11 +55,7 @@ export async function loadL1(): Promise<string> {
       `- Despesas: R$ ${summary.expenses.toFixed(2)}`,
       `- Líquido: R$ ${summary.net.toFixed(2)}`,
       '### Despesas por Categoria',
-      ...categoryExpenses
-        .filter((e) => e.total > 0)
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 10)
-        .map((e) => `- ${e.name}: R$ ${e.total.toFixed(2)}`),
+      ...categoryExpenses.slice(0, 10).map((e) => `- ${e.name}: R$ ${e.total.toFixed(2)}`),
       '### Contas',
       ...accounts.map((a) => `- ${a.name} (${a.type}): R$ ${a.balance.toFixed(2)}`),
     ];

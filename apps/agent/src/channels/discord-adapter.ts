@@ -1,11 +1,18 @@
-import { disconnectDiscord, sendToChannel, startDiscordBot } from './discord.js';
+import type { TenantContext } from '../tenant-manager.js';
+import {
+  disconnectDiscord,
+  disconnectDiscordForTenant,
+  sendToChannel,
+  startDiscordBot,
+  startDiscordBotForTenant,
+} from './discord.js';
 import { type Channel, DISCORD_CAPABILITIES } from './types.js';
 
 let connected = false;
 
 /**
  * Thin Channel adapter wrapping the existing Discord module.
- * Does not rewrite discord.ts — delegates to existing exports.
+ * Used by the channelRegistry for legacy single-tenant mode.
  */
 export const discordChannel: Channel = {
   name: 'discord',
@@ -33,3 +40,20 @@ export const discordChannel: Channel = {
     connected = false;
   },
 };
+
+// ── Multi-tenant adapter ─────────────────────────────────────────────────────
+
+/**
+ * Connect Discord for a specific tenant.
+ * Returns a Channel-like object scoped to that tenant.
+ */
+export async function connectDiscordForTenant(ctx: TenantContext): Promise<void> {
+  await startDiscordBotForTenant(ctx);
+}
+
+/**
+ * Disconnect Discord for a specific tenant.
+ */
+export function disconnectTenantDiscord(slug: string): void {
+  disconnectDiscordForTenant(slug);
+}

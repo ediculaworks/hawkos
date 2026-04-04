@@ -407,6 +407,7 @@ class QueryBuilder<T = any> {
 
   // ── EXECUTE (then / await) ────────────────────────────────────────────
 
+  // biome-ignore lint/suspicious/noThenProperty: intentional thenable — allows `await queryBuilder`
   async then<TResult1 = SupabaseResult<T>, TResult2 = never>(
     onfulfilled?: ((value: SupabaseResult<T>) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,

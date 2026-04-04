@@ -12,3 +12,12 @@ export * from './feature-flags.ts';
 export * from './secret-redactor.ts';
 export * from './prompt-injection-scanner.ts';
 export * from './ssrf-validator.ts';
+export {
+  registerPattern,
+  getPattern,
+  listPatterns,
+  listPatternIds,
+  renderPattern,
+  executePattern,
+} from './prompts/index.ts';
+export type { PatternDefinition, PatternInput } from './prompts/types.ts';

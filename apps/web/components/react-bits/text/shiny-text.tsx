@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, useAnimationFrame, useMotionValue, useTransform } from 'motion/react';
-import { type React, useCallback, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
 
 interface ShinyTextProps {
   text: string;
@@ -96,7 +96,7 @@ export default function ShinyText({
     if (pauseOnHover) setIsPaused(false);
   }, [pauseOnHover]);
 
-  const gradientStyle: React.CSSProperties = {
+  const gradientStyle: CSSProperties = {
     backgroundImage: `linear-gradient(${spread}deg, ${color} 0%, ${color} 35%, ${shineColor} 50%, ${color} 65%, ${color} 100%)`,
     backgroundSize: '200% auto',
     WebkitBackgroundClip: 'text',

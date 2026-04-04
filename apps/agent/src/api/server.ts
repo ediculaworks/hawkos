@@ -437,6 +437,20 @@ const agentServer = Bun.serve({
         }
       }
 
+      // Tenant summary
+      let tenantSummary: { count: number; active: number; slugs: string[] } | undefined;
+      try {
+        const { tenantManager } = await import('../tenant-manager.js');
+        const all = tenantManager.getAll();
+        tenantSummary = {
+          count: all.length,
+          active: all.filter((t) => t.status === 'active').length,
+          slugs: all.map((t) => t.slug),
+        };
+      } catch {
+        // tenantManager not available (legacy mode)
+      }
+
       const allOk = Object.values(checks).every((c) => c.ok);
       const status = checks.database?.ok ? 200 : 503;
 
@@ -446,6 +460,7 @@ const agentServer = Bun.serve({
           timestamp: new Date().toISOString(),
           uptime_seconds: Math.floor(process.uptime()),
           checks,
+          tenants: tenantSummary,
         }),
         { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
@@ -457,8 +472,15 @@ const agentServer = Bun.serve({
 
     if (path === '/reload-credentials' && method === 'POST') {
       try {
-        const { refreshCredentials } = await import('../credential-manager.js');
-        const success = await refreshCredentials();
+        const { tenantManager } = await import('../tenant-manager.js');
+        const { startTenantServices } = await import('../index.js');
+        // Reload all tenants from admin schema
+        await tenantManager.shutdownAll();
+        await tenantManager.loadAll();
+        for (const ctx of tenantManager.getAll()) {
+          await startTenantServices(ctx);
+        }
+        const success = true;
         return new Response(
           JSON.stringify({
             success,
@@ -478,6 +500,94 @@ const agentServer = Bun.serve({
           },
         );
       }
+    }
+
+    // ── Admin: Tenant management endpoints ───────────────────────
+    // POST /admin/tenants/:slug/start — hot-load a new tenant (called by onboarding)
+    const tenantStartMatch = path.match(/^\/admin\/tenants\/([a-z0-9_-]+)\/start$/);
+    if (tenantStartMatch && method === 'POST') {
+      const slug = tenantStartMatch[1]!;
+      try {
+        const { tenantManager } = await import('../tenant-manager.js');
+        const { startTenantServices } = await import('../index.js');
+        const ctx = await tenantManager.addTenant(slug);
+        await startTenantServices(ctx);
+        return new Response(JSON.stringify({ ok: true, slug, status: ctx.status }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (err) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            slug,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    }
+
+    // POST /admin/tenants/:slug/stop — disconnect a tenant
+    const tenantStopMatch = path.match(/^\/admin\/tenants\/([a-z0-9_-]+)\/stop$/);
+    if (tenantStopMatch && method === 'POST') {
+      const slug = tenantStopMatch[1]!;
+      try {
+        const { tenantManager } = await import('../tenant-manager.js');
+        await tenantManager.removeTenant(slug);
+        return new Response(JSON.stringify({ ok: true, slug, stopped: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (err) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            slug,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    }
+
+    // POST /admin/reload — reload all tenants from admin schema
+    if (path === '/admin/reload' && method === 'POST') {
+      try {
+        const { tenantManager } = await import('../tenant-manager.js');
+        const { startTenantServices } = await import('../index.js');
+        await tenantManager.shutdownAll();
+        await tenantManager.loadAll();
+        for (const ctx of tenantManager.getAll()) {
+          await startTenantServices(ctx);
+        }
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            tenants: tenantManager.getAll().map((t) => ({ slug: t.slug, status: t.status })),
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      } catch (err) {
+        return new Response(
+          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    }
+
+    // GET /admin/tenants — list all loaded tenants and their status
+    if (path === '/admin/tenants' && method === 'GET') {
+      const { tenantManager } = await import('../tenant-manager.js');
+      const tenants = tenantManager.getAll().map((t) => ({
+        slug: t.slug,
+        schemaName: t.schemaName,
+        status: t.status,
+        lastError: t.lastError,
+        cronTasks: t.cronTasks.length,
+        hasDiscord: !!t.discordClient,
+      }));
+      return new Response(JSON.stringify({ tenants, count: tenants.length }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     if (path === '/status' && method === 'GET') {

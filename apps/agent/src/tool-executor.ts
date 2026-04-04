@@ -71,6 +71,7 @@ const saveMemorySchema = z.object({
   memory_type: z.enum(['profile', 'preference', 'entity', 'event', 'case', 'pattern']),
   module: z.string().optional(),
   importance: z.number().int().min(1).max(10).optional(),
+  confidence: z.number().min(0).max(1).optional(),
 });
 
 const createTransactionSchema = z.object({
@@ -143,7 +144,13 @@ export async function executeToolCall(
   // Handle save_memory specially — uses V2 memory system
   if (name === 'save_memory') {
     return handleSaveMemory(
-      args as { content: string; memory_type: string; module?: string; importance?: number },
+      args as {
+        content: string;
+        memory_type: string;
+        module?: string;
+        importance?: number;
+        confidence?: number;
+      },
       sessionId,
     );
   }
@@ -217,7 +224,13 @@ export async function executeToolCall(
 }
 
 async function handleSaveMemory(
-  args: { content: string; memory_type: string; module?: string; importance?: number },
+  args: {
+    content: string;
+    memory_type: string;
+    module?: string;
+    importance?: number;
+    confidence?: number;
+  },
   sessionId: string,
 ): Promise<string> {
   try {
@@ -255,6 +268,7 @@ async function handleSaveMemory(
         memory_type: args.memory_type as MemoryType,
         origin_session_id: sessionId,
         mergeable: ['profile', 'preference', 'entity', 'pattern'].includes(args.memory_type),
+        ...(args.confidence !== undefined ? { confidence: args.confidence } : {}),
       } as Record<string, unknown>)
       .eq('id', memory.id);
 

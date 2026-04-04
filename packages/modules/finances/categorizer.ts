@@ -121,7 +121,9 @@ export async function trainCategorizer(): Promise<{ categories: number; document
   }
 
   // Load category names
-  const categoryIds = [...new Set(data.map((d: any) => d.category_id as string))];
+  const categoryIds = [
+    ...new Set(data.map((d: Record<string, unknown>) => d.category_id as string)),
+  ];
   const { data: categories } = await db
     .from('finance_categories')
     .select('id, name')

@@ -93,10 +93,14 @@ export function AddEntityForm({ onClose }: Props) {
       </div>
 
       <div>
-        <label className="block text-[10px] text-[var(--color-text-muted)] mb-1">
+        <label
+          htmlFor="entity-registration-date"
+          className="block text-[10px] text-[var(--color-text-muted)] mb-1"
+        >
           Data de abertura (opcional)
         </label>
         <input
+          id="entity-registration-date"
           type="date"
           value={registrationDate}
           onChange={(e) => setRegistrationDate(e.target.value)}

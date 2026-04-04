@@ -41,7 +41,7 @@ export async function listHabitsWithTodayStatus(): Promise<HabitWithLog[]> {
     throw new HawkError(`Failed to list habits: ${error.message}`, 'DB_QUERY_FAILED');
   }
 
-  return (habits ?? []).map((habit: any) => {
+  return (habits ?? []).map((habit: Record<string, unknown>) => {
     const logs = habit.habit_logs as unknown as HabitLog[] | null;
     const log = logs?.[0] ?? null;
     return {
@@ -203,7 +203,7 @@ export async function getWeekSummary(): Promise<HabitWeekSummary[]> {
   }
   if (!habits || habits.length === 0) return [];
 
-  const habitIds = habits.map((h: any) => h.id);
+  const habitIds = habits.map((h: Record<string, unknown>) => h.id as string);
 
   const { data: logs, error: logError } = await db
     .from('habit_logs')
@@ -218,8 +218,8 @@ export async function getWeekSummary(): Promise<HabitWeekSummary[]> {
     throw new HawkError(`Failed to get week logs: ${logError.message}`, 'DB_QUERY_FAILED');
   }
 
-  return habits.map((habit: any) => {
-    const habitLogs = (logs ?? []).filter((l: any) => l.habit_id === habit.id);
+  return habits.map((habit: Record<string, unknown>) => {
+    const habitLogs = (logs ?? []).filter((l: Record<string, unknown>) => l.habit_id === habit.id);
 
     // Calcular target semanal baseado na frequência
     let weekTarget = 7;

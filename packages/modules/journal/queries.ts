@@ -190,26 +190,28 @@ export async function getJournalStats(): Promise<JournalStats> {
 
   const entries = data ?? [];
   const total = entries.length;
-  const thisWeek = entries.filter((e: any) => e.date >= weekStr).length;
-  const thisMonth = entries.filter((e: any) => e.date >= monthStr).length;
+  const thisWeek = entries.filter((e: { date: string }) => e.date >= weekStr).length;
+  const thisMonth = entries.filter((e: { date: string }) => e.date >= monthStr).length;
 
-  const moodValues = entries.map((e: any) => e.mood).filter((m: any): m is number => m !== null);
+  const moodValues = entries
+    .map((e: { mood: number | null }) => e.mood)
+    .filter((m: number | null): m is number => m !== null);
   const energyValues = entries
-    .map((e: any) => e.energy)
-    .filter((e: any): e is number => e !== null);
+    .map((e: { energy: number | null }) => e.energy)
+    .filter((e: number | null): e is number => e !== null);
 
   const avgMood =
     moodValues.length > 0
-      ? moodValues.reduce((a: any, b: any) => a + b, 0) / moodValues.length
+      ? moodValues.reduce((a: number, b: number) => a + b, 0) / moodValues.length
       : null;
   const avgEnergy =
     energyValues.length > 0
-      ? energyValues.reduce((a: any, b: any) => a + b, 0) / energyValues.length
+      ? energyValues.reduce((a: number, b: number) => a + b, 0) / energyValues.length
       : null;
 
   // Calcular streak diário (dias consecutivos com pelo menos 1 entry)
   let streak = 0;
-  const dateSets = new Set(entries.map((e: any) => e.date));
+  const dateSets = new Set(entries.map((e: { date: string }) => e.date));
   const checkDate = new Date(today);
   while (dateSets.has(checkDate.toISOString().split('T')[0] as string)) {
     streak++;

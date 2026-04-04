@@ -43,3 +43,17 @@ export type {
   PluginPermission,
   PluginStatus,
 } from './plugin-sdk';
+export {
+  registerProvider,
+  getProvider,
+  getProvidersByModule,
+  listProviders,
+  getConnectedProviders,
+  syncModule,
+} from './provider';
+export type {
+  DataProvider,
+  ProviderStatus,
+  ProviderMetadata,
+  ProviderSyncResult,
+} from './provider';

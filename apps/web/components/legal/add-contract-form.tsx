@@ -112,8 +112,14 @@ export function AddContractForm({ onClose }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-[var(--color-text-muted)] mb-1">Início</label>
+          <label
+            htmlFor="contract-start-date"
+            className="block text-[10px] text-[var(--color-text-muted)] mb-1"
+          >
+            Início
+          </label>
           <input
+            id="contract-start-date"
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
@@ -121,10 +127,14 @@ export function AddContractForm({ onClose }: Props) {
           />
         </div>
         <div>
-          <label className="block text-[10px] text-[var(--color-text-muted)] mb-1">
+          <label
+            htmlFor="contract-end-date"
+            className="block text-[10px] text-[var(--color-text-muted)] mb-1"
+          >
             Vencimento
           </label>
           <input
+            id="contract-end-date"
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}

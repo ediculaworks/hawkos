@@ -77,12 +77,13 @@ function CommandRow({
 }) {
   const Icon = cmd.icon;
   return (
+    // biome-ignore lint/a11y/useSemanticElements: custom listbox requires role="option" on interactive items
     <button
+      role="option"
       type="button"
       data-active={isActive}
       onClick={cmd.action}
       onMouseEnter={onActivate}
-      role="option"
       aria-selected={isActive}
       className={cn(
         'w-full flex items-center gap-[var(--space-3)]',
@@ -198,6 +199,7 @@ export function CommandPalette() {
       />
 
       {/* Panel */}
+      {/* biome-ignore lint/a11y/useSemanticElements: portal-rendered dialog requires role attribute */}
       <div
         role="dialog"
         aria-modal="true"
@@ -246,11 +248,12 @@ export function CommandPalette() {
         </div>
 
         {/* Results */}
+        {/* biome-ignore lint/a11y/useSemanticElements: custom combobox listbox pattern */}
         <div
+          role="listbox"
           ref={listRef}
           className="overflow-y-auto overscroll-contain py-[var(--space-1-5)]"
           style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}
-          role="listbox"
           tabIndex={-1}
           aria-label="Comandos disponíveis"
         >

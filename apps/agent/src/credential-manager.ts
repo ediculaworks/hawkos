@@ -1,25 +1,10 @@
 import { createDecipheriv, createHash } from 'node:crypto';
 import { getPool } from '@hawk/db';
+import type { TenantCredentials } from './tenant-manager.js';
 
 const ALGORITHM = 'aes-256-gcm';
 const TAG_LENGTH = 16;
 const LEGACY_SALT = 'hawk-os-admin-salt-v1';
-
-interface TenantCredentials {
-  schemaName: string;
-  keySalt: string | null;
-  discordConfig?: {
-    bot_token?: string;
-    client_id?: string;
-    guild_id?: string;
-    channel_id?: string;
-    user_id?: string;
-  };
-  openrouterConfig?: {
-    api_key?: string;
-    model?: string;
-  };
-}
 
 function deriveKey(masterKey: string, salt?: string | null): Buffer {
   return createHash('sha256')
@@ -59,33 +44,68 @@ function decryptJson<T>(
   return JSON.parse(json) as T;
 }
 
-export async function loadTenantCredentials(slot: string): Promise<TenantCredentials> {
-  const masterKey = process.env.ADMIN_MASTER_KEY || process.env.JWT_SECRET || '';
-
-  if (!masterKey) {
-    throw new Error('ADMIN_MASTER_KEY or JWT_SECRET is required when AGENT_SLOT is set');
+function getMasterKey(): string {
+  const key = process.env.ADMIN_MASTER_KEY || process.env.JWT_SECRET || '';
+  if (!key) {
+    throw new Error('ADMIN_MASTER_KEY or JWT_SECRET is required for multi-tenant mode');
   }
+  return key;
+}
 
+// ── Single tenant loading ────────────────────────────────────────────────────
+
+export async function loadTenantCredentials(slug: string): Promise<TenantCredentials> {
+  const masterKey = getMasterKey();
   const sql = getPool();
 
-  // Query admin schema for tenant by slug
   const rows = await sql.begin(async (tx) => {
     await tx.unsafe('SET LOCAL search_path TO admin, public');
-    return tx.unsafe('SELECT * FROM tenants WHERE slug = $1 LIMIT 1', [slot.toLowerCase()]);
+    return tx.unsafe('SELECT * FROM tenants WHERE slug = $1 LIMIT 1', [slug.toLowerCase()]);
   });
 
   const tenant = rows[0] as Record<string, unknown> | undefined;
   if (!tenant) {
-    throw new Error(`Tenant '${slot}' not found in admin database`);
+    throw new Error(`Tenant '${slug}' not found in admin database`);
   }
 
   if (tenant.status !== 'active') {
     console.warn(
-      `[credential-manager] Tenant '${slot}' status is '${tenant.status}', proceeding anyway...`,
+      `[credential-manager] Tenant '${slug}' status is '${tenant.status}', proceeding anyway...`,
     );
   }
 
+  return parseTenantRow(tenant, masterKey);
+}
+
+// ── Bulk loading (all active tenants) ────────────────────────────────────────
+
+export async function loadAllActiveTenants(): Promise<TenantCredentials[]> {
+  const masterKey = getMasterKey();
+  const sql = getPool();
+
+  const rows = await sql.begin(async (tx) => {
+    await tx.unsafe('SET LOCAL search_path TO admin, public');
+    return tx.unsafe("SELECT * FROM tenants WHERE status IN ('active', 'pending') ORDER BY slug");
+  });
+
+  const results: TenantCredentials[] = [];
+  for (const row of rows as Record<string, unknown>[]) {
+    try {
+      results.push(parseTenantRow(row, masterKey));
+    } catch (err) {
+      console.error(`[credential-manager] Failed to parse tenant '${row.slug}':`, err);
+    }
+  }
+
+  return results;
+}
+
+// ── Shared row parser ────────────────────────────────────────────────────────
+
+function parseTenantRow(tenant: Record<string, unknown>, masterKey: string): TenantCredentials {
   const salt = (tenant.key_salt as string) ?? null;
+  const slug = tenant.slug as string;
+  const schemaName = (tenant.schema_name as string) || `tenant_${slug}`;
 
   // Decrypt Discord config
   let discordConfig: TenantCredentials['discordConfig'];
@@ -110,50 +130,15 @@ export async function loadTenantCredentials(slot: string): Promise<TenantCredent
   }
 
   return {
-    schemaName: tenant.schema_name as string,
+    slug,
+    schemaName,
     keySalt: salt,
     discordConfig,
     openrouterConfig,
   };
 }
 
-export function applyTenantCredentials(credentials: TenantCredentials): void {
-  // Set schema for the db compat layer
-  process.env.TENANT_SCHEMA = credentials.schemaName;
-
-  if (credentials.discordConfig) {
-    if (credentials.discordConfig.bot_token) {
-      process.env.DISCORD_BOT_TOKEN = credentials.discordConfig.bot_token;
-    }
-    if (credentials.discordConfig.client_id) {
-      process.env.DISCORD_CLIENT_ID = credentials.discordConfig.client_id;
-    }
-    if (credentials.discordConfig.guild_id) {
-      process.env.DISCORD_GUILD_ID = credentials.discordConfig.guild_id;
-    }
-    if (credentials.discordConfig.channel_id) {
-      process.env.DISCORD_CHANNEL_GERAL = credentials.discordConfig.channel_id;
-    }
-    if (credentials.discordConfig.user_id) {
-      process.env.DISCORD_AUTHORIZED_USER_ID = credentials.discordConfig.user_id;
-    }
-  }
-
-  if (credentials.openrouterConfig) {
-    if (credentials.openrouterConfig.api_key) {
-      process.env.OPENROUTER_API_KEY = credentials.openrouterConfig.api_key;
-    }
-    if (credentials.openrouterConfig.model) {
-      process.env.OPENROUTER_MODEL = credentials.openrouterConfig.model;
-    }
-  }
-
-  console.log(
-    `[credential-manager] Applied tenant credentials — schema: ${credentials.schemaName}`,
-  );
-}
-
-// ── Integration loading from admin.tenant_integrations ───────────────────
+// ── Integration loading from admin.tenant_integrations ───────────────────────
 
 interface IntegrationRow {
   provider: string;
@@ -162,23 +147,19 @@ interface IntegrationRow {
   enabled: boolean;
 }
 
-const ENV_MAP: Record<string, Record<string, string>> = {
-  anthropic: { api_key: 'ANTHROPIC_API_KEY' },
-  groq: { api_key: 'GROQ_API_KEY' },
-  github: { token: 'GITHUB_TOKEN' },
-  clickup: { api_token: 'CLICKUP_API_TOKEN' },
-};
-
-export async function loadTenantIntegrations(slot: string): Promise<IntegrationRow[]> {
+export async function loadTenantIntegrations(
+  slug: string,
+): Promise<Map<string, Record<string, string>>> {
+  const masterKey = getMasterKey();
   const sql = getPool();
+  const result = new Map<string, Record<string, string>>();
 
   try {
     const rows = await sql.begin(async (tx) => {
       await tx.unsafe('SET LOCAL search_path TO admin, public');
 
-      // Get tenant ID from slug
       const tenants = await tx.unsafe('SELECT id FROM tenants WHERE slug = $1 LIMIT 1', [
-        slot.toLowerCase(),
+        slug.toLowerCase(),
       ]);
       const tenant = tenants[0] as Record<string, unknown> | undefined;
       if (!tenant) return [];
@@ -191,116 +172,75 @@ export async function loadTenantIntegrations(slot: string): Promise<IntegrationR
       );
     });
 
-    return (rows as IntegrationRow[]) || [];
-  } catch {
-    return [];
-  }
-}
-
-export function applyIntegrationCredentials(
-  integrations: IntegrationRow[],
-  salt?: string | null,
-): void {
-  const masterKey = process.env.ADMIN_MASTER_KEY || process.env.JWT_SECRET || '';
-
-  for (const row of integrations) {
-    if (!row.config_encrypted || !row.config_iv) continue;
-
-    try {
-      const config = decryptJson<Record<string, string>>(
-        row.config_encrypted,
-        row.config_iv,
-        masterKey,
-        salt,
-      );
-
-      const mapping = ENV_MAP[row.provider];
-      if (mapping) {
-        for (const [configKey, envKey] of Object.entries(mapping)) {
-          if (config[configKey]) {
-            process.env[envKey] = config[configKey];
-          }
-        }
+    for (const row of (rows as IntegrationRow[]) || []) {
+      if (!row.config_encrypted || !row.config_iv) continue;
+      try {
+        const config = decryptJson<Record<string, string>>(
+          row.config_encrypted,
+          row.config_iv,
+          masterKey,
+          (await loadTenantCredentials(slug)).keySalt,
+        );
+        result.set(row.provider, config);
+      } catch (err) {
+        console.warn(`[credential-manager] Failed to decrypt ${row.provider} integration:`, err);
       }
-    } catch (err) {
-      console.warn(`[credential-manager] Failed to decrypt ${row.provider} integration:`, err);
     }
+  } catch {
+    // Non-fatal: integrations table may not exist yet
   }
 
-  if (integrations.length > 0) {
-    console.log(
-      `[credential-manager] Applied ${integrations.length} integration(s) from admin.tenant_integrations`,
-    );
-  }
+  return result;
 }
 
-/**
- * Reload all credentials from admin schema.
- * Called by the /reload-credentials endpoint after dashboard changes.
- */
-export async function refreshCredentials(): Promise<boolean> {
-  const slot = process.env.AGENT_SLOT;
-  if (!slot) return false;
+// ── Refresh credentials for a single tenant ──────────────────────────────────
 
-  try {
-    const credentials = await loadTenantCredentials(slot);
-    applyTenantCredentials(credentials);
-
-    const integrations = await loadTenantIntegrations(slot);
-    applyIntegrationCredentials(integrations, credentials.keySalt);
-
-    console.log('[credential-manager] Credentials refreshed successfully');
-    return true;
-  } catch (err) {
-    console.error('[credential-manager] Credential refresh failed:', err);
-    return false;
-  }
+export async function refreshTenantCredentials(slug: string): Promise<TenantCredentials> {
+  const cred = await loadTenantCredentials(slug);
+  const integrations = await loadTenantIntegrations(slug);
+  cred.integrations = integrations;
+  console.log(`[credential-manager] Credentials refreshed for tenant: ${slug}`);
+  return cred;
 }
 
-// ── Initialization ────────────────────────────────────────────────────────────
+// ── Legacy compatibility ─────────────────────────────────────────────────────
+// These functions support the old single-tenant AGENT_SLOT mode.
+// They are kept temporarily for backward compatibility during migration.
 
-const RETRY_INTERVAL_MS = 30 * 60_000; // 30 minutes between retries
-const MAX_RETRIES = 5;
-
+/** @deprecated Use tenantManager.loadAll() instead */
 export async function initializeFromAdminDb(): Promise<void> {
   const slot = process.env.AGENT_SLOT;
   if (!slot) {
-    console.log('[credential-manager] AGENT_SLOT not set, using local environment variables');
+    console.log('[credential-manager] AGENT_SLOT not set — multi-tenant mode via TenantManager');
     return;
   }
 
-  console.log(`[credential-manager] Loading credentials for slot: ${slot}`);
+  console.warn(
+    `[credential-manager] AGENT_SLOT='${slot}' detected — using legacy single-tenant mode. Migrate to TenantManager.`,
+  );
 
-  let retries = 0;
-  while (retries < MAX_RETRIES) {
-    try {
-      const credentials = await loadTenantCredentials(slot);
-      applyTenantCredentials(credentials);
+  const credentials = await loadTenantCredentials(slot);
 
-      const integrations = await loadTenantIntegrations(slot);
-      applyIntegrationCredentials(integrations, credentials.keySalt);
-
-      return; // success
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      const isMissing = msg.includes('not found');
-
-      if (isMissing) {
-        retries++;
-        console.warn(
-          `[credential-manager] Tenant '${slot}' not registered — retry ${retries}/${MAX_RETRIES} (next in 30min)`,
-        );
-        if (retries >= MAX_RETRIES) {
-          throw new Error(
-            `Tenant '${slot}' not found after ${MAX_RETRIES} retries. Check AGENT_SLOT value.`,
-          );
-        }
-        await new Promise((r) => setTimeout(r, RETRY_INTERVAL_MS));
-        continue;
-      }
-
-      console.error(`[credential-manager] Failed to load credentials: ${error}`);
-      throw error;
-    }
+  // Legacy: set process.env globals for backward compat
+  process.env.TENANT_SCHEMA = credentials.schemaName;
+  if (credentials.discordConfig) {
+    if (credentials.discordConfig.bot_token)
+      process.env.DISCORD_BOT_TOKEN = credentials.discordConfig.bot_token;
+    if (credentials.discordConfig.client_id)
+      process.env.DISCORD_CLIENT_ID = credentials.discordConfig.client_id;
+    if (credentials.discordConfig.guild_id)
+      process.env.DISCORD_GUILD_ID = credentials.discordConfig.guild_id;
+    if (credentials.discordConfig.channel_id)
+      process.env.DISCORD_CHANNEL_GERAL = credentials.discordConfig.channel_id;
+    if (credentials.discordConfig.user_id)
+      process.env.DISCORD_AUTHORIZED_USER_ID = credentials.discordConfig.user_id;
   }
+  if (credentials.openrouterConfig) {
+    if (credentials.openrouterConfig.api_key)
+      process.env.OPENROUTER_API_KEY = credentials.openrouterConfig.api_key;
+    if (credentials.openrouterConfig.model)
+      process.env.OPENROUTER_MODEL = credentials.openrouterConfig.model;
+  }
+
+  console.log(`[credential-manager] Legacy: applied credentials for slot '${slot}'`);
 }

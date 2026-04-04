@@ -1,7 +1,6 @@
 'use client';
 
 import { fetchErrorSummary } from '@/lib/actions/usage';
-import type { ErrorSummaryEntry } from '@/lib/actions/usage';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle, Clock } from 'lucide-react';
 

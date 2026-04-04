@@ -6,24 +6,31 @@ Histórico de desenvolvimento por onda (wave). Cada onda tem um foco específico
 
 ## Status Atual
 
-**Data**: Março 2026
-**Status geral**: W5 concluído
+**Data**: Abril 2026
+**Status geral**: Bugfix Audit concluído, sistema production-ready
 
 | Wave | Nome | Status | Concluído |
-|------|------|--------|-----------|
+| ---- | ---- | ------ | --------- |
 | W0 | Infraestrutura Core | ✅ Completo | Dez 2025 |
 | W1 | Correção de Bugs Críticos | ✅ Completo | Fev 2026 |
 | W2 | Health Page Funcional | ✅ Completo | Mar 2026 |
 | W3 | Stack Completa | ✅ Completo | Mar 2026 |
 | W4 | UI/UX Polish | ✅ Completo | Mar 2026 |
 | W5 | Redesign & Simplificação | ✅ Completo | Mar 2026 |
+| W4-8 Ref | Reference Repo Integration | ✅ Completo | Abr 2026 |
+| Hardening | Production Hardening | ✅ Completo | Abr 2026 |
+| Audit 360 | Agent Model Agnosticism | ✅ Completo | Abr 2026 |
+| Bugfix | Bugfix Audit (5 rondas) | ✅ Completo | Abr 2026 |
 
 **Métricas atuais**:
-- 722+ módulos buildados com sucesso
-- 30 comandos Discord ativos (36 anteriores, 6 removidos com módulos extintos)
+
+- **233 testes**, 0 falhas (25 ficheiros de teste)
+- 90+ migrations aplicadas
+- ~30 feature flags configuráveis per-tenant
 - **11 módulos ativos** (finances, health, people, career, objectives, routine, assets, entertainment, legal, housing, calendar)
 - 7 templates de agentes (personas)
-- 6 automações ativas
+- 18 automações ativas
+- 40+ tools em 21 ficheiros modulares
 
 ---
 
@@ -229,6 +236,137 @@ Histórico de desenvolvimento por onda (wave). Cada onda tem um foco específico
 - Esta wiki foi criada em W5 para documentar o sistema completamente
 - 22 artigos cobrindo arquitetura, agente, módulos, referência e changelog
 - Callout boxes para explicações de leigos e dicas práticas
+
+---
+
+## W4-8 — Reference Repo Integration
+
+**Período**: Abril 2026
+**Objetivo**: Integração de padrões de 12 repositórios de referência em 4 waves temáticas.
+
+### Wave 4 — Padrões Base
+
+- **Feature flags per-tenant**: Sistema de flags via `tenants.feature_flags` JSONB com ~30 flags configuráveis
+- **Tool approval**: Tools com `dangerous: true` requerem confirmação do usuário antes de executar
+- **Hybrid search**: pg_trgm + pgvector combinados para busca semântica + keyword
+- **Frecency sidebar**: Módulos ordenados por frequência + recência de uso (materialized view)
+- **Secret redaction**: 51+ regex patterns removem API keys, tokens, DB URIs do contexto LLM
+- **Prompt injection scanning**: 14 patterns detectam role hijacking, delimiter injection, jailbreak
+- **Silent cron**: Check-ins suprimidos quando usuário inativo 24h ou hábitos já completados
+- **Platform hints**: Formatação específica por canal (Discord 2000 chars vs Web Markdown completo)
+
+### Wave 5 — Infraestrutura
+
+- **SSRF validation**: Bloqueia IPs privados, loopback, metadata endpoints em requests
+- **Graceful shutdown**: AbortController global com cleanup hooks priorizados
+- **SSE streaming**: Endpoint `/stream` com Server-Sent Events tipados
+- **OAuth token manager**: Auto-refresh com 60s buffer antes do expiry
+- **Worker token tracking**: Monitoramento de tokens gastos por task type (compression, dedup, etc.)
+- **MCP scaffold**: Client/server MCP com discovery-first setup
+
+### Wave 6 — Inteligência & Custo
+
+- **Iterative summaries**: Compressão de histórico com template Goal/Progress/Decisions/Next
+- **RRF hybrid search**: Reciprocal Rank Fusion combinando vector + keyword com pesos configuráveis
+- **Credential pool**: 3 estratégias de rotação (FILL_FIRST, ROUND_ROBIN, LEAST_USED)
+- **Cost-aware routing**: Downgrade automático de modelo quando >80% do budget diário usado
+
+### Wave 7 — Plataforma & UX
+
+- **Context references**: Parser para `@file:path`, `@url:endpoint`, `@memory:query` com token budgets
+- **Typed SSE packets**: 45 event types tipados com payloads TypeScript
+- **Multi-channel capabilities**: Presets para Discord, Web, Telegram, WhatsApp
+- **Plugin SDK**: Lifecycle completo (discover → init → ready → reload → unload) com permissions
+
+---
+
+## Production Hardening
+
+**Período**: Abril 2026
+**Objetivo**: Deploy em VPS com segurança e observabilidade.
+
+### O que foi implementado
+
+- **Middleware pipeline**: Handler monolítico decomposto em 7 middlewares composíveis (security → context → history → routing → message-builder → llm → persistence)
+- **HTTPS automático**: Caddy reverse proxy com Let's Encrypt, HTTP/3, headers de segurança
+- **Health checks**: `/health` verifica DB + latência, `?deep=true` verifica OpenRouter + Discord
+- **Cost tracking persistente**: Gastos salvos em `admin.tenant_metrics`, sobrevive restarts
+- **Error codes**: `HawkErrorCode` enum com 40+ códigos categorizados
+- **LLM timeout**: 90s via `AbortSignal.timeout()` para prevenir requests pendurados
+- **Prometheus metrics**: `/metrics` endpoint com uptime, sessions, tokens, cost, messages
+- **VPS setup automatizado**: Script com user dedicado, SSH key-only, fail2ban, UFW, swap 2GB
+
+---
+
+## Agent Audit 360° — Model Agnosticism
+
+**Período**: Abril 2026
+**Objetivo**: Compatibilidade com modelos free do OpenRouter.
+
+### O que foi implementado
+
+- **Smart model routing**: `classifyComplexity()` classifica mensagens em simple/moderate/complex, seleciona modelo por tier
+- **Fallback chain**: Separação de modelos com/sem `tool_choice`, evita enviar tool_choice a modelos incompatíveis
+- **Context window validation**: Mapa de limites per-model (12+ modelos), warning >90% do limite
+- **Per-tenant budgets**: Cost-aware downgrade (>80% budget → moderate, >95% → simple)
+- **Memory confidence**: Campo `confidence` (0.0-1.0) com peso 0.15 no ranking de memórias
+- **Prompt pattern library**: Registry com 14 patterns e `{{variable}}` interpolation
+- **Max tool rounds**: Limite de 5 rounds no tool loop para prevenir loops infinitos
+
+---
+
+## Bugfix Audit (5 Rondas)
+
+**Período**: Abril 2026
+**Objetivo**: Auditoria completa do codebase para deploy readiness.
+
+### Ronda 1 — P0/P1 (bugs críticos)
+
+- Fire-and-forget promises → awaited com logging estruturado
+- ~10 silent catch blocks → logging com contexto
+- Provider sync race condition → module-level lock
+- N+1 query em finances → GROUP BY no banco
+
+### Ronda 2 — Wiring pendente
+
+- Multimodal token estimation (ContentPart[] ignorado)
+- Campo `confidence` wired no schema Zod, tool params, e DB
+- Per-tenant budget cache verificado funcional
+
+### Ronda 3 — Testes
+
+- +39 testes novos → 219 total, 0 falhas
+- RLS análise: schema-based isolation confirmado seguro
+
+### Ronda 4 — Deploy readiness
+
+- `DATABASE_URL` tornado required (agent falha no startup se ausente)
+- `Promise.all` → `Promise.allSettled` no assembler (fault isolation)
+- LLM timeout 90s adicionado
+
+### Ronda 5 — Zero pendentes
+
+- Test hoisting fixes (vi.hoisted)
+- TypeScript zero errors (~50 erros corrigidos em 15 ficheiros)
+- **233 testes, 25 ficheiros, 0 falhas**
+
+---
+
+## Multi-Tenant Dinâmico
+
+**Período**: Abril 2026
+**Objetivo**: Eliminar containers hardcoded por tenant.
+
+### Antes vs Depois
+
+| Aspecto | Antes | Depois |
+| ------- | ----- | ------ |
+| Agent services | 6 containers (agent-ten1..6) | 1 processo dinâmico |
+| Adicionar tenant | Editar docker-compose + restart | POST /admin/tenants/:slug/start |
+| Memória total | 6×512MB = 3GB | 1GB |
+| AGENT_SLOT env var | Obrigatório | Deprecated (legacy compat) |
+
+O `TenantManager` carrega todos os tenants activos da tabela `admin.tenants` no startup. Cada tenant recebe Discord client, crons, e schema isolation independentes.
 
 ---
 

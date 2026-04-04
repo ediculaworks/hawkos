@@ -152,7 +152,10 @@ export async function getMonthlyBillTotal(): Promise<number> {
     logger.error({ error: error.message }, 'Failed to get bill total');
     throw new HawkError(`Failed to get bill total: ${error.message}`, 'DB_QUERY_FAILED');
   }
-  return (data ?? []).reduce((sum: any, row: any) => sum + (row.amount ?? 0), 0);
+  return (data ?? []).reduce(
+    (sum: number, row: { amount: number | null }) => sum + (row.amount ?? 0),
+    0,
+  );
 }
 
 export async function deleteBill(id: string): Promise<void> {

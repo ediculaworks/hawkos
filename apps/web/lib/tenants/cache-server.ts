@@ -8,10 +8,11 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 async function adminQuery<T>(query: string, params: unknown[] = []): Promise<T[]> {
   const sql = getPool();
-  return sql.begin(async (tx) => {
+  const rows = await sql.begin(async (tx) => {
     await tx.unsafe('SET LOCAL search_path TO admin, public');
-    return tx.unsafe(query, params) as Promise<T[]>;
+    return tx.unsafe(query, params as never[]);
   });
+  return rows as unknown as T[];
 }
 
 /** Fetch tenant with all details — for server components / actions only. */

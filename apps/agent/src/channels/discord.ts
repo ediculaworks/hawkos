@@ -1,3 +1,4 @@
+import { withSchema } from '@hawk/db';
 import { bemCommand, documentoCommand, handleBem, handleDocumento } from '@hawk/module-assets';
 import {
   agendaCommand,
@@ -93,17 +94,18 @@ import {
   type Message,
 } from 'discord.js';
 import { handleStreamingMessage } from '../handler.js';
+import type { TenantContext } from '../tenant-manager.js';
 
-const AUTHORIZED_USER_ID = process.env.DISCORD_AUTHORIZED_USER_ID;
-const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+// ── Per-tenant Discord clients ───────────────────────────────────────────────
+
+/** Map of slug → Discord Client. One client per tenant. */
+const tenantClients = new Map<string, Client>();
 
 // ── Channel → Agent Mapping ──────────────────────────────────
 // Format: DISCORD_CHANNEL_MAP=channelId1:agentTemplateId1,channelId2:agentTemplateId2
-// Channels not in map but in allowed list use the default Hawk agent.
 
-function parseChannelMap(): Map<string, string> {
+function parseChannelMap(raw?: string): Map<string, string> {
   const map = new Map<string, string>();
-  const raw = process.env.DISCORD_CHANNEL_MAP;
   if (raw) {
     for (const pair of raw.split(',')) {
       const [channelId, agentId] = pair.trim().split(':');
@@ -115,24 +117,32 @@ function parseChannelMap(): Map<string, string> {
   return map;
 }
 
-const channelAgentMap = parseChannelMap();
-
-function getAllowedChannels(): Set<string> {
-  const channels = [process.env.DISCORD_CHANNEL_GERAL].filter((id): id is string => Boolean(id));
-  // Also allow any channel in the channel map
-  for (const channelId of channelAgentMap.keys()) {
-    channels.push(channelId);
-  }
-  return new Set(channels);
-}
-
 /**
  * Get the agent template ID for a Discord channel.
  * Returns undefined for channels using the default Hawk agent.
  */
 export function getAgentForChannel(channelId: string): string | undefined {
-  return channelAgentMap.get(channelId);
+  // Check all tenant channel maps
+  for (const [, client] of tenantClients) {
+    const meta = clientMeta.get(client);
+    if (meta?.channelAgentMap.has(channelId)) {
+      return meta.channelAgentMap.get(channelId);
+    }
+  }
+  return undefined;
 }
+
+// ── Per-client metadata ──────────────────────────────────────────────────────
+
+interface ClientMeta {
+  ctx: TenantContext;
+  authorizedUserId: string;
+  allowedChannels: Set<string>;
+  channelAgentMap: Map<string, string>;
+  mainChannelId?: string;
+}
+
+const clientMeta = new Map<Client, ClientMeta>();
 
 // ── Voice/Audio Transcription ────────────────────────────────
 
@@ -144,12 +154,10 @@ async function transcribeAudio(url: string): Promise<string | null> {
   }
 
   try {
-    // Download the audio file
     const response = await fetch(url);
     if (!response.ok) return null;
     const audioBuffer = await response.arrayBuffer();
 
-    // Use Groq Whisper (free, fast) or OpenAI Whisper
     const baseUrl = process.env.GROQ_API_KEY
       ? 'https://api.groq.com/openai/v1'
       : 'https://api.openai.com/v1';
@@ -179,344 +187,406 @@ async function transcribeAudio(url: string): Promise<string | null> {
   }
 }
 
-// Token/user checks deferred to startDiscordBot() — env vars loaded at runtime
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.DirectMessages,
-  ],
-});
+// ── Slash commands list ──────────────────────────────────────
 
-client.once(Events.ClientReady, async (c) => {
-  const guildId = process.env.DISCORD_GUILD_ID;
-  if (guildId) {
-    const guild = await c.guilds.fetch(guildId);
-    await guild.commands.set([
-      // Phase 1: Finances + Calendar
-      gastaCommand,
-      receitaCommand,
-      saldoCommand,
-      eventCommand,
-      agendaCommand,
-      remindCommand,
-      // Phase 2: Routine + Journal + Objectives
-      habitoCommand,
-      diarioCommand,
-      metaCommand,
-      tarefaCommand,
-      // Phase 4: People + Career + Legal
-      pessoaCommand,
-      interacaoCommand,
-      aniversariosCommand,
-      contatosCommand,
-      comoNosConhecemosCommand,
-      lembrarCommand,
-      dormentesCommand,
-      horasCommand,
-      projetosCommand,
-      perfilCommand,
-      experienciaCommand,
-      formacaoCommand,
-      skillCommand,
-      certificadoCommand,
-      obrigacoesCommand,
-      contratosCommand,
-      // Phase 5: Knowledge + Assets + Housing + Security
-      notaCommand,
-      livroCommand,
-      bemCommand,
-      documentoCommand,
-      moradiaCommand,
-      contaCommand,
-      segurancaCommand,
-      // Phase 3: Health
-      saudeCommand,
-      sonoCommand,
-      treinoCommand,
-      corpoCommand,
-      remedioCommand,
-      substanciaCommand,
-      exameCommand,
-      // Phase 6: Entertainment + Social + Spirituality
-      midiaCommand,
-      hobbyCommand,
-      postCommand,
-      reflexaoCommand,
-    ]);
-  } else {
+const ALL_COMMANDS = [
+  // Phase 1: Finances + Calendar
+  gastaCommand,
+  receitaCommand,
+  saldoCommand,
+  eventCommand,
+  agendaCommand,
+  remindCommand,
+  // Phase 2: Routine + Journal + Objectives
+  habitoCommand,
+  diarioCommand,
+  metaCommand,
+  tarefaCommand,
+  // Phase 4: People + Career + Legal
+  pessoaCommand,
+  interacaoCommand,
+  aniversariosCommand,
+  contatosCommand,
+  comoNosConhecemosCommand,
+  lembrarCommand,
+  dormentesCommand,
+  horasCommand,
+  projetosCommand,
+  perfilCommand,
+  experienciaCommand,
+  formacaoCommand,
+  skillCommand,
+  certificadoCommand,
+  obrigacoesCommand,
+  contratosCommand,
+  // Phase 5: Knowledge + Assets + Housing + Security
+  notaCommand,
+  livroCommand,
+  bemCommand,
+  documentoCommand,
+  moradiaCommand,
+  contaCommand,
+  segurancaCommand,
+  // Phase 3: Health
+  saudeCommand,
+  sonoCommand,
+  treinoCommand,
+  corpoCommand,
+  remedioCommand,
+  substanciaCommand,
+  exameCommand,
+  // Phase 6: Entertainment + Social + Spirituality
+  midiaCommand,
+  hobbyCommand,
+  postCommand,
+  reflexaoCommand,
+];
+
+// ── Command handler (shared across all tenants) ──────────────
+
+async function handleSlashCommand(cmd: ChatInputCommandInteraction): Promise<void> {
+  switch (cmd.commandName) {
+    case 'gasto':
+      await handleGasto(cmd);
+      break;
+    case 'receita':
+      await handleReceita(cmd);
+      break;
+    case 'saldo':
+      await handleSaldo(cmd);
+      break;
+    case 'event':
+      await handleEvent(cmd);
+      break;
+    case 'agenda':
+      await handleAgenda(cmd);
+      break;
+    case 'remind':
+      await handleRemind(cmd);
+      break;
+    case 'habito':
+      await handleHabito(cmd);
+      break;
+    case 'diario':
+      await handleDiario(cmd);
+      break;
+    case 'meta':
+      await handleMeta(cmd);
+      break;
+    case 'tarefa':
+      await handleTarefa(cmd);
+      break;
+    case 'pessoa':
+      await handlePessoa(cmd);
+      break;
+    case 'interacao':
+      await handleInteracao(cmd);
+      break;
+    case 'aniversarios':
+      await handleAniversarios(cmd);
+      break;
+    case 'contatos':
+      await handleContatos(cmd);
+      break;
+    case 'como-nos-conhecemos':
+      await handleComoNosConhecemos(cmd);
+      break;
+    case 'lembrar':
+      await handleLembrar(cmd);
+      break;
+    case 'dormentes':
+      await handleDormentes(cmd);
+      break;
+    case 'horas':
+      await handleHoras(cmd);
+      break;
+    case 'projetos':
+      await handleProjetos(cmd);
+      break;
+    case 'perfil':
+      await handlePerfil(cmd);
+      break;
+    case 'experiencia':
+      await handleExperiencia(cmd);
+      break;
+    case 'formacao':
+      await handleFormacao(cmd);
+      break;
+    case 'skill':
+      await handleSkill(cmd);
+      break;
+    case 'certificado':
+      await handleCertificado(cmd);
+      break;
+    case 'obrigacoes':
+      await handleObrigacoes(cmd);
+      break;
+    case 'contratos':
+      await handleContratos(cmd);
+      break;
+    case 'nota':
+      await handleNota(cmd);
+      break;
+    case 'livro':
+      await handleLivro(cmd);
+      break;
+    case 'bem':
+      await handleBem(cmd);
+      break;
+    case 'documento':
+      await handleDocumento(cmd);
+      break;
+    case 'moradia':
+      await handleMoradia(cmd);
+      break;
+    case 'conta':
+      await handleConta(cmd);
+      break;
+    case 'seguranca':
+      await handleSeguranca(cmd);
+      break;
+    case 'saude':
+      await handleSaude(cmd);
+      break;
+    case 'sono':
+      await handleSono(cmd);
+      break;
+    case 'treino':
+      await handleTreino(cmd);
+      break;
+    case 'corpo':
+      await handleCorpo(cmd);
+      break;
+    case 'remedio':
+      await handleRemedio(cmd);
+      break;
+    case 'substancia':
+      await handleSubstancia(cmd);
+      break;
+    case 'exame':
+      await handleExame(cmd);
+      break;
+    case 'midia':
+      await handleMidia(cmd);
+      break;
+    case 'hobby':
+      await handleHobby(cmd);
+      break;
+    case 'post':
+      await handlePost(cmd);
+      break;
+    case 'reflexao':
+      await handleReflexao(cmd);
+      break;
+    default:
+      await cmd.reply({ content: 'Comando desconhecido.', ephemeral: true });
   }
-  // Automations are now started from index.ts (single source of truth)
-});
+}
 
-client.on(Events.MessageCreate, async (message: Message) => {
-  if (message.author.bot) return;
-  if (message.author.id !== AUTHORIZED_USER_ID) return;
-  if (!getAllowedChannels().has(message.channelId)) return;
+// ── Create & connect a Discord client for a tenant ───────────────────────────
 
-  if ('sendTyping' in message.channel) {
-    await message.channel.sendTyping();
+export async function startDiscordBotForTenant(ctx: TenantContext): Promise<Client> {
+  const discord = ctx.credentials.discordConfig;
+  if (!discord?.bot_token) {
+    throw new Error(`[discord] Tenant '${ctx.slug}' has no Discord bot token`);
+  }
+  if (!discord.user_id) {
+    throw new Error(`[discord] Tenant '${ctx.slug}' has no authorized user ID`);
   }
 
-  try {
-    let textContent = message.content;
-    const imageUrls: string[] = [];
-    let wasTranscribed = false;
+  const client = new Client({
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent,
+      GatewayIntentBits.DirectMessages,
+    ],
+  });
 
-    // Process attachments (voice messages, images)
-    if (message.attachments.size > 0) {
-      for (const attachment of message.attachments.values()) {
-        const ct = attachment.contentType ?? '';
+  const channelAgentMap = parseChannelMap(discord.channel_map);
+  const allowedChannels = new Set<string>();
+  if (discord.channel_id) allowedChannels.add(discord.channel_id);
+  for (const channelId of channelAgentMap.keys()) {
+    allowedChannels.add(channelId);
+  }
 
-        // Voice messages (Discord sends as audio/ogg or video/ogg)
-        if (ct.startsWith('audio/') || ct === 'video/ogg' || attachment.name?.endsWith('.ogg')) {
-          const transcription = await transcribeAudio(attachment.url);
-          if (transcription) {
-            textContent = transcription;
-            wasTranscribed = true;
-          } else {
-            await message.reply(
-              'Não consegui transcrever o áudio. Verifique se GROQ_API_KEY ou OPENAI_API_KEY está configurado.',
-            );
-            return;
+  const meta: ClientMeta = {
+    ctx,
+    authorizedUserId: discord.user_id,
+    allowedChannels,
+    channelAgentMap,
+    mainChannelId: discord.channel_id,
+  };
+  clientMeta.set(client, meta);
+
+  // ── Ready: register slash commands ──
+  client.once(Events.ClientReady, async (c) => {
+    const guildId = discord.guild_id;
+    if (guildId) {
+      const guild = await c.guilds.fetch(guildId);
+      await guild.commands.set(ALL_COMMANDS);
+    }
+    console.log(`[discord] Tenant '${ctx.slug}' bot ready as ${c.user.tag}`);
+  });
+
+  // ── Messages ──
+  client.on(Events.MessageCreate, async (message: Message) => {
+    if (message.author.bot) return;
+    if (message.author.id !== meta.authorizedUserId) return;
+    if (!meta.allowedChannels.has(message.channelId)) return;
+
+    // Run within tenant schema context
+    await withSchema(ctx.schemaName, async () => {
+      if ('sendTyping' in message.channel) {
+        await message.channel.sendTyping();
+      }
+
+      try {
+        let textContent = message.content;
+        const imageUrls: string[] = [];
+        let wasTranscribed = false;
+
+        // Process attachments (voice messages, images)
+        if (message.attachments.size > 0) {
+          for (const attachment of message.attachments.values()) {
+            const ct = attachment.contentType ?? '';
+
+            if (
+              ct.startsWith('audio/') ||
+              ct === 'video/ogg' ||
+              attachment.name?.endsWith('.ogg')
+            ) {
+              const transcription = await transcribeAudio(attachment.url);
+              if (transcription) {
+                textContent = transcription;
+                wasTranscribed = true;
+              } else {
+                await message.reply(
+                  'Não consegui transcrever o áudio. Verifique se GROQ_API_KEY ou OPENAI_API_KEY está configurado.',
+                );
+                return;
+              }
+            }
+
+            if (ct.startsWith('image/')) {
+              imageUrls.push(attachment.url);
+            }
           }
         }
 
-        // Images (receipts, screenshots, documents)
-        if (ct.startsWith('image/')) {
-          imageUrls.push(attachment.url);
+        if (!textContent && imageUrls.length === 0) return;
+
+        const attachments =
+          imageUrls.length > 0
+            ? imageUrls.map((url) => ({ type: 'image' as const, url }))
+            : undefined;
+
+        // Stream response
+        const streamMsg = await message.reply('...');
+        let accumulated = wasTranscribed ? `*"${textContent}"*\n\n` : '';
+        let lastEdit = Date.now();
+        const EDIT_INTERVAL = 800;
+
+        const response = await handleStreamingMessage(
+          textContent || 'Descreva esta imagem',
+          message.channelId,
+          (chunk: string) => {
+            accumulated += chunk;
+            const now = Date.now();
+            if (now - lastEdit > EDIT_INTERVAL && accumulated.length <= 2000) {
+              lastEdit = now;
+              streamMsg.edit(accumulated).catch(() => {});
+            }
+          },
+          attachments,
+        );
+
+        const finalResponse = wasTranscribed ? `*"${textContent}"*\n\n${response}` : response;
+
+        if (finalResponse.length <= 2000) {
+          await streamMsg.edit(finalResponse);
+        } else {
+          await streamMsg.edit(finalResponse.slice(0, 2000));
+          const remaining = finalResponse.slice(2000);
+          const chunks = remaining.match(/.{1,2000}/gs) ?? [];
+          const channel = message.channel;
+          if (channel && 'send' in channel && typeof channel.send === 'function') {
+            for (const chunk of chunks) {
+              await channel.send(chunk);
+            }
+          }
+        }
+      } catch (err) {
+        if (err instanceof AuthorizationError) return;
+        await message.reply('Erro interno. Tente novamente.');
+      }
+    });
+  });
+
+  // ── Slash command interactions ──
+  client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isCommand()) return;
+    if (interaction.user.id !== meta.authorizedUserId) {
+      await interaction.reply({ content: 'Não autorizado.', ephemeral: true });
+      return;
+    }
+
+    const cmd = interaction as ChatInputCommandInteraction;
+    await withSchema(ctx.schemaName, async () => {
+      try {
+        await handleSlashCommand(cmd);
+      } catch (_err) {
+        if (interaction.isRepliable()) {
+          await interaction.reply({
+            content: 'Erro ao processar comando. Tente novamente.',
+            ephemeral: true,
+          });
         }
       }
-    }
+    });
+  });
 
-    // If no text and no transcription, skip
-    if (!textContent && imageUrls.length === 0) return;
+  await client.login(discord.bot_token);
 
-    // Pass to handler with optional attachments
-    const attachments =
-      imageUrls.length > 0 ? imageUrls.map((url) => ({ type: 'image' as const, url })) : undefined;
+  // Store references
+  tenantClients.set(ctx.slug, client);
+  ctx.discordClient = client;
 
-    // Stream response: send initial message then edit progressively
-    const streamMsg = await message.reply('...');
-    let accumulated = wasTranscribed ? `*"${textContent}"*\n\n` : '';
-    let lastEdit = Date.now();
-    const EDIT_INTERVAL = 800; // ms between edits (avoid rate limits)
+  return client;
+}
 
-    const response = await handleStreamingMessage(
-      textContent || 'Descreva esta imagem',
-      message.channelId,
-      (chunk: string) => {
-        accumulated += chunk;
-        const now = Date.now();
-        // Throttle edits to avoid Discord rate limits
-        if (now - lastEdit > EDIT_INTERVAL && accumulated.length <= 2000) {
-          lastEdit = now;
-          streamMsg.edit(accumulated).catch(() => {});
-        }
-      },
-      attachments,
-    );
+// ── Send to channel (tenant-aware) ───────────────────────────────────────────
 
-    // Final edit with complete response
-    const finalResponse = wasTranscribed ? `*"${textContent}"*\n\n${response}` : response;
+export async function sendToChannel(
+  channelId: string,
+  content: string,
+  slug?: string,
+): Promise<void> {
+  // Find the client that owns this channel
+  let client: Client | undefined;
 
-    if (finalResponse.length <= 2000) {
-      await streamMsg.edit(finalResponse);
-    } else {
-      // For long responses, edit with first 2000 chars and send rest as new messages
-      await streamMsg.edit(finalResponse.slice(0, 2000));
-      const remaining = finalResponse.slice(2000);
-      const chunks = remaining.match(/.{1,2000}/gs) ?? [];
-      const channel = message.channel;
-      if (channel && 'send' in channel && typeof channel.send === 'function') {
-        for (const chunk of chunks) {
-          await channel.send(chunk);
-        }
+  if (slug) {
+    client = tenantClients.get(slug);
+  } else {
+    // Search all clients for one that has this channel allowed
+    for (const [, c] of tenantClients) {
+      const meta = clientMeta.get(c);
+      if (meta?.allowedChannels.has(channelId)) {
+        client = c;
+        break;
       }
     }
-  } catch (err) {
-    if (err instanceof AuthorizationError) return;
-    await message.reply('Erro interno. Tente novamente.');
-  }
-});
-
-client.on(Events.InteractionCreate, async (interaction) => {
-  if (!interaction.isCommand()) return;
-  if (interaction.user.id !== AUTHORIZED_USER_ID) {
-    await interaction.reply({ content: 'Não autorizado.', ephemeral: true });
-    return;
-  }
-
-  const cmd = interaction as ChatInputCommandInteraction;
-  try {
-    switch (interaction.commandName) {
-      // Phase 1: Finances
-      case 'gasto':
-        await handleGasto(cmd);
-        break;
-      case 'receita':
-        await handleReceita(cmd);
-        break;
-      case 'saldo':
-        await handleSaldo(cmd);
-        break;
-      // Phase 1: Calendar
-      case 'event':
-        await handleEvent(cmd);
-        break;
-      case 'agenda':
-        await handleAgenda(cmd);
-        break;
-      case 'remind':
-        await handleRemind(cmd);
-        break;
-      // Phase 2: Routine
-      case 'habito':
-        await handleHabito(cmd);
-        break;
-      // Phase 2: Journal
-      case 'diario':
-        await handleDiario(cmd);
-        break;
-      // Phase 2: Objectives + Tasks
-      case 'meta':
-        await handleMeta(cmd);
-        break;
-      case 'tarefa':
-        await handleTarefa(cmd);
-        break;
-      // Phase 4: People / CRM
-      case 'pessoa':
-        await handlePessoa(cmd);
-        break;
-      case 'interacao':
-        await handleInteracao(cmd);
-        break;
-      case 'aniversarios':
-        await handleAniversarios(cmd);
-        break;
-      case 'contatos':
-        await handleContatos(cmd);
-        break;
-      case 'como-nos-conhecemos':
-        await handleComoNosConhecemos(cmd);
-        break;
-      case 'lembrar':
-        await handleLembrar(cmd);
-        break;
-      case 'dormentes':
-        await handleDormentes(cmd);
-        break;
-      // Phase 4: Career
-      case 'horas':
-        await handleHoras(cmd);
-        break;
-      case 'projetos':
-        await handleProjetos(cmd);
-        break;
-      case 'perfil':
-        await handlePerfil(cmd);
-        break;
-      case 'experiencia':
-        await handleExperiencia(cmd);
-        break;
-      case 'formacao':
-        await handleFormacao(cmd);
-        break;
-      case 'skill':
-        await handleSkill(cmd);
-        break;
-      case 'certificado':
-        await handleCertificado(cmd);
-        break;
-      // Phase 4: Legal
-      case 'obrigacoes':
-        await handleObrigacoes(cmd);
-        break;
-      case 'contratos':
-        await handleContratos(cmd);
-        break;
-      // Phase 5: Knowledge
-      case 'nota':
-        await handleNota(cmd);
-        break;
-      case 'livro':
-        await handleLivro(cmd);
-        break;
-      // Phase 5: Assets
-      case 'bem':
-        await handleBem(cmd);
-        break;
-      case 'documento':
-        await handleDocumento(cmd);
-        break;
-      // Phase 5: Housing
-      case 'moradia':
-        await handleMoradia(cmd);
-        break;
-      case 'conta':
-        await handleConta(cmd);
-        break;
-      // Phase 5: Security
-      case 'seguranca':
-        await handleSeguranca(cmd);
-        break;
-      // Phase 3: Health
-      case 'saude':
-        await handleSaude(cmd);
-        break;
-      case 'sono':
-        await handleSono(cmd);
-        break;
-      case 'treino':
-        await handleTreino(cmd);
-        break;
-      case 'corpo':
-        await handleCorpo(cmd);
-        break;
-      case 'remedio':
-        await handleRemedio(cmd);
-        break;
-      case 'substancia':
-        await handleSubstancia(cmd);
-        break;
-      case 'exame':
-        await handleExame(cmd);
-        break;
-      // Phase 6: Entertainment
-      case 'midia':
-        await handleMidia(cmd);
-        break;
-      case 'hobby':
-        await handleHobby(cmd);
-        break;
-      // Phase 6: Social
-      case 'post':
-        await handlePost(cmd);
-        break;
-      // Phase 6: Spirituality
-      case 'reflexao':
-        await handleReflexao(cmd);
-        break;
-      default:
-        await interaction.reply({ content: 'Comando desconhecido.', ephemeral: true });
-    }
-  } catch (_err) {
-    if (interaction.isRepliable()) {
-      await interaction.reply({
-        content: 'Erro ao processar comando. Tente novamente.',
-        ephemeral: true,
-      });
+    // Fallback: use first client
+    if (!client && tenantClients.size > 0) {
+      client = tenantClients.values().next().value;
     }
   }
-});
 
-export async function sendToChannel(channelId: string, content: string): Promise<void> {
+  if (!client) return;
+
   const channel = await client.channels.fetch(channelId);
-  if (!channel || !channel.isTextBased()) {
-    return;
-  }
+  if (!channel || !channel.isTextBased()) return;
+
   if ('send' in channel && typeof channel.send === 'function') {
     if (content.length <= 2000) {
       await channel.send(content);
@@ -529,16 +599,66 @@ export async function sendToChannel(channelId: string, content: string): Promise
   }
 }
 
-export async function startDiscordBot() {
-  const token = BOT_TOKEN || process.env.DISCORD_BOT_TOKEN;
-  if (!token) throw new Error('Missing DISCORD_BOT_TOKEN');
-  if (!AUTHORIZED_USER_ID && !process.env.DISCORD_AUTHORIZED_USER_ID)
-    throw new Error('Missing DISCORD_AUTHORIZED_USER_ID');
-  await client.login(token);
+// ── Disconnect a tenant's Discord client ─────────────────────────────────────
+
+export function disconnectDiscordForTenant(slug: string): void {
+  const client = tenantClients.get(slug);
+  if (client) {
+    clientMeta.delete(client);
+    if (client.isReady()) {
+      client.destroy();
+    }
+    tenantClients.delete(slug);
+  }
 }
 
-export function disconnectDiscord() {
-  if (client.isReady()) {
-    client.destroy();
+// ── Get main channel ID for a tenant ─────────────────────────────────────────
+
+export function getMainChannelId(slug: string): string | undefined {
+  const client = tenantClients.get(slug);
+  if (!client) return undefined;
+  return clientMeta.get(client)?.mainChannelId;
+}
+
+// ── Legacy compatibility (single-tenant, reads from process.env) ─────────────
+
+export async function startDiscordBot(): Promise<void> {
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!token) throw new Error('Missing DISCORD_BOT_TOKEN');
+  if (!process.env.DISCORD_AUTHORIZED_USER_ID)
+    throw new Error('Missing DISCORD_AUTHORIZED_USER_ID');
+
+  // Create a fake TenantContext from env vars for legacy mode
+  const legacyCtx: TenantContext = {
+    slug: process.env.AGENT_SLOT || 'local',
+    schemaName: process.env.TENANT_SCHEMA || 'public',
+    credentials: {
+      slug: process.env.AGENT_SLOT || 'local',
+      schemaName: process.env.TENANT_SCHEMA || 'public',
+      keySalt: null,
+      discordConfig: {
+        bot_token: token,
+        client_id: process.env.DISCORD_CLIENT_ID,
+        guild_id: process.env.DISCORD_GUILD_ID,
+        channel_id: process.env.DISCORD_CHANNEL_GERAL,
+        user_id: process.env.DISCORD_AUTHORIZED_USER_ID,
+        channel_map: process.env.DISCORD_CHANNEL_MAP,
+      },
+      openrouterConfig: {
+        api_key: process.env.OPENROUTER_API_KEY,
+        model: process.env.OPENROUTER_MODEL,
+      },
+    },
+    cronTasks: [],
+    status: 'booting',
+  };
+
+  await startDiscordBotForTenant(legacyCtx);
+}
+
+export function disconnectDiscord(): void {
+  // Disconnect all clients (legacy compat)
+  for (const slug of tenantClients.keys()) {
+    disconnectDiscordForTenant(slug);
   }
 }

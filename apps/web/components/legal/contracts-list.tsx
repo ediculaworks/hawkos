@@ -103,8 +103,14 @@ function EditContractSheet({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-xs text-[var(--color-text-muted)] mb-1">Título</label>
+        <label
+          htmlFor="edit-contract-title"
+          className="block text-xs text-[var(--color-text-muted)] mb-1"
+        >
+          Título
+        </label>
         <input
+          id="edit-contract-title"
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -112,10 +118,14 @@ function EditContractSheet({
         />
       </div>
       <div>
-        <label className="block text-xs text-[var(--color-text-muted)] mb-1">
+        <label
+          htmlFor="edit-contract-parties"
+          className="block text-xs text-[var(--color-text-muted)] mb-1"
+        >
           Partes (separadas por vírgula)
         </label>
         <input
+          id="edit-contract-parties"
           type="text"
           value={parties}
           onChange={(e) => setParties(e.target.value)}
@@ -125,8 +135,14 @@ function EditContractSheet({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-[var(--color-text-muted)] mb-1">Tipo</label>
+          <label
+            htmlFor="edit-contract-type"
+            className="block text-xs text-[var(--color-text-muted)] mb-1"
+          >
+            Tipo
+          </label>
           <Select
+            id="edit-contract-type"
             value={type}
             onChange={(e) => setType(e.target.value)}
             size="sm"
@@ -134,8 +150,14 @@ function EditContractSheet({
           />
         </div>
         <div>
-          <label className="block text-xs text-[var(--color-text-muted)] mb-1">Status</label>
+          <label
+            htmlFor="edit-contract-status"
+            className="block text-xs text-[var(--color-text-muted)] mb-1"
+          >
+            Status
+          </label>
           <Select
+            id="edit-contract-status"
             value={status}
             onChange={(e) => setStatus(e.target.value as ContractStatus)}
             size="sm"
@@ -145,8 +167,14 @@ function EditContractSheet({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-[var(--color-text-muted)] mb-1">Início</label>
+          <label
+            htmlFor="edit-contract-start-date"
+            className="block text-xs text-[var(--color-text-muted)] mb-1"
+          >
+            Início
+          </label>
           <input
+            id="edit-contract-start-date"
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
@@ -154,8 +182,14 @@ function EditContractSheet({
           />
         </div>
         <div>
-          <label className="block text-xs text-[var(--color-text-muted)] mb-1">Vencimento</label>
+          <label
+            htmlFor="edit-contract-end-date"
+            className="block text-xs text-[var(--color-text-muted)] mb-1"
+          >
+            Vencimento
+          </label>
           <input
+            id="edit-contract-end-date"
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
@@ -164,8 +198,14 @@ function EditContractSheet({
         </div>
       </div>
       <div>
-        <label className="block text-xs text-[var(--color-text-muted)] mb-1">Valor (R$)</label>
+        <label
+          htmlFor="edit-contract-value"
+          className="block text-xs text-[var(--color-text-muted)] mb-1"
+        >
+          Valor (R$)
+        </label>
         <input
+          id="edit-contract-value"
           type="number"
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -176,8 +216,14 @@ function EditContractSheet({
         />
       </div>
       <div>
-        <label className="block text-xs text-[var(--color-text-muted)] mb-1">Observações</label>
+        <label
+          htmlFor="edit-contract-notes"
+          className="block text-xs text-[var(--color-text-muted)] mb-1"
+        >
+          Observações
+        </label>
         <textarea
+          id="edit-contract-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}

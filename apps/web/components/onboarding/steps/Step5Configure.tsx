@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { AlertTriangle, Check, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -35,58 +34,19 @@ interface ConfigStep {
   note?: string;
 }
 
-type Phase = 'confirm' | 'running' | 'account-exists' | 'done';
+type Phase = 'confirm' | 'running' | 'done';
 
 const INITIAL_STEPS: ConfigStep[] = [
-  { label: 'Criando tenant', status: 'pending' },
+  { label: 'Criando workspace', status: 'pending' },
   { label: 'Aplicando migrações', status: 'pending' },
-  { label: 'Criando conta de usuário', status: 'pending' },
-  { label: 'Realizando login', status: 'pending' },
-  { label: 'Verificando instalação', status: 'pending' },
+  { label: 'Criando conta e autenticando', status: 'pending' },
 ];
-
-async function readNdjsonStream(
-  res: Response,
-  onEvent: (event: Record<string, unknown>) => void,
-): Promise<void> {
-  if (!res.body) throw new Error(`HTTP ${res.status}: sem corpo na resposta`);
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      let event: Record<string, unknown>;
-      try {
-        event = JSON.parse(line) as Record<string, unknown>;
-      } catch {
-        continue;
-      }
-      onEvent(event);
-    }
-  }
-  if (buffer.trim()) {
-    try {
-      onEvent(JSON.parse(buffer) as Record<string, unknown>);
-    } catch {}
-  }
-}
 
 export function Step5Configure({ formData, onComplete, onError }: Step5ConfigureProps) {
   const [phase, setPhase] = useState<Phase>('confirm');
   const [steps, setSteps] = useState<ConfigStep[]>(INITIAL_STEPS);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  // Account-exists state
-  const [resetPassword, setResetPassword] = useState('');
-  const [resetLoading, setResetLoading] = useState(false);
-  const [resetError, setResetError] = useState('');
 
   // shouldRun triggers the actual run() effect
   const [shouldRun, setShouldRun] = useState(false);
@@ -102,8 +62,6 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
     setSteps(INITIAL_STEPS.map((s) => ({ ...s, status: 'pending' as const })));
     setProgress(0);
     setError(null);
-    setResetLoading(false);
-    setResetError('');
     setShouldRun(true);
   };
 
@@ -114,7 +72,7 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
 
     const run = async () => {
       try {
-        // ── Step 1: Create tenant ──────────────────────────────────────
+        // ── Step 1: Create workspace (tenant + schema) ────────────────
         setStepStatus(0, 'loading');
         setProgress((0.5 / total) * 100);
 
@@ -139,7 +97,7 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
         });
         const tenantResult = await tenantRes.json();
         if (!tenantResult.tenant) {
-          throw new Error(tenantResult.error || 'Erro ao criar tenant');
+          throw new Error(tenantResult.error || 'Erro ao criar workspace');
         }
         setStepStatus(0, 'done');
         setProgress((1 / total) * 100);
@@ -163,7 +121,7 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
         setStepStatus(1, 'done');
         setProgress((2 / total) * 100);
 
-        // ── Step 3: Create user account + profile ─────────────────────
+        // ── Step 3: Create account + authenticate ─────────────────────
         setStepStatus(2, 'loading');
         setProgress((2.5 / total) * 100);
 
@@ -187,24 +145,13 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
         });
         const setupResult = await setupRes.json();
 
-        if (setupRes.status === 409) {
-          setStepStatus(2, 'error', 'conta existente');
-          setPhase('account-exists');
-          return;
-        }
-
         if (!setupResult.success) {
-          throw new Error(setupResult.error || 'Erro ao criar conta de usuário');
+          throw new Error(setupResult.error || 'Erro ao criar conta');
         }
-        setStepStatus(2, 'done');
-        setProgress((3 / total) * 100);
 
-        // ── Step 4: Sign in via API ───────────────────────────────────
-        setStepStatus(3, 'loading');
-        setProgress((3.5 / total) * 100);
-
+        // Auto-login after account creation
         if (formData.email && formData.password) {
-          const loginRes = await fetch('/api/auth/login', {
+          await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -213,43 +160,13 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
               tenantSlug: tenantResult.tenant.slug,
             }),
           });
-          if (!loginRes.ok) throw new Error('Erro ao realizar login');
-        }
-        setStepStatus(3, 'done');
-        setProgress((4 / total) * 100);
-
-        // ── Step 5: Verify installation ───────────────────────────────
-        setStepStatus(4, 'loading');
-        setProgress((4.5 / total) * 100);
-
-        const verifyRes = await fetch('/api/admin/verify-install', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tenantSlug: tenantResult.tenant.slug,
-            schemaName: tenantResult.tenant.schema_name,
-            email: formData.email,
-          }),
-        });
-        const verifyResult = await verifyRes.json();
-
-        if (!verifyRes.ok) {
-          throw new Error(verifyResult.error || 'Erro na verificação');
         }
 
-        const failedChecks = verifyResult.checks?.filter(
-          (c: { ok: boolean; label: string; detail?: string }) => !c.ok,
-        );
-        if (failedChecks?.length > 0) {
-          const details = failedChecks
-            .map((c: { label: string; detail?: string }) => `${c.label}: ${c.detail || 'falhou'}`)
-            .join('; ');
-          throw new Error(`Verificação falhou — ${details}`);
-        }
-
-        setStepStatus(4, 'done');
+        setStepStatus(2, 'done');
         setProgress(100);
-        onComplete(tenantResult.envContent || '', tenantResult.tenant.slug);
+
+        // Agent is notified automatically by the tenants API (hot-load)
+        onComplete('', tenantResult.tenant.slug);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Erro desconhecido';
         setError(msg);
@@ -261,34 +178,6 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
 
     run();
   }, [shouldRun]);
-
-  const handleResetAccount = async () => {
-    if (!resetPassword) return;
-    setResetLoading(true);
-    setResetError('');
-    try {
-      const res = await fetch('/api/admin/reset-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: resetPassword,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setResetError(data.error || 'Erro ao apagar conta');
-        setResetLoading(false);
-        return;
-      }
-      // Account deleted — restart the run
-      setResetPassword('');
-      startRun();
-    } catch {
-      setResetError('Erro de rede ao apagar conta');
-      setResetLoading(false);
-    }
-  };
 
   // ── Confirmation phase ────────────────────────────────────────────────────
   if (phase === 'confirm') {
@@ -341,60 +230,6 @@ export function Step5Configure({ formData, onComplete, onError }: Step5Configure
             ← Voltar
           </Button>
           <Button onClick={startRun}>Confirmar e instalar →</Button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Account exists phase ──────────────────────────────────────────────────
-  if (phase === 'account-exists') {
-    return (
-      <div className="space-y-6">
-        <div className="p-5 rounded-lg bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 space-y-3">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-[var(--color-warning)] shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-[var(--color-warning)]">
-                Conta existente detectada
-              </p>
-              <p className="text-sm text-[var(--color-text-muted)] mt-1">
-                O e-mail{' '}
-                <strong className="text-[var(--color-text-primary)]">{formData.email}</strong> já
-                tem uma conta de uma instalação anterior.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-[var(--color-text-primary)]">
-            Confirme a senha da conta existente para apagá-la e reinstalar:
-          </label>
-          <Input
-            type="password"
-            placeholder="Senha da conta existente"
-            value={resetPassword}
-            onChange={(e) => setResetPassword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && resetPassword) handleResetAccount();
-            }}
-          />
-          {resetError && <p className="text-xs text-[var(--color-danger)]">{resetError}</p>}
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <Button
-            onClick={handleResetAccount}
-            disabled={!resetPassword || resetLoading}
-            variant="danger"
-            className="w-full"
-          >
-            {resetLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Apagar conta antiga e reinstalar
-          </Button>
-          <Button variant="ghost" onClick={onError} className="w-full">
-            ← Voltar e corrigir dados
-          </Button>
         </div>
       </div>
     );

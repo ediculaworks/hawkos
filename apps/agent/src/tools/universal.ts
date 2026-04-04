@@ -20,6 +20,11 @@ export const universalTools: Record<string, ToolDefinition> = {
         },
         module: { type: 'string', description: 'Módulo relacionado (optional)' },
         importance: { type: 'number', description: 'Importância 1-10 (default 5)' },
+        confidence: {
+          type: 'number',
+          description:
+            'Confiança 0.0-1.0: 1.0=afirmado diretamente, 0.5=implícito, 0.3=incerto (default 0.8)',
+        },
       },
       required: ['content', 'memory_type'],
     },

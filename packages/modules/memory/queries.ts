@@ -220,11 +220,14 @@ export async function getMemoryStats(): Promise<{
     by_status[status] = (by_status[status] ?? 0) + 1;
   }
 
-  const importances = (importanceData ?? []).map((m: any) => (m.importance as number) ?? 5);
+  const importances = (importanceData ?? []).map(
+    (m: { importance: number | null }) => m.importance ?? 5,
+  );
   const avg_importance =
     importances.length > 0
-      ? Math.round((importances.reduce((a: any, b: any) => a + b, 0) / importances.length) * 10) /
-        10
+      ? Math.round(
+          (importances.reduce((a: number, b: number) => a + b, 0) / importances.length) * 10,
+        ) / 10
       : 5;
 
   return {
@@ -544,7 +547,7 @@ export async function getLinkedMemories(
       throw new HawkError(`Failed to fetch linked memories: ${memErr.message}`, 'DB_QUERY_FAILED');
     }
 
-    const memoryMap = new Map((memories ?? []).map((m: any) => [m.id, m]));
+    const memoryMap = new Map((memories ?? []).map((m: AgentMemory) => [m.id, m]));
 
     for (const link of newLinks) {
       const mem = memoryMap.get(link.target_id);

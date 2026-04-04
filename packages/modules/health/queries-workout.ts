@@ -179,7 +179,7 @@ export async function getExerciseProgress(
   }
   if (!sessions?.length) return [];
 
-  const sessionIds = sessions.map((s: any) => s.id);
+  const sessionIds = sessions.map((s: Record<string, unknown>) => s.id);
   const { data: sets, error: sErr } = await db
     .from('workout_sets')
     .select('workout_id, weight_kg, reps')
@@ -193,7 +193,7 @@ export async function getExerciseProgress(
     throw new HawkError(`Failed to get sets: ${sErr.message}`, 'DB_QUERY_FAILED');
   }
 
-  const sessionMap = new Map(sessions.map((s: any) => [s.id, s.date]));
+  const sessionMap = new Map(sessions.map((s: Record<string, unknown>) => [s.id, s.date]));
   const bySession = new Map<string, { weight: number; reps: number }>();
 
   for (const set of sets ?? []) {
@@ -285,7 +285,7 @@ export async function getWeeklyVolume(
   }
   if (!sessions?.length) return [];
 
-  const sessionIds = sessions.map((s: any) => s.id);
+  const sessionIds = sessions.map((s: Record<string, unknown>) => s.id);
   const { data: sets, error: sErr } = await db
     .from('workout_sets')
     .select('workout_id, reps, weight_kg')
@@ -296,7 +296,7 @@ export async function getWeeklyVolume(
     throw new HawkError(`Failed to get sets: ${sErr.message}`, 'DB_QUERY_FAILED');
   }
 
-  const sessionMap = new Map(sessions.map((s: any) => [s.id, s.date]));
+  const sessionMap = new Map(sessions.map((s: Record<string, unknown>) => [s.id, s.date]));
   const byWeek = new Map<string, { volume: number; sessions: Set<string> }>();
 
   for (const set of sets ?? []) {
@@ -462,8 +462,8 @@ export async function getWorkoutTemplateWithSets(
   }
 
   const setsWithExercises = await Promise.all(
-    (sets ?? []).map(async (set: any) => {
-      const exercise = await getExerciseById(set.exercise_id);
+    (sets ?? []).map(async (set: Record<string, unknown>) => {
+      const exercise = await getExerciseById(set.exercise_id as string);
       if (!exercise) return { ...set, exercise: null };
       return { ...set, exercise };
     }),

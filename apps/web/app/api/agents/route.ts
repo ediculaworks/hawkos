@@ -1,5 +1,5 @@
 import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
-import { getPool } from '@hawk/db';
+import { db, getPool, withTenantSchema } from '@hawk/db';
 import { cookies } from 'next/headers';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -106,8 +106,9 @@ export async function POST(request: NextRequest) {
       is_default: false,
     };
 
-    const { data: agent, error } = await withTenantSchema(schemaName, () =>
-      db.from('agent_templates').insert(insertData).select().single(),
+    const { data: agent, error } = await withTenantSchema(
+      schemaName,
+      async () => await db.from('agent_templates').insert(insertData).select().single(),
     );
 
     if (error) {

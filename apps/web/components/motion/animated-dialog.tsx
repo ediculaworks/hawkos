@@ -26,16 +26,17 @@ export function AnimatedDialog({
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={onClose}
           />
-          <motion.div
+          <motion.dialog
             variants={dialogVariants}
             initial="initial"
             animate="animate"
             exit="exit"
             className={className}
-            role="dialog"
+            open
+            aria-modal="true"
           >
             {children}
-          </motion.div>
+          </motion.dialog>
         </div>
       )}
     </AnimatePresence>

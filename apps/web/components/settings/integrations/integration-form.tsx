@@ -31,16 +31,19 @@ function FieldInput({
   field,
   value,
   onChange,
+  id,
 }: {
   field: IntegrationField;
   value: string | number;
   onChange: (v: string | number) => void;
+  id?: string;
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
   if (field.type === 'select' && field.options) {
     return (
       <select
+        id={id}
         value={value as string}
         onChange={(e) => onChange(e.target.value)}
         className="flex h-10 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
@@ -59,6 +62,7 @@ function FieldInput({
     return (
       <div className="relative">
         <Input
+          id={id}
           type={showPassword ? 'text' : 'password'}
           value={value as string}
           onChange={(e) => onChange(e.target.value)}
@@ -78,6 +82,7 @@ function FieldInput({
 
   return (
     <Input
+      id={id}
       type={field.type}
       value={value}
       onChange={(e) => onChange(field.type === 'number' ? Number(e.target.value) : e.target.value)}
@@ -174,11 +179,15 @@ export function IntegrationForm({ definition, open, onClose, onSaved }: Integrat
             <div className="space-y-[var(--space-4)]">
               {definition.fields.map((field) => (
                 <div key={field.key}>
-                  <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-[var(--space-1)]">
+                  <label
+                    htmlFor={field.key}
+                    className="block text-sm font-medium text-[var(--color-text-primary)] mb-[var(--space-1)]"
+                  >
                     {field.label}
                     {field.required && <span className="text-[var(--color-danger)] ml-0.5">*</span>}
                   </label>
                   <FieldInput
+                    id={field.key}
                     field={field}
                     value={(config[field.key] as string | number) ?? ''}
                     onChange={(v) => handleFieldChange(field.key, v)}

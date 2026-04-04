@@ -9,11 +9,13 @@ import type { AgentMemory } from './types';
 // ── Scoring Constants (OpenViking-inspired) ────────────────
 
 /** Weight for semantic similarity in final memory score */
-const SEMANTIC_WEIGHT = 0.5;
+const SEMANTIC_WEIGHT = 0.45;
 /** Weight for hotness (recency × frequency) in final memory score */
-const HOTNESS_WEIGHT = 0.3;
+const HOTNESS_WEIGHT = 0.25;
 /** Weight for importance in final memory score */
-const IMPORTANCE_WEIGHT = 0.2;
+const IMPORTANCE_WEIGHT = 0.15;
+/** Weight for confidence (DeerFlow-inspired) — how certain the extracted fact is */
+const CONFIDENCE_WEIGHT = 0.15;
 
 // ── Hotness Scoring ────────────────────────────────────────
 
@@ -66,10 +68,17 @@ export async function retrieveMemories(query: string, limit = 10): Promise<Score
 
   const [searchResults, hotResults, importantResults] = await Promise.all([
     useHybrid
-      ? hybridSearchMemories(query, limit * 2).catch(() =>
-          semanticSearchMemories(query, limit * 2).catch(() => []),
-        )
-      : semanticSearchMemories(query, limit * 2).catch(() => []),
+      ? hybridSearchMemories(query, limit * 2).catch((err) => {
+          logger.warn({ err }, 'Hybrid search failed, falling back to semantic');
+          return semanticSearchMemories(query, limit * 2).catch((err2) => {
+            logger.warn({ err: err2 }, 'Semantic search also failed, returning empty');
+            return [];
+          });
+        })
+      : semanticSearchMemories(query, limit * 2).catch((err) => {
+          logger.warn({ err }, 'Semantic search failed, returning empty');
+          return [];
+        }),
     getHottestMemories(limit),
     getTopByImportance(limit),
   ]);
@@ -77,18 +86,21 @@ export async function retrieveMemories(query: string, limit = 10): Promise<Score
   // Build score map: memory_id → accumulated score
   const scoreMap = new Map<string, { memory: AgentMemory; score: number }>();
 
-  // Search results: weight 0.5 (combined_score or similarity already 0-1)
+  // Search results: weight 0.45 (combined_score or similarity already 0-1)
   for (const result of searchResults) {
-    const similarity =
+    const rawScore =
       'combined_score' in result
         ? (result as { combined_score: number }).combined_score
         : (result as { similarity: number }).similarity;
+    // M5: NaN guard — if neither field exists, default to 0
+    const similarity = Number(rawScore) || 0;
     const existing = scoreMap.get(result.id);
     if (existing) {
       existing.score += similarity * SEMANTIC_WEIGHT;
     } else {
+      // M6: include all available fields from search result (partial — upgraded later by hot/important results)
       scoreMap.set(result.id, {
-        memory: { id: result.id, content: result.content } as AgentMemory,
+        memory: result as unknown as AgentMemory,
         score: similarity * SEMANTIC_WEIGHT,
       });
     }
@@ -120,6 +132,12 @@ export async function retrieveMemories(query: string, limit = 10): Promise<Score
     } else {
       scoreMap.set(mem.id, { memory: mem, score: importanceScore * IMPORTANCE_WEIGHT });
     }
+  }
+
+  // Apply confidence weight — memories with higher confidence score higher
+  for (const entry of scoreMap.values()) {
+    const confidence = (entry.memory as AgentMemory & { confidence?: number }).confidence ?? 0.8;
+    entry.score += confidence * CONFIDENCE_WEIGHT;
   }
 
   // Sort by combined score, return top N

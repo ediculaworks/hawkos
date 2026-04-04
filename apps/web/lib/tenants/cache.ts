@@ -30,10 +30,11 @@ export let allTenantsCache: { tenants: CachedTenant[]; expiresAt: number } | nul
 
 async function adminQuery<T>(query: string, params: unknown[] = []): Promise<T[]> {
   const sql = getPool();
-  return sql.begin(async (tx) => {
+  const rows = await sql.begin(async (tx) => {
     await tx.unsafe('SET LOCAL search_path TO admin, public');
-    return tx.unsafe(query, params) as Promise<T[]>;
+    return tx.unsafe(query, params as never[]);
   });
+  return rows as unknown as T[];
 }
 
 // ── Public Queries ────────────────────────────────────────────────────────────

@@ -18,8 +18,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   try {
     const { id } = await params;
-    const { data: agent, error } = await withTenantSchema(schemaName, () =>
-      db.from('agent_templates').select('*').eq('id', id).single(),
+    const { data: agent, error } = await withTenantSchema(
+      schemaName,
+      async () => await db.from('agent_templates').select('*').eq('id', id).single(),
     );
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -101,8 +102,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (memoryType !== undefined) updatePayload.memory_type = memoryType;
     if (isUserFacing !== undefined) updatePayload.is_user_facing = isUserFacing;
 
-    const { data: agent, error } = await withTenantSchema(schemaName, () =>
-      db.from('agent_templates').update(updatePayload).eq('id', id).select().single(),
+    const { data: agent, error } = await withTenantSchema(
+      schemaName,
+      async () =>
+        await db.from('agent_templates').update(updatePayload).eq('id', id).select().single(),
     );
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -121,8 +124,9 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    const { error } = await withTenantSchema(schemaName, () =>
-      db.from('agent_templates').delete().eq('id', id).eq('is_system', false),
+    const { error } = await withTenantSchema(
+      schemaName,
+      async () => await db.from('agent_templates').delete().eq('id', id).eq('is_system', false),
     );
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

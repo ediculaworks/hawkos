@@ -262,8 +262,14 @@ export function AssetsList() {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-[var(--color-text-muted)]">Valor (R$)</label>
+            <label
+              htmlFor="edit-asset-value"
+              className="text-xs font-medium text-[var(--color-text-muted)]"
+            >
+              Valor (R$)
+            </label>
             <input
+              id="edit-asset-value"
               type="number"
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
@@ -273,8 +279,14 @@ export function AssetsList() {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-[var(--color-text-muted)]">Condição</label>
+            <label
+              htmlFor="edit-asset-condition"
+              className="text-xs font-medium text-[var(--color-text-muted)]"
+            >
+              Condição
+            </label>
             <Select
+              id="edit-asset-condition"
               value={editCondition}
               onChange={(e) => setEditCondition(e.target.value as AssetCondition | '')}
               placeholder="Selecionar condição"

@@ -107,10 +107,14 @@ export function PersonProfile({ personId, onBack }: Props) {
       <EditSheet open={editOpen} onClose={() => setEditOpen(false)} title="Editar contato">
         <div className="space-y-[var(--space-3)]">
           <div className="space-y-[var(--space-1)]">
-            <label className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider">
+            <label
+              htmlFor="person-name"
+              className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider"
+            >
               Nome
             </label>
             <input
+              id="person-name"
               type="text"
               value={editFields.name ?? ''}
               onChange={(e) => setEditFields((p) => ({ ...p, name: e.target.value }))}
@@ -119,10 +123,14 @@ export function PersonProfile({ personId, onBack }: Props) {
           </div>
 
           <div className="space-y-[var(--space-1)]">
-            <label className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider">
+            <label
+              htmlFor="person-relationship"
+              className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider"
+            >
               Relacionamento
             </label>
             <Select
+              id="person-relationship"
               value={editFields.relationship ?? ''}
               onChange={(e) =>
                 setEditFields((p) => ({ ...p, relationship: e.target.value as Relationship }))
@@ -134,10 +142,14 @@ export function PersonProfile({ personId, onBack }: Props) {
           </div>
 
           <div className="space-y-[var(--space-1)]">
-            <label className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider">
+            <label
+              htmlFor="person-role"
+              className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider"
+            >
               Cargo / Papel
             </label>
             <input
+              id="person-role"
               type="text"
               value={editFields.role ?? ''}
               onChange={(e) => setEditFields((p) => ({ ...p, role: e.target.value }))}
@@ -146,10 +158,14 @@ export function PersonProfile({ personId, onBack }: Props) {
           </div>
 
           <div className="space-y-[var(--space-1)]">
-            <label className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider">
+            <label
+              htmlFor="person-phone"
+              className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider"
+            >
               Telefone
             </label>
             <input
+              id="person-phone"
               type="tel"
               value={editFields.phone ?? ''}
               onChange={(e) => setEditFields((p) => ({ ...p, phone: e.target.value }))}
@@ -158,10 +174,14 @@ export function PersonProfile({ personId, onBack }: Props) {
           </div>
 
           <div className="space-y-[var(--space-1)]">
-            <label className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider">
+            <label
+              htmlFor="person-email"
+              className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider"
+            >
               Email
             </label>
             <input
+              id="person-email"
               type="email"
               value={editFields.email ?? ''}
               onChange={(e) => setEditFields((p) => ({ ...p, email: e.target.value }))}
@@ -170,10 +190,14 @@ export function PersonProfile({ personId, onBack }: Props) {
           </div>
 
           <div className="space-y-[var(--space-1)]">
-            <label className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider">
+            <label
+              htmlFor="person-city"
+              className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider"
+            >
               Cidade
             </label>
             <input
+              id="person-city"
               type="text"
               value={editFields.city ?? ''}
               onChange={(e) => setEditFields((p) => ({ ...p, city: e.target.value }))}
@@ -182,10 +206,14 @@ export function PersonProfile({ personId, onBack }: Props) {
           </div>
 
           <div className="space-y-[var(--space-1)]">
-            <label className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider">
+            <label
+              htmlFor="person-birthday"
+              className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider"
+            >
               Aniversário
             </label>
             <input
+              id="person-birthday"
               type="date"
               value={editFields.birthday ?? ''}
               onChange={(e) => setEditFields((p) => ({ ...p, birthday: e.target.value }))}
@@ -194,10 +222,14 @@ export function PersonProfile({ personId, onBack }: Props) {
           </div>
 
           <div className="space-y-[var(--space-1)]">
-            <label className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider">
+            <label
+              htmlFor="person-importance"
+              className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider"
+            >
               Importância: {editFields.importance ?? 5}/10
             </label>
             <input
+              id="person-importance"
               type="range"
               min="1"
               max="10"
@@ -210,10 +242,14 @@ export function PersonProfile({ personId, onBack }: Props) {
           </div>
 
           <div className="space-y-[var(--space-1)]">
-            <label className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider">
+            <label
+              htmlFor="person-notes"
+              className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider"
+            >
               Notas
             </label>
             <textarea
+              id="person-notes"
               value={editFields.notes ?? ''}
               onChange={(e) => setEditFields((p) => ({ ...p, notes: e.target.value }))}
               rows={3}

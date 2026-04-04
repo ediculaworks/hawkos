@@ -1,6 +1,10 @@
 /**
  * Typed SSE Streaming Packets — 40+ event types for rich real-time feedback.
  *
+ * TODO: NOT YET INTEGRATED — createPacket()/serializeSSE() are never called.
+ * WebSocket currently sends raw JSON. To activate: replace raw sends in
+ * api/server.ts with createPacket() calls.
+ *
  * Defines all event types emitted via SSE and WebSocket, with typed payloads.
  * Ensures consistent wire format across all real-time channels.
  *

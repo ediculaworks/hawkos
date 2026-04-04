@@ -40,24 +40,51 @@ export class AdminClient {
   }
 
   async getAvailableSlots(): Promise<TenantAvailability[]> {
-    // Build availability from tenants table + predefined slots
-    const allSlots = ['ten1', 'ten2', 'ten3', 'ten4', 'ten5', 'ten6'];
+    // Dynamic: list all existing tenants + generate next available slot
     const tenants = await this.adminQuery<Tenant>('SELECT * FROM tenants ORDER BY slug');
-    const tenantMap = new Map(tenants.map((t) => [t.slug, t]));
 
-    return allSlots.map((slot, idx) => {
-      const tenant = tenantMap.get(slot);
+    const results: TenantAvailability[] = tenants.map((t) => {
+      const num = Number.parseInt(t.slug.replace('ten', ''), 10) || 0;
       return {
-        slot_number: idx + 1,
-        slot_name: slot,
-        status: tenant ? ('occupied' as const) : ('available' as const),
-        tenant_id: tenant?.id ?? null,
-        tenant_label: tenant?.label ?? null,
-        tenant_status: tenant?.status ?? null,
+        slot_number: num,
+        slot_name: t.slug,
+        status: 'occupied' as const,
+        tenant_id: t.id ?? null,
+        tenant_label: t.label ?? null,
+        tenant_status: t.status ?? null,
         onboarding_completed_at: null,
-        created_at: tenant?.created_at ?? null,
+        created_at: t.created_at ?? null,
       };
     });
+
+    // Add one "available" slot (next number)
+    const nextNum = this._getNextSlotNumber(tenants);
+    results.push({
+      slot_number: nextNum,
+      slot_name: `ten${nextNum}`,
+      status: 'available' as const,
+      tenant_id: null,
+      tenant_label: null,
+      tenant_status: null,
+      onboarding_completed_at: null,
+      created_at: null,
+    });
+
+    return results;
+  }
+
+  /** Get the next available slot number (dynamic, no hardcoded limit). */
+  private _getNextSlotNumber(tenants: Tenant[]): number {
+    if (tenants.length === 0) return 1;
+    const nums = tenants.map((t) => Number.parseInt(t.slug.replace('ten', ''), 10) || 0);
+    return Math.max(...nums) + 1;
+  }
+
+  /** Get the next available slug (e.g. ten1, ten2, ..., tenN). */
+  async getNextSlug(): Promise<string> {
+    const tenants = await this.adminQuery<Tenant>('SELECT slug FROM tenants ORDER BY slug');
+    const nextNum = this._getNextSlotNumber(tenants as Tenant[]);
+    return `ten${nextNum}`;
   }
 
   async getTenantBySlug(slug: string): Promise<Tenant | null> {
@@ -84,15 +111,9 @@ export class AdminClient {
     },
     userId?: string,
   ): Promise<CreateTenantResult> {
-    const slots = await this.getAvailableSlots();
-    const availableSlot = slots.find((s) => s.status === 'available');
-
-    if (!availableSlot) {
-      return { success: false, error: 'No available slots' };
-    }
-
-    const slug = availableSlot.slot_name;
+    const slug = await this.getNextSlug();
     const schemaName = `tenant_${slug}`;
+    const slotNum = Number.parseInt(slug.replace('ten', ''), 10) || 1;
     const agentSecret = generateAgentSecret();
 
     // Encrypt Discord and OpenRouter configs if provided
@@ -123,7 +144,7 @@ export class AdminClient {
         slug,
         data.label,
         schemaName,
-        3000 + availableSlot.slot_number,
+        3000 + slotNum, // kept for backward compat, not used in multi-tenant mode
         agentSecret,
         discordEncrypted,
         discordIv,
@@ -137,7 +158,7 @@ export class AdminClient {
       return { success: false, error: 'Failed to insert tenant' };
     }
 
-    // Create tenant schema and apply migrations
+    // Create tenant schema
     await this._createTenantSchema(schemaName);
 
     return { success: true, tenant: rows[0] };

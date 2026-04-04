@@ -36,7 +36,7 @@ describe('requireAdminAuth', () => {
   beforeEach(() => {
     process.env.ADMIN_SUPABASE_SERVICE_KEY = 'test-admin-key';
     process.env.APP_URL = 'http://localhost:3000';
-    process.env.NODE_ENV = 'production';
+    (process.env as Record<string, string>).NODE_ENV = 'production';
   });
 
   afterEach(() => {
@@ -83,7 +83,7 @@ describe('requireAdminAuth', () => {
   });
 
   it('should block unauthenticated requests even in development mode', () => {
-    process.env.NODE_ENV = 'development';
+    (process.env as Record<string, string>).NODE_ENV = 'development';
     const req = makeRequest();
     const result = requireAdminAuth(req);
     expect(result).not.toBeNull();

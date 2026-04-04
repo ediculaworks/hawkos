@@ -1,6 +1,9 @@
 /**
  * MCP Server — exposes Hawk OS tools to external MCP clients.
  *
+ * TODO: NOT YET INTEGRATED — never initialized, no tools registered.
+ * To activate: call startMCPServer() in agent startup with registered tools.
+ *
  * Allows external AI agents (Claude, GPT, etc.) to use Hawk OS
  * tools through the MCP protocol.
  *

@@ -363,8 +363,14 @@ export default function HabitGrid({ initialHabits, initialAtRisk, initialScore }
       >
         <div className="space-y-[var(--space-4)]">
           <div className="space-y-[var(--space-1-5)]">
-            <label className="text-xs font-medium text-[var(--color-text-muted)]">Nome</label>
+            <label
+              htmlFor="habit-name"
+              className="text-xs font-medium text-[var(--color-text-muted)]"
+            >
+              Nome
+            </label>
             <input
+              id="habit-name"
               type="text"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
@@ -373,8 +379,14 @@ export default function HabitGrid({ initialHabits, initialAtRisk, initialScore }
             />
           </div>
           <div className="space-y-[var(--space-1-5)]">
-            <label className="text-xs font-medium text-[var(--color-text-muted)]">Descrição</label>
+            <label
+              htmlFor="habit-description"
+              className="text-xs font-medium text-[var(--color-text-muted)]"
+            >
+              Descrição
+            </label>
             <input
+              id="habit-description"
               type="text"
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
@@ -383,8 +395,14 @@ export default function HabitGrid({ initialHabits, initialAtRisk, initialScore }
             />
           </div>
           <div className="space-y-[var(--space-1-5)]">
-            <label className="text-xs font-medium text-[var(--color-text-muted)]">Frequência</label>
+            <label
+              htmlFor="habit-frequency"
+              className="text-xs font-medium text-[var(--color-text-muted)]"
+            >
+              Frequência
+            </label>
             <Select
+              id="habit-frequency"
               value={editFrequency}
               onChange={(e) => setEditFrequency(e.target.value as HabitFrequency)}
               options={[

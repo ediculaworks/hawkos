@@ -60,8 +60,8 @@ describe('Model Router', () => {
     });
 
     it('should return agent model when no tier env vars set', () => {
-      delete process.env.MODEL_TIER_SIMPLE;
-      delete process.env.MODEL_TIER_COMPLEX;
+      process.env.MODEL_TIER_SIMPLE = undefined;
+      process.env.MODEL_TIER_COMPLEX = undefined;
       expect(selectModel('simple', 'openrouter/auto')).toBe('openrouter/auto');
       expect(selectModel('moderate', 'openrouter/auto')).toBe('openrouter/auto');
       expect(selectModel('complex', 'openrouter/auto')).toBe('openrouter/auto');

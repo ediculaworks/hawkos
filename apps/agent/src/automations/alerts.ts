@@ -174,7 +174,8 @@ export function startAlertsCron(): void {
     try {
       const settings = await getAlertSettings();
       const timezone =
-        ((settings as Record<string, unknown>).timezone as string) ?? 'America/Sao_Paulo';
+        ((settings as unknown as Record<string, unknown>).timezone as string) ??
+        'America/Sao_Paulo';
       const now = getLocalHour(timezone);
       const [aHours, aMinutes] = settings.alerts_time.split(':').map(Number);
       const [sHours, sMinutes] = settings.security_review_time.split(':').map(Number);

@@ -163,7 +163,10 @@ export async function getTotalAssetValue(): Promise<number> {
     logger.error({ error: error.message }, 'Failed to get asset value');
     throw new HawkError(`Failed to get asset value: ${error.message}`, 'DB_UPDATE_FAILED');
   }
-  return (data ?? []).reduce((sum: any, row: any) => sum + (row.value ?? 0), 0);
+  return (data ?? []).reduce(
+    (sum: number, row: Record<string, unknown>) => sum + ((row.value as number) ?? 0),
+    0,
+  );
 }
 
 // ============================================================

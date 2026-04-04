@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-// ── Mock db using same pattern as agent-resolver tests ─────────────────────
-const mockFrom = vi.fn();
+// ── Mock db using hoisted pattern to avoid initialization error ─────────────
+const { mockFrom } = vi.hoisted(() => ({ mockFrom: vi.fn() }));
 
 vi.mock('../../../../packages/db/src/client.ts', () => ({
   db: { from: mockFrom },

@@ -1,6 +1,9 @@
 /**
  * Plugin SDK — lifecycle hooks + dynamic discovery.
  *
+ * TODO: NOT YET INTEGRATED — initAllPlugins() is never called, no plugins registered.
+ * To activate: call initAllPlugins() in agent startup and register at least one plugin.
+ *
  * Provides a standard interface for building Hawk OS plugins.
  * Plugins can register tools, hooks, automations, and context providers.
  *

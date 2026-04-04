@@ -222,7 +222,8 @@ export async function saveIntegration(
         await admin.upsertTenantIntegration(tenantId, provider, config, enabled);
       }
 
-      await admin.logAudit(tenantId, 'api_call', 'info', {
+      await admin.logAudit(tenantId, 'api_call', {
+        level: 'info',
         action: 'integration_saved',
         provider,
       });
@@ -253,7 +254,8 @@ export async function deleteIntegration(
         await admin.deleteTenantIntegration(tenantId, provider);
       }
 
-      await admin.logAudit(tenantId, 'api_call', 'info', {
+      await admin.logAudit(tenantId, 'api_call', {
+        level: 'info',
         action: 'integration_deleted',
         provider,
       });

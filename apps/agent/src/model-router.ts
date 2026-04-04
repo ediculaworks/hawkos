@@ -140,9 +140,42 @@ export function classifyComplexity(message: string, moduleCount: number): Comple
  * - When >80% of daily budget used: downgrade complex → moderate tier
  * - When >95%: downgrade all to simple tier
  */
+/**
+ * Get the effective daily budget limit.
+ * Checks per-tenant feature_flags first, falls back to global env var.
+ */
+let _tenantBudgetCache: { value: number; expiresAt: number } | null = null;
+
+async function getTenantBudgetLimit(): Promise<number> {
+  const globalLimit = Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
+  const slot = process.env.AGENT_SLOT;
+  if (!slot) return globalLimit;
+
+  // Cache for 5 minutes to avoid DB hits on every message
+  if (_tenantBudgetCache && Date.now() < _tenantBudgetCache.expiresAt) {
+    return _tenantBudgetCache.value;
+  }
+
+  try {
+    const sql = getPool();
+    const rows = await sql.unsafe(
+      `SELECT feature_flags->>'daily_budget_usd' AS budget
+       FROM tenants WHERE slug = $1 LIMIT 1`,
+      [slot],
+    );
+    const row = rows[0] as { budget: string | null } | undefined;
+    const tenantBudget = row?.budget ? Number(row.budget) : 0;
+    const effectiveLimit = tenantBudget > 0 ? tenantBudget : globalLimit;
+    _tenantBudgetCache = { value: effectiveLimit, expiresAt: Date.now() + 5 * 60_000 };
+    return effectiveLimit;
+  } catch {
+    return globalLimit;
+  }
+}
+
 export function selectModel(complexity: ComplexityLevel, agentModel: string): string {
   const budget = getBudget();
-  const limit = Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
+  const limit = _tenantBudgetCache?.value ?? Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
   const budgetUsedPct = limit > 0 ? (budget.cost / limit) * 100 : 0;
 
   // Cost-aware downgrade when approaching budget limit
@@ -185,13 +218,15 @@ function getBudget(): BudgetState {
   const today = todayDate();
   if (!_budget || _budget.date !== today) {
     _budget = { date: today, tokens: 0, cost: 0, llmCalls: 0, loaded: false };
+    // Clear tenant budget cache on day change so it re-fetches
+    _tenantBudgetCache = null;
   }
   return _budget;
 }
 
 /**
  * Record token usage and return true if daily budget is exceeded.
- * Budget limit configured via MODEL_DAILY_BUDGET_USD (default: no limit).
+ * Checks per-tenant budget from feature_flags, falls back to MODEL_DAILY_BUDGET_USD.
  */
 export function trackUsage(tokens: number, costUsd: number): { overBudget: boolean } {
   const budget = getBudget();
@@ -199,10 +234,25 @@ export function trackUsage(tokens: number, costUsd: number): { overBudget: boole
   budget.cost += costUsd;
   if (tokens > 0) budget.llmCalls++;
 
-  const limit = Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
+  // Use cached tenant budget if available, otherwise fall back to env var
+  const limit = _tenantBudgetCache?.value ?? Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
   const overBudget = limit > 0 && budget.cost >= limit;
 
   return { overBudget };
+}
+
+/**
+ * Async version that loads tenant budget from DB before checking.
+ * Use this at session start for accurate per-tenant enforcement.
+ */
+export async function checkBudgetAsync(): Promise<{
+  overBudget: boolean;
+  limit: number;
+  used: number;
+}> {
+  const limit = await getTenantBudgetLimit();
+  const budget = getBudget();
+  return { overBudget: limit > 0 && budget.cost >= limit, limit, used: budget.cost };
 }
 
 /**
@@ -248,6 +298,9 @@ export async function loadDailyUsageFromDb(): Promise<void> {
         `[model-router] Loaded daily usage from DB: ${budget.tokens} tokens, $${budget.cost.toFixed(4)}`,
       );
     }
+
+    // Pre-load tenant budget limit into cache so sync selectModel() works
+    await getTenantBudgetLimit();
   } catch (err) {
     console.warn('[model-router] Could not load daily usage from DB:', err);
   }

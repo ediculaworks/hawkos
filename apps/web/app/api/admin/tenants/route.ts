@@ -56,6 +56,20 @@ export async function POST(request: Request) {
 
     invalidateTenantCache(result.tenant.slug);
 
+    // Notify agent to hot-load the new tenant (best-effort, non-blocking)
+    const agentUrl = process.env.AGENT_INTERNAL_URL || 'http://localhost:3001';
+    const agentSecret = process.env.AGENT_API_SECRET;
+    fetch(`${agentUrl}/admin/tenants/${result.tenant.slug}/start`, {
+      method: 'POST',
+      headers: agentSecret ? { Authorization: `Bearer ${agentSecret}` } : {},
+      signal: AbortSignal.timeout(5000),
+    }).catch(() => {
+      // Agent may not be running yet during initial onboarding — that's OK
+      console.log(
+        `[admin/tenants] Agent notification skipped for ${result.tenant!.slug} (agent may not be running)`,
+      );
+    });
+
     return NextResponse.json({ tenant: result.tenant, envContent: '' });
   } catch (error) {
     console.error('[admin/tenants] Error:', error);
