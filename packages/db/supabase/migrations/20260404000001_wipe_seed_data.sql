@@ -31,17 +31,15 @@ DELETE FROM media_items;
 -- Onboarding questions (shown during setup wizard — tenant fills in their own answers)
 DELETE FROM onboarding_questions;
 
--- Agent templates: remove all specialist / user-facing agents except Hawk (001)
--- Manter: Hawk (000...001) + workers (000...0020 a 000...0023)
+-- Agent templates: keep only Hawk orchestrator + 4 workers.
+-- Removes all specialist/user-facing agents (fixed IDs and any UUID-based duplicates).
 DELETE FROM agent_templates
-WHERE id IN (
-  '00000000-0000-0000-0000-000000000010', -- CFO / Bull
-  '00000000-0000-0000-0000-000000000011', -- Coach / Wolf
-  '00000000-0000-0000-0000-000000000012', -- Career Coach / Owl (if exists)
-  '00000000-0000-0000-0000-000000000013', -- Chief of Staff / Bee
-  '00000000-0000-0000-0000-000000000014', -- House Manager / Beaver
-  '00000000-0000-0000-0000-000000000015', -- Creative Director / Fox
-  '00000000-0000-0000-0000-000000000016'  -- Artist / Peacock
+WHERE id NOT IN (
+  '00000000-0000-0000-0000-000000000001', -- Hawk (orchestrator)
+  '00000000-0000-0000-0000-000000000020', -- Memory Extractor (worker)
+  '00000000-0000-0000-0000-000000000021', -- Title Generator (worker)
+  '00000000-0000-0000-0000-000000000022', -- Insight Synthesizer (worker)
+  '00000000-0000-0000-0000-000000000023'  -- Dedup Judge (worker)
 );
 
 -- Hawk: remove hardcoded llm_model so smart routing (MODEL_TIER_* env vars) is used
