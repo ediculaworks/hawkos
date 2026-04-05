@@ -12,6 +12,7 @@ const withBundleAnalyzer = bundleAnalyzer({
 config({ path: resolve(process.cwd(), '../../.env') });
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ['discord.js', '@discordjs/ws', '@discordjs/rest', 'zlib-sync'],
   typescript: {
     // .next/types/validator.ts has 2 errors from deleted onboarding routes
     // that only appear if .next cache exists — safe to ignore on fresh build
