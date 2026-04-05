@@ -109,14 +109,36 @@ export async function handleOnboardingRoute(
       }
 
       try {
-        const client = getWorkerClient();
-        const openaiStream = await client.chat.completions.create({
-          model: WORKER_MODEL,
-          messages,
-          tools: [COMPLETE_ONBOARDING_TOOL],
-          tool_choice: 'auto',
-          stream: true,
-        });
+        // Try Ollama first; fall back to OpenRouter if model not available yet
+        let client = getWorkerClient();
+        let model = WORKER_MODEL;
+        let openaiStream: Awaited<ReturnType<typeof client.chat.completions.create>>;
+        try {
+          openaiStream = await client.chat.completions.create({
+            model,
+            messages,
+            tools: [COMPLETE_ONBOARDING_TOOL],
+            tool_choice: 'auto',
+            stream: true,
+          });
+        } catch (ollamaErr) {
+          const msg = ollamaErr instanceof Error ? ollamaErr.message : String(ollamaErr);
+          if (msg.includes('not found') || msg.includes('404') || msg.includes('does not exist')) {
+            // Ollama model not downloaded yet — fall back to OpenRouter
+            const { getChatClient } = await import('../../llm-client.js');
+            client = getChatClient();
+            model = process.env.MODEL_TIER_DEFAULT ?? 'qwen/qwen3.6-plus:free';
+            openaiStream = await client.chat.completions.create({
+              model,
+              messages,
+              tools: [COMPLETE_ONBOARDING_TOOL],
+              tool_choice: 'auto',
+              stream: true,
+            });
+          } else {
+            throw ollamaErr;
+          }
+        }
 
         // Accumulate tool call data across streaming chunks
         let toolCallId = '';
