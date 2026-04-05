@@ -4,6 +4,7 @@
  */
 
 import { assembleContext } from '@hawk/context-engine';
+import type { AssembledContext } from '@hawk/context-engine';
 import { retrieveMemories, trackMemoryAccess } from '@hawk/module-memory/retrieval';
 import { getLastSessionArchive } from '@hawk/module-memory/session-commit';
 import { HawkErrorCode, createLogger, getFeatureFlag, redactSecrets } from '@hawk/shared';
@@ -13,12 +14,12 @@ import type { HandlerContext, Middleware } from './types.js';
 
 const logger = createLogger('middleware:context');
 
-const EMPTY_CONTEXT = {
+const EMPTY_CONTEXT: AssembledContext = {
   l0: '',
   l1: '',
   l2: '',
-  modulesLoaded: [] as string[],
-  relevanceScores: [] as number[],
+  modulesLoaded: [],
+  relevanceScores: [],
 };
 
 export const contextMiddleware: Middleware = {

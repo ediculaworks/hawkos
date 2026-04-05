@@ -3,7 +3,7 @@
  */
 
 import { HawkError, createLogger } from '@hawk/shared';
-import type OpenAI from 'openai';
+import OpenAI from 'openai';
 import {
   createSessionCost,
   estimateCostUsd,

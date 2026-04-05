@@ -45,6 +45,8 @@ async function proxyToAgent(
   if (secret) {
     headers.set('Authorization', `Bearer ${secret}`);
   }
+  // Forward tenant identity so the agent can set the correct schema context
+  headers.set('X-Hawk-Tenant', slug);
 
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
 

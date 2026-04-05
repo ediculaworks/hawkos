@@ -47,12 +47,18 @@ async function notifyAgentReload(slug: string): Promise<void> {
     const tenant = await getTenantPrivateBySlug(slug);
     if (!tenant) return;
 
-    const agentUrl = `http://localhost:${tenant.agentApiPort}`;
+    // In Docker: agent is always at port 3001 on the internal network.
+    // Locally: fall back to tenant's configured port.
+    const isDocker = process.env.DOCKER === '1' || process.env.HOSTNAME;
+    const agentHost = isDocker ? 'agent' : 'localhost';
+    const agentPort = isDocker ? 3001 : tenant.agentApiPort || 3001;
+    const agentUrl = `http://${agentHost}:${agentPort}`;
+    const secret = process.env.AGENT_API_SECRET || tenant.agentApiSecret;
     const res = await fetch(`${agentUrl}/reload-credentials`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(tenant.agentApiSecret ? { Authorization: `Bearer ${tenant.agentApiSecret}` } : {}),
+        ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
       },
       signal: AbortSignal.timeout(5000),
     });
@@ -294,12 +300,15 @@ export async function testIntegration(
       case 'openrouter': {
         const key = config.api_key as string;
         if (!key) return { success: false, error: 'API key is required' };
-        const res = await fetch('https://openrouter.ai/api/v1/models', {
+        // /auth/key requires auth and returns key metadata (label, credits, etc.)
+        const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
           headers: { Authorization: `Bearer ${key}` },
           signal: AbortSignal.timeout(10000),
         });
-        if (!res.ok) return { success: false, error: `OpenRouter API: ${res.status}` };
-        return { success: true, details: 'API key valid' };
+        if (!res.ok) return { success: false, error: `Chave inválida (${res.status})` };
+        const data = (await res.json()) as { data?: { label?: string; limit?: number } };
+        const label = data?.data?.label ?? 'válida';
+        return { success: true, details: `Chave ${label}` };
       }
 
       case 'anthropic': {

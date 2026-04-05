@@ -1,6 +1,6 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db } from '@hawk/db';
+import { db, withSchema } from '@hawk/db';
 import { DOCKER_LOG_SERVICES, streamDockerLogs } from '../docker-logs.js';
 import { getTailLines, subscribeToLogs } from '../log-buffer.js';
 import { handleAgentsRoute } from './routes/agents.js';
@@ -238,20 +238,24 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
     const sid = sessionId;
     const message = content;
 
-    // Ensure agent_conversations entry exists (upsert)
-    const now = new Date().toISOString();
-    await requireSupabase().from('agent_conversations').upsert(
-      {
-        session_id: sid,
-        last_message_at: now,
-        channel: 'web',
-      },
-      { onConflict: 'session_id' },
-    );
+    // Resolve tenant schema for this WebSocket session
+    const wsTenantSlug = state.sessionTenants.get(sid);
+    const wsSchemaName = `tenant_${wsTenantSlug ?? 'ten1'}`;
 
-    ws.send(JSON.stringify({ type: 'chat_typing', sessionId: sid }));
+    const runWsChat = async () => {
+      // Ensure agent_conversations entry exists (upsert)
+      const now = new Date().toISOString();
+      await requireSupabase().from('agent_conversations').upsert(
+        {
+          session_id: sid,
+          last_message_at: now,
+          channel: 'web',
+        },
+        { onConflict: 'session_id' },
+      );
 
-    try {
+      ws.send(JSON.stringify({ type: 'chat_typing', sessionId: sid }));
+
       // Stream chunks to the client as they arrive from LLM
       const onChunk = (chunk: string) => {
         try {
@@ -298,6 +302,10 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
           durationMs,
         }),
       );
+    };
+
+    try {
+      await withSchema(wsSchemaName, runWsChat);
     } catch (err) {
       ws.send(
         JSON.stringify({
@@ -331,7 +339,7 @@ async function handleChat(
 
   try {
     const result = await withSchema(schemaName, () =>
-      handleWebMessage(sessionId, message, onChunk, tenantCtx?.openrouterConfig?.api_key),
+      handleWebMessage(sessionId, message, onChunk, tenantCtx?.credentials?.openrouterConfig?.api_key),
     );
     return {
       content: result.response,
@@ -497,6 +505,10 @@ const agentServer = Bun.serve({
     const authError = requireAuth(req);
     if (authError) return authError;
 
+    // Wrap all authenticated HTTP routes in the correct tenant schema context.
+    // The X-Hawk-Tenant header is forwarded by the Next.js proxy.
+    const hawkTenant = req.headers.get('X-Hawk-Tenant');
+    const dispatchRoutes = async (): Promise<Response> => {
     if (path === '/reload-credentials' && method === 'POST') {
       try {
         const { tenantManager } = await import('../tenant-manager.js');
@@ -1008,7 +1020,13 @@ const agentServer = Bun.serve({
       });
     }
 
-    return new Response('Not Found', { status: 404 });
+      return new Response('Not Found', { status: 404 });
+    };
+
+    if (hawkTenant) {
+      return withSchema(`tenant_${hawkTenant}`, dispatchRoutes);
+    }
+    return dispatchRoutes();
   },
 });
 
