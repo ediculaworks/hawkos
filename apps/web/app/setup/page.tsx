@@ -285,7 +285,13 @@ export default function SetupPage() {
         }
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
-        setError('Algo deu errado. Tente novamente.');
+        const msg = err instanceof Error ? err.message : '';
+        const isRateLimit = msg.includes('429') || msg.toLowerCase().includes('rate');
+        setError(
+          isRateLimit
+            ? 'Limite de requisições atingido. Aguarde alguns segundos e tente novamente.'
+            : msg || 'Algo deu errado. Tente novamente.',
+        );
         setMessages((prev) => prev.filter((m) => m.content !== ''));
       } finally {
         setStreaming(false);
