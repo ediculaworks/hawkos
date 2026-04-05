@@ -500,7 +500,7 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
         )}
       </div>
 
-      <CreateTenantModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
+      {showCreateModal && <CreateTenantModal onClose={() => setShowCreateModal(false)} />}
 
       {/* Agent Logs Viewer */}
       <div className="bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] rounded-[var(--radius-lg)] overflow-hidden">

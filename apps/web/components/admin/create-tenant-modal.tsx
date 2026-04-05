@@ -6,7 +6,6 @@ import toast from 'react-hot-toast';
 import { createTenantAction } from '@/lib/actions/admin';
 
 interface CreateTenantModalProps {
-  open: boolean;
   onClose: () => void;
 }
 
@@ -44,7 +43,7 @@ function Toggle({
   );
 }
 
-export function CreateTenantModal({ open, onClose }: CreateTenantModalProps) {
+export function CreateTenantModal({ onClose }: CreateTenantModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isPending, startTransition] = useTransition();
   const [showDiscord, setShowDiscord] = useState(false);
@@ -63,15 +62,10 @@ export function CreateTenantModal({ open, onClose }: CreateTenantModalProps) {
   // OpenRouter
   const [apiKey, setApiKey] = useState('');
 
+  // Open modal on mount
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open) {
-      dialog.showModal();
-    } else {
-      dialog.close();
-    }
-  }, [open]);
+    dialogRef.current?.showModal();
+  }, []);
 
   function resetForm() {
     setLabel('');
