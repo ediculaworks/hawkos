@@ -1,6 +1,8 @@
 'use server';
 
+import { createAdminClientFromEnv } from '@hawk/admin';
 import { getPool } from '@hawk/db';
+import { revalidatePath } from 'next/cache';
 
 import { requireAdmin } from '@/lib/auth/session';
 
@@ -133,6 +135,38 @@ export async function updateTenantStatus(tenantId: string, status: string) {
   ]);
 
   return { success: true };
+}
+
+export async function createTenantAction(data: {
+  label: string;
+  discordConfig?: {
+    bot_token?: string;
+    client_id?: string;
+    guild_id?: string;
+    channel_id?: string;
+    authorized_user_id?: string;
+  };
+  openrouterConfig?: {
+    api_key?: string;
+  };
+}): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
+  await requireAdmin();
+
+  try {
+    const admin = createAdminClientFromEnv();
+    const result = await admin.createTenant({
+      label: data.label,
+      discordConfig: data.discordConfig,
+      openrouterConfig: data.openrouterConfig,
+    });
+    if (!result.success || !result.tenant) {
+      return { ok: false, error: result.error ?? 'Erro ao criar tenant' };
+    }
+    revalidatePath('/dashboard/admin');
+    return { ok: true, slug: result.tenant.slug };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Erro ao criar tenant' };
+  }
 }
 
 export async function deleteTenant(tenantId: string) {

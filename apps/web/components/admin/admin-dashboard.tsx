@@ -16,6 +16,8 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 
 import { deleteTenant, updateTenantStatus } from '@/lib/actions/admin';
 
+import { CreateTenantModal } from './create-tenant-modal';
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface LogEntry {
@@ -104,6 +106,7 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
   const logReaderRef = useRef<AbortController | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const LOG_SERVICES = ['agent', 'web', 'postgres', 'caddy'] as const;
 
@@ -254,8 +257,15 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
 
       {/* Tenant Table */}
       <div className="bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] rounded-[var(--radius-lg)] overflow-hidden">
-        <div className="px-[var(--space-4)] py-[var(--space-3)] border-b border-[var(--color-border-subtle)]">
+        <div className="px-[var(--space-4)] py-[var(--space-3)] border-b border-[var(--color-border-subtle)] flex items-center justify-between">
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Tenants</h2>
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 transition-opacity"
+          >
+            + Novo Tenant
+          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -489,6 +499,8 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
           </div>
         )}
       </div>
+
+      <CreateTenantModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
 
       {/* Agent Logs Viewer */}
       <div className="bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] rounded-[var(--radius-lg)] overflow-hidden">
