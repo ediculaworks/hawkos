@@ -239,8 +239,11 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
     const sid = sessionId;
     const message = content;
 
-    // Resolve tenant schema for this WebSocket session
-    const wsTenantSlug = state.sessionTenants.get(sid);
+    // Resolve tenant schema for this WebSocket session.
+    // Falls back to tenantSlug in the message payload (sent by client as defensive measure).
+    const wsTenantSlug =
+      state.sessionTenants.get(sid) ??
+      (typeof data.tenantSlug === 'string' ? data.tenantSlug : undefined);
     const wsSchemaName = `tenant_${wsTenantSlug ?? 'ten1'}`;
 
     const runWsChat = async () => {

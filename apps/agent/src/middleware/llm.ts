@@ -83,10 +83,20 @@ export const llmMiddleware: Middleware = {
           return await callLLMOnce(msgs, stream, model, hasTools, ctx);
         } catch (err) {
           const status = (err as { status?: number }).status;
-          if (status === 429 || status === 403) {
-            console.warn(`[middleware:llm] Model ${model} returned ${status}, trying fallback...`);
+          const isRetriable =
+            status === 429 ||
+            status === 403 ||
+            (err instanceof Error &&
+              (err.name === 'TimeoutError' ||
+                err.name === 'AbortError' ||
+                err.message.toLowerCase().includes('aborted') ||
+                err.message.toLowerCase().includes('timed out') ||
+                err.message.toLowerCase().includes('econnreset')));
+          if (isRetriable) {
+            const reason = status ?? (err instanceof Error ? err.message : 'unknown');
+            console.warn(`[middleware:llm] Model ${model} failed (${reason}), trying fallback...`);
             if (i < modelsToTry.length - 1) {
-              await new Promise((r) => setTimeout(r, 2000));
+              await new Promise((r) => setTimeout(r, 1000));
               continue;
             }
           }

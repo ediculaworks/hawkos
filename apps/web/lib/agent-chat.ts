@@ -453,6 +453,7 @@ export function useChat() {
         type: 'chat_message',
         sessionId: sid,
         content,
+        tenantSlug: getTenantSlug(),
       }),
     );
   };

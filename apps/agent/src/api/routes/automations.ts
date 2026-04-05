@@ -55,6 +55,30 @@ export const AUTOMATIONS = [
     cron: '0 * * * *',
     category: 'system',
   },
+  {
+    name: 'gap-scanner',
+    description: 'Gap Scanner — detecta padrões e lacunas (Sábado 03:00)',
+    cron: '0 3 * * 6',
+    category: 'system',
+  },
+  {
+    name: 'memory-forgetter',
+    description: 'Memory Forgetter — arquiva memórias inativas (Domingo 02:00)',
+    cron: '0 2 * * 0',
+    category: 'system',
+  },
+  {
+    name: 'net-worth-snapshot',
+    description: 'Net Worth Snapshot (1º dia do mês, 06:00)',
+    cron: '0 6 1 * *',
+    category: 'finances',
+  },
+  {
+    name: 'streak-guardian',
+    description: 'Streak Guardian — verifica hábitos (23:30)',
+    cron: '30 23 * * *',
+    category: 'health',
+  },
 ];
 
 export async function handleAutomationsRoute(
