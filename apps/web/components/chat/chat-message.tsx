@@ -29,7 +29,11 @@ function ChatMessageInner({ message, agent, isLast, onRetry, onQuickReply }: Cha
 }
 
 export const ChatMessageBubble = memo(ChatMessageInner, (prev, next) => {
-  return prev.message.content === next.message.content && prev.isLast === next.isLast;
+  return (
+    prev.message.content === next.message.content &&
+    prev.message.streaming === next.message.streaming &&
+    prev.isLast === next.isLast
+  );
 });
 
 function formatTimestamp(dateStr: string | undefined): string {
