@@ -4,9 +4,12 @@
  *
  * Stops when it receives `data: [DONE]` or the stream ends.
  */
-export async function* parseSseStream(
-  response: Response,
-): AsyncGenerator<{ type: string; content?: string; payload?: Record<string, unknown>; error?: string }> {
+export async function* parseSseStream(response: Response): AsyncGenerator<{
+  type: string;
+  content?: string;
+  payload?: Record<string, unknown>;
+  error?: string;
+}> {
   const reader = response.body?.getReader();
   if (!reader) return;
 

@@ -3,6 +3,7 @@
  * These complement the existing direct-API tools (github.ts etc.)
  */
 
+import { z } from 'zod';
 import type { ToolDefinition } from './types.js';
 
 export const extensionTools: Record<string, ToolDefinition> = {
@@ -16,6 +17,7 @@ export const extensionTools: Record<string, ToolDefinition> = {
         limit: { type: 'number', description: 'Número de repos (default: 15)' },
       },
     },
+    schema: z.object({ limit: z.number().int().min(1).max(100).optional() }),
     handler: async (args: { limit?: number }) => {
       const { getRepos } = await import('@hawk/extensions/github/queries');
       const repos = await getRepos(args.limit ?? 15);
@@ -41,6 +43,7 @@ export const extensionTools: Record<string, ToolDefinition> = {
         limit: { type: 'number', description: 'Número de PRs (default: 15)' },
       },
     },
+    schema: z.object({ limit: z.number().int().min(1).max(100).optional() }),
     handler: async (args: { limit?: number }) => {
       const { getRecentPRs } = await import('@hawk/extensions/github/queries');
       const prs = await getRecentPRs(args.limit ?? 15);
@@ -76,6 +79,10 @@ export const extensionTools: Record<string, ToolDefinition> = {
         },
       },
     },
+    schema: z.object({
+      limit: z.number().int().min(1).max(100).optional(),
+      status: z.string().optional(),
+    }),
     handler: async (args: { limit?: number; status?: string }) => {
       const { getTasks, getTasksByStatus } = await import('@hawk/extensions/clickup/queries');
       const tasks = args.status
@@ -117,6 +124,7 @@ export const extensionTools: Record<string, ToolDefinition> = {
       },
       required: ['extension'],
     },
+    schema: z.object({ extension: z.string().min(1) }),
     handler: async (args: { extension: string }) => {
       const { extensionRegistry } = await import('@hawk/extensions/core/registry');
       const { getConnection, upsertConnection } = await import('@hawk/extensions/core/credentials');

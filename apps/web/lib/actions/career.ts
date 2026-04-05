@@ -1,14 +1,24 @@
 'use server';
 
 import {
-  createProject,
-  createWorkspace,
+  getCareerProfile,
   getWorkSummary,
   listActiveProjects,
+  listCareerCertifications,
+  listCareerEducations,
+  listCareerExperiences,
+  listCareerSkills,
   listRecentWorkLogs,
   listWorkspaces,
-  logWorkDirect,
-} from '@hawk/module-career/queries';
+} from '@hawk/module-career';
+import type {
+  CareerCertification,
+  CareerEducation,
+  CareerExperience,
+  CareerProfile,
+  CareerSkill,
+} from '@hawk/module-career';
+import { createProject, createWorkspace, logWorkDirect } from '@hawk/module-career/queries';
 import type {
   CreateProjectInput,
   CreateWorkspaceInput,
@@ -52,4 +62,26 @@ export async function logWork(input: {
   billable?: boolean;
 }): Promise<WorkLog> {
   return withTenant(async () => logWorkDirect(input));
+}
+
+// ── Career Profile / Development ──────────────────────────────────────────────
+
+export async function fetchCareerProfile(): Promise<CareerProfile | null> {
+  return withTenant(async () => getCareerProfile());
+}
+
+export async function fetchCareerExperiences(): Promise<CareerExperience[]> {
+  return withTenant(async () => listCareerExperiences());
+}
+
+export async function fetchCareerEducations(): Promise<CareerEducation[]> {
+  return withTenant(async () => listCareerEducations());
+}
+
+export async function fetchCareerSkills(): Promise<CareerSkill[]> {
+  return withTenant(async () => listCareerSkills());
+}
+
+export async function fetchCareerCertifications(): Promise<CareerCertification[]> {
+  return withTenant(async () => listCareerCertifications());
 }

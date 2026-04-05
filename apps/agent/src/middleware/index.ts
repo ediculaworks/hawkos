@@ -13,6 +13,7 @@
  * 8. persistence (post: save response, log activity)
  */
 
+import { metrics } from '../metrics.js';
 import { contextMiddleware } from './context.js';
 import { historyMiddleware } from './history.js';
 import { llmMiddleware } from './llm.js';
@@ -21,22 +22,47 @@ import { persistenceMiddleware } from './persistence.js';
 import { routingMiddleware } from './routing.js';
 import { securityMiddleware } from './security.js';
 import { createHandlerContext, createPipeline } from './types.js';
+import type { Middleware } from './types.js';
 
 export { createHandlerContext } from './types.js';
 export type { HandlerContext, Middleware, MiddlewareFn } from './types.js';
+
+/**
+ * Wraps a middleware with Prometheus timing, error counting, and span recording.
+ */
+function instrument(name: string, mw: Middleware): Middleware {
+  return {
+    name: mw.name,
+    execute: async (ctx, next) => {
+      const startMs = performance.now();
+      try {
+        await mw.execute(ctx, next);
+        const endMs = performance.now();
+        const durationSeconds = (endMs - startMs) / 1000;
+        metrics.observeHistogram('hawk_pipeline_latency_seconds', durationSeconds, { stage: name });
+        ctx.spans.push({ name, startMs, endMs });
+      } catch (err) {
+        const endMs = performance.now();
+        ctx.spans.push({ name, startMs, endMs, metadata: { error: String(err) } });
+        metrics.incCounter('hawk_errors_total', { component: name, code: 'middleware_error' });
+        throw err;
+      }
+    },
+  };
+}
 
 /**
  * The default middleware pipeline for the agent handler.
  * persistence wraps the entire chain (pre/post processing via next()).
  */
 export const defaultPipeline = createPipeline([
-  persistenceMiddleware,
-  securityMiddleware,
-  contextMiddleware,
-  historyMiddleware,
-  routingMiddleware,
-  messageBuilderMiddleware,
-  llmMiddleware,
+  instrument('persistence', persistenceMiddleware),
+  instrument('security', securityMiddleware),
+  instrument('context', contextMiddleware),
+  instrument('history', historyMiddleware),
+  instrument('routing', routingMiddleware),
+  instrument('message_builder', messageBuilderMiddleware),
+  instrument('llm', llmMiddleware),
 ]);
 
 export interface PipelineResult {
@@ -59,8 +85,15 @@ export async function runPipeline(params: {
   attachments?: import('../handler.js').Attachment[];
   tenantApiKey?: string;
 }): Promise<PipelineResult> {
+  metrics.incCounter('hawk_messages_total', { channel: params.channel });
+  metrics.incGauge('hawk_active_sessions');
+
   const ctx = createHandlerContext(params);
-  await defaultPipeline(ctx);
+  try {
+    await defaultPipeline(ctx);
+  } finally {
+    metrics.decGauge('hawk_active_sessions');
+  }
 
   if (!ctx.response) {
     throw new Error('Pipeline completed without generating a response');

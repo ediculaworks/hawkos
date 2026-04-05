@@ -1,6 +1,6 @@
-import { type HawkJwtPayload, verifyToken } from "@hawk/auth";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { type HawkJwtPayload, verifyToken } from '@hawk/auth';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 export async function getSession(): Promise<HawkJwtPayload | null> {
   const cookieStore = await cookies();

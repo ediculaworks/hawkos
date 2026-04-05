@@ -9,6 +9,7 @@ import {
   listCareerExperiences,
   listCareerSkills,
 } from '@hawk/module-career';
+import { z } from 'zod';
 
 import type { ToolDefinition } from './types.js';
 
@@ -28,6 +29,9 @@ export const careerTools: Record<string, ToolDefinition> = {
         },
       },
     },
+    schema: z.object({
+      format: z.enum(['full', 'summary']).optional(),
+    }),
     handler: async (args: { format?: string }) => {
       const [profile, experiences, educations, skills, certifications] = await Promise.all([
         getCareerProfile().catch(() => null),

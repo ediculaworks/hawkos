@@ -170,10 +170,7 @@ export function SectionAppearance() {
                   }`}
                 >
                   {/* Theme preview */}
-                  <div
-                    className="p-[var(--space-3)]"
-                    style={{ backgroundColor: t.colors.bg }}
-                  >
+                  <div className="p-[var(--space-3)]" style={{ backgroundColor: t.colors.bg }}>
                     {/* Mini mockup */}
                     <div className="flex gap-1.5 mb-2">
                       <div
@@ -208,10 +205,7 @@ export function SectionAppearance() {
                     className="px-[var(--space-3)] py-[var(--space-2)] text-center"
                     style={{ backgroundColor: t.colors.surface }}
                   >
-                    <span
-                      className="text-xs font-medium"
-                      style={{ color: t.colors.text }}
-                    >
+                    <span className="text-xs font-medium" style={{ color: t.colors.text }}>
                       {t.label}
                     </span>
                     {!t.available && (
@@ -234,6 +228,7 @@ export function SectionAppearance() {
                         fill="none"
                         className="text-white"
                       >
+                        <title>Selecionado</title>
                         <path
                           d="M2 5L4 7L8 3"
                           stroke="currentColor"

@@ -1,16 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils/cn';
-import {
-  Bell,
-  Bot,
-  Database,
-  type LucideIcon,
-  Palette,
-  Plug,
-  Settings,
-  User,
-} from 'lucide-react';
+import { Bell, Bot, Database, type LucideIcon, Palette, Plug, Settings, User } from 'lucide-react';
 
 export type SettingsSection =
   | 'general'

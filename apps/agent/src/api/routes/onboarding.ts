@@ -31,8 +31,11 @@ const COMPLETE_ONBOARDING_TOOL = {
     parameters: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'The user\'s name (required)' },
-        birthDate: { type: 'string', description: 'ISO date YYYY-MM-DD, or empty string if skipped' },
+        name: { type: 'string', description: "The user's name (required)" },
+        birthDate: {
+          type: 'string',
+          description: 'ISO date YYYY-MM-DD, or empty string if skipped',
+        },
         timezone: { type: 'string', description: 'IANA timezone string' },
         bio: { type: 'string', description: 'Short bio, or empty string if skipped' },
         goals: { type: 'string', description: 'Main goals, or empty string if skipped' },
@@ -59,7 +62,8 @@ const COMPLETE_ONBOARDING_TOOL = {
         },
         openrouterApiKey: {
           type: 'string',
-          description: 'OpenRouter API key (sk-or-...) if the user provided one, or empty string if skipped',
+          description:
+            'OpenRouter API key (sk-or-...) if the user provided one, or empty string if skipped',
         },
       },
       required: ['name'],
@@ -147,7 +151,7 @@ export async function handleOnboardingRoute(
         });
 
         // Accumulate tool call data across streaming chunks
-        let toolCallId = '';
+        let _toolCallId = '';
         let toolCallName = '';
         let toolCallArgs = '';
         let isToolCall = false;
@@ -170,7 +174,7 @@ export async function handleOnboardingRoute(
             isToolCall = true;
             const tc = delta.tool_calls[0];
             if (tc) {
-              if (tc.id) toolCallId = tc.id;
+              if (tc.id) _toolCallId = tc.id;
               if (tc.function?.name) toolCallName = tc.function.name;
               if (tc.function?.arguments) toolCallArgs += tc.function.arguments;
             }
@@ -193,8 +197,17 @@ export async function handleOnboardingRoute(
 
           // Always enable ALL modules and agents — user cannot disable them during onboarding
           const ALL_MODULES = [
-            'finances', 'health', 'people', 'career', 'objectives', 'routine',
-            'assets', 'entertainment', 'legal', 'housing', 'calendar',
+            'finances',
+            'health',
+            'people',
+            'career',
+            'objectives',
+            'routine',
+            'assets',
+            'entertainment',
+            'legal',
+            'housing',
+            'calendar',
           ];
           const ALL_AGENTS = ['bull', 'wolf', 'owl', 'bee', 'beaver', 'fox', 'peacock'];
 

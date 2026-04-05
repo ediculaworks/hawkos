@@ -27,10 +27,12 @@ function calcMoodScore(mood: number | null, energy: number | null): number {
   return moodScore + energyScore;
 }
 
-function calcMedsScore(taken: number, skipped: number): number {
-  const total = taken + skipped;
+function calcMedsScore(taken: number | null, skipped: number | null): number {
+  const t = taken ?? 0;
+  const s = skipped ?? 0;
+  const total = t + s;
   if (total === 0) return 20;
-  return (taken / total) * 20;
+  return Math.round((t / total) * 20);
 }
 
 function calcCannabisPenalty(g: number | null): number {
@@ -47,7 +49,8 @@ function calcTobaccoPenalty(qty: number | null): number {
 }
 
 function ScoreBar({ score, maxScore, color }: { score: number; maxScore: number; color: string }) {
-  const pct = Math.min((score / maxScore) * 100, 100);
+  const raw = (score / maxScore) * 100;
+  const pct = Number.isNaN(raw) ? 0 : Math.min(raw, 100);
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-2 bg-[var(--color-surface-3)] rounded-full overflow-hidden">
@@ -57,7 +60,7 @@ function ScoreBar({ score, maxScore, color }: { score: number; maxScore: number;
         />
       </div>
       <span className="text-xs font-mono text-[var(--color-text-muted)] w-8 text-right">
-        {score.toFixed(0)}
+        {Number.isNaN(score) ? '0' : score.toFixed(0)}
       </span>
     </div>
   );
@@ -134,7 +137,7 @@ export function HealthScore() {
       severity: 'danger',
     });
   }
-  if (summary.meds_skipped > 0) {
+  if ((summary.meds_skipped ?? 0) > 0) {
     alerts.push({
       icon: <Activity className="h-3 w-3" />,
       text: `${summary.meds_skipped} medicamento(s) não tomado(s)`,

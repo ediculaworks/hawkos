@@ -5,6 +5,7 @@ import {
   logHabit,
 } from '@hawk/module-routine/queries';
 import { eventBus } from '@hawk/shared';
+import { z } from 'zod';
 
 import type { ToolDefinition } from './types.js';
 
@@ -21,6 +22,10 @@ export const routineTools: Record<string, ToolDefinition> = {
       },
       required: ['habit_name'],
     },
+    schema: z.object({
+      habit_name: z.string().min(1),
+      completed: z.boolean().optional(),
+    }),
     handler: async (args: { habit_name: string; completed?: boolean }) => {
       const habit = await findHabitByName(args.habit_name);
       if (!habit) return `Erro: Hábito "${args.habit_name}" não encontrado.`;
@@ -59,6 +64,10 @@ export const routineTools: Record<string, ToolDefinition> = {
       },
       required: ['name', 'frequency'],
     },
+    schema: z.object({
+      name: z.string().min(1).max(100),
+      frequency: z.enum(['daily', 'weekly_2x', 'weekly_3x', 'weekdays']),
+    }),
     handler: async (args: {
       name: string;
       frequency: 'daily' | 'weekly_2x' | 'weekly_3x' | 'weekdays';
@@ -79,6 +88,7 @@ export const routineTools: Record<string, ToolDefinition> = {
       type: 'object',
       properties: {},
     },
+    schema: z.object({}),
     handler: async () => {
       const atRisk = await getHabitsAtRisk();
       const lines: string[] = [];

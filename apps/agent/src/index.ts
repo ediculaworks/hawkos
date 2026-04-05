@@ -5,7 +5,9 @@ import { withSchema } from '@hawk/db';
 import { trainCategorizer } from '@hawk/module-finances/categorizer';
 import { trainPredictionModels } from '@hawk/module-health/predictor';
 import { computeAdaptiveHalfLives, learnImportanceWeights } from '@hawk/module-memory';
+import { loadConfig } from '@hawk/shared';
 import cron, { type ScheduledTask } from 'node-cron';
+import { startAlertChecker } from './alerts.js';
 import { stopApiServer } from './api/server.js';
 import { startAlertsCron } from './automations/alerts.js';
 import { setAnalyticsNotifier } from './automations/analytics.js';
@@ -26,6 +28,7 @@ import { getMainChannelId, sendToChannel } from './channels/discord.js';
 import { channelRegistry } from './channels/registry.js';
 import { setupContextModules } from './context-setup.js';
 import { initializeFromAdminDb } from './credential-manager.js';
+import { registerActivitySubscribers } from './event-subscribers/activity-logger.js';
 import {
   hookRegistry,
   sessionEndMemoryHook,
@@ -226,6 +229,15 @@ function startLegacyCrons(): void {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
+  // Validate all env vars at startup — exits with clear error if any required var is missing
+  loadConfig();
+
+  // Register event bus subscribers (activity logging, real-time push)
+  registerActivitySubscribers();
+
+  // Start alert checker (metrics thresholds → system:alert events)
+  startAlertChecker();
+
   console.log('[hawk] Starting Hawk OS agent...');
 
   const multiTenant = isMultiTenantMode();

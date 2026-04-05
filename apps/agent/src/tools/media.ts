@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { ToolDefinition } from './types.js';
 
 const _MAX_IMAGE_DIMENSION = 2000;
@@ -20,6 +21,7 @@ export const mediaTools: Record<string, ToolDefinition> = {
       },
       required: ['image_url'],
     },
+    schema: z.object({ image_url: z.string().url(), question: z.string().optional() }),
     handler: async (args: { image_url: string; question?: string }) => {
       const OpenAI = (await import('openai')).default;
       const client = new OpenAI({

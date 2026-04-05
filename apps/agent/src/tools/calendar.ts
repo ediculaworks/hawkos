@@ -4,6 +4,7 @@ import {
   findFreeSlots,
   updateEvent,
 } from '@hawk/module-calendar/queries';
+import { z } from 'zod';
 
 import type { ToolDefinition } from './types.js';
 
@@ -23,6 +24,13 @@ export const calendarTools: Record<string, ToolDefinition> = {
       },
       required: ['title', 'start_at'],
     },
+    schema: z.object({
+      title: z.string().min(1).max(200),
+      start_at: z.string().min(1),
+      end_at: z.string().optional(),
+      description: z.string().max(2000).optional(),
+      location: z.string().max(200).optional(),
+    }),
     handler: async (args: {
       title: string;
       start_at: string;
@@ -63,6 +71,14 @@ export const calendarTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({
+      id: z.string().uuid(),
+      title: z.string().optional(),
+      start_at: z.string().optional(),
+      end_at: z.string().optional(),
+      description: z.string().optional(),
+      location: z.string().optional(),
+    }),
     handler: async (args: {
       id: string;
       title?: string;
@@ -93,6 +109,7 @@ export const calendarTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({ id: z.string().uuid() }),
     handler: async (args: { id: string }) => {
       await deleteEvent(args.id);
       return 'Evento deletado.';
@@ -111,6 +128,10 @@ export const calendarTools: Record<string, ToolDefinition> = {
       },
       required: ['duration_minutes'],
     },
+    schema: z.object({
+      duration_minutes: z.number().int().positive().max(480),
+      days_ahead: z.number().int().min(1).max(30).optional(),
+    }),
     handler: async (args: { duration_minutes: number; days_ahead?: number }) => {
       const from = new Date();
       const to = new Date();

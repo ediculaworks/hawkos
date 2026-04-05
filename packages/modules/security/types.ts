@@ -25,3 +25,22 @@ export type UpdateSecurityItemInput = {
   notes?: string;
   next_review?: string;
 };
+
+export type CreateSecurityItemInput = {
+  name: string;
+  type: SecurityCategory;
+  status?: SecurityStatus;
+  notes?: string;
+  next_review?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type SecurityAuditLog = {
+  id: string;
+  item_id: string;
+  action: string;
+  old_status: SecurityStatus | null;
+  new_status: SecurityStatus | null;
+  notes: string | null;
+  created_at: string;
+};

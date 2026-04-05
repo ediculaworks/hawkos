@@ -9,10 +9,10 @@ import { createMemory } from '@hawk/module-memory/queries';
 import type { MemoryType } from '@hawk/module-memory/types';
 import { getFeatureFlag } from '@hawk/shared';
 import type OpenAI from 'openai';
-import { z } from 'zod';
 import { logActivity } from './activity-logger.js';
 import { hookRegistry } from './hooks/index.js';
-import type { TOOLS } from './tools/index.js';
+import { metrics } from './metrics.js';
+import { TOOLS } from './tools/index.js';
 
 // ── Tool Approval System ─────────────────────────────────────────────────
 // Tracks which dangerous tool calls have been approved by the user per session.
@@ -65,57 +65,8 @@ setInterval(() => {
   }
 }, 60_000);
 
-// ── Tool arg validation schemas ───────────────────────────────────────────
-const saveMemorySchema = z.object({
-  content: z.string().min(1).max(4000),
-  memory_type: z.enum(['profile', 'preference', 'entity', 'event', 'case', 'pattern']),
-  module: z.string().optional(),
-  importance: z.number().int().min(1).max(10).optional(),
-  confidence: z.number().min(0).max(1).optional(),
-});
-
-const createTransactionSchema = z.object({
-  amount: z.number().positive(),
-  type: z.enum(['expense', 'income']),
-  category: z.string().min(1),
-  description: z.string().optional(),
-  account: z.string().optional(),
-});
-
-const logSleepSchema = z.object({
-  duration_h: z.number().min(0).max(24),
-  quality: z.number().int().min(1).max(10).optional(),
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-});
-
-const logWorkoutSchema = z.object({
-  exercise_name: z.string().min(1),
-  sets: z.number().int().positive().optional(),
-  reps: z.number().int().positive().optional(),
-  weight_kg: z.number().min(0).optional(),
-  duration_min: z.number().positive().optional(),
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-});
-
-const createPersonSchema = z.object({
-  name: z.string().min(1).max(200),
-  relationship_type: z.string().optional(),
-  notes: z.string().optional(),
-});
-
-const TOOL_SCHEMAS: Record<string, z.ZodTypeAny> = {
-  save_memory: saveMemorySchema,
-  create_transaction: createTransactionSchema,
-  log_sleep: logSleepSchema,
-  log_workout: logWorkoutSchema,
-  create_person: createPersonSchema,
-};
+// Schemas are now colocated in each tool definition file.
+// tool-executor validates via toolDef.schema when present.
 
 export async function executeToolCall(
   toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
@@ -130,12 +81,16 @@ export async function executeToolCall(
     return `Erro: argumentos inválidos para "${name}" (JSON malformado)`;
   }
 
-  // Validate args against schema if one exists for this tool
-  const schema = TOOL_SCHEMAS[name];
-  if (schema) {
-    const parsed = schema.safeParse(args);
+  // ── Validate args against tool schema (if defined) ──────────────────────
+  // Uses schema from active toolMap OR falls back to global TOOLS registry.
+  // Runs before save_memory special handler so validation always applies.
+  const toolDefForValidation = toolMap.get(name) ?? TOOLS[name as keyof typeof TOOLS];
+  if (toolDefForValidation?.schema) {
+    const parsed = toolDefForValidation.schema.safeParse(args);
     if (!parsed.success) {
-      const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
+      const issues = parsed.error.issues
+        .map((i) => `${i.path.join('.') || 'field'}: ${i.message}`)
+        .join(', ');
       return `Erro: argumentos inválidos para "${name}" — ${issues}`;
     }
     args = parsed.data as Record<string, unknown>;
@@ -199,6 +154,13 @@ export async function executeToolCall(
     ]);
     const durationMs = Date.now() - startMs;
 
+    metrics.observeHistogram('hawk_tool_latency_seconds', durationMs / 1000, { tool: name });
+    metrics.incCounter('hawk_tool_calls_total', {
+      tool: name,
+      module: toolDef.modules[0] ?? 'unknown',
+      status: 'success',
+    });
+
     hookRegistry
       .emit('tool:after', {
         sessionId,
@@ -217,6 +179,12 @@ export async function executeToolCall(
 
     return result;
   } catch (err) {
+    metrics.incCounter('hawk_tool_calls_total', {
+      tool: name,
+      module: toolDef.modules[0] ?? 'unknown',
+      status: 'error',
+    });
+    metrics.incCounter('hawk_errors_total', { component: 'tool_executor', code: name });
     const errorMsg = `Erro ao executar ${name}: ${err}`;
     logActivity('error', errorMsg, toolDef.modules[0]).catch(() => {});
     return errorMsg;

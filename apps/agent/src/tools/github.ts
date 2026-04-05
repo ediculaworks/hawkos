@@ -3,6 +3,7 @@
  * Uses GitHub REST API v3.
  */
 
+import { z } from 'zod';
 import type { ToolDefinition } from './types.js';
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -43,6 +44,10 @@ export const githubTools: Record<string, ToolDefinition> = {
         count: { type: 'number', description: 'Número de eventos (default: 10, max 30)' },
       },
     },
+    schema: z.object({
+      username: z.string().optional(),
+      count: z.number().int().min(1).max(30).optional(),
+    }),
     handler: async (args: { username?: string; count?: number }) => {
       const user = args.username ?? GITHUB_USER;
       if (!user) return 'Erro: Configure GITHUB_USERNAME no .env';
@@ -98,6 +103,10 @@ export const githubTools: Record<string, ToolDefinition> = {
         },
       },
     },
+    schema: z.object({
+      username: z.string().optional(),
+      count: z.number().int().min(1).max(100).optional(),
+    }),
     handler: async (args: { username?: string; sort?: string }) => {
       const user = args.username ?? GITHUB_USER;
       if (!user) return 'Erro: Configure GITHUB_USERNAME no .env';
@@ -148,6 +157,12 @@ export const githubTools: Record<string, ToolDefinition> = {
       },
       required: ['repo', 'title'],
     },
+    schema: z.object({
+      repo: z.string().min(1),
+      title: z.string().min(1),
+      body: z.string().optional(),
+      labels: z.array(z.string()).optional(),
+    }),
     handler: async (args: { repo: string; title: string; body?: string; labels?: string[] }) => {
       if (!GITHUB_TOKEN) return 'Erro: GITHUB_TOKEN necessário para criar issues.';
 

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
+import { z } from 'zod';
 import type { ToolDefinition } from './types.js';
 
 const MAX_READ_BYTES = 50_000;
@@ -27,6 +28,11 @@ export const filesystemTools: Record<string, ToolDefinition> = {
       },
       required: ['path'],
     },
+    schema: z.object({
+      path: z.string().min(1),
+      lines: z.number().int().positive().optional(),
+      offset: z.number().int().min(0).optional(),
+    }),
     handler: async (args: { path: string; lines?: number; offset?: number }) => {
       const fullPath = resolve(process.cwd(), args.path);
 
@@ -76,6 +82,7 @@ export const filesystemTools: Record<string, ToolDefinition> = {
       },
       required: ['path', 'content'],
     },
+    schema: z.object({ path: z.string().min(1), content: z.string() }),
     handler: async (args: { path: string; content: string }) => {
       const fullPath = resolve(process.cwd(), args.path);
 
@@ -104,6 +111,7 @@ export const filesystemTools: Record<string, ToolDefinition> = {
         recursive: { type: 'boolean', description: 'Listar recursivamente (default: false)' },
       },
     },
+    schema: z.object({ path: z.string().optional(), pattern: z.string().optional() }),
     handler: async (args: { path?: string; pattern?: string; recursive?: boolean }) => {
       const dir = resolve(process.cwd(), args.path ?? '.');
 

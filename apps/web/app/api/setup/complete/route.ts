@@ -34,7 +34,15 @@ const VALID_MODULES = [
 
 const VALID_AGENTS = ['bull', 'wolf', 'owl', 'bee', 'beaver', 'fox', 'peacock'];
 
-const VALID_WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const VALID_WEEKDAYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+];
 
 const TIME_RE = /^\d{2}:\d{2}$/;
 
@@ -70,18 +78,18 @@ export async function POST(request: Request) {
     const goals = body.goals?.trim().slice(0, 500) || null;
     const avatarUrl = body.avatarUrl || null;
 
-    const checkinMorning = body.checkinMorning && TIME_RE.test(body.checkinMorning)
-      ? body.checkinMorning
-      : '09:00';
-    const checkinEvening = body.checkinEvening && TIME_RE.test(body.checkinEvening)
-      ? body.checkinEvening
-      : '22:00';
-    const weeklyReviewDay = body.weeklyReviewDay && VALID_WEEKDAYS.includes(body.weeklyReviewDay)
-      ? body.weeklyReviewDay
-      : 'sunday';
-    const weeklyReviewTime = body.weeklyReviewTime && TIME_RE.test(body.weeklyReviewTime)
-      ? body.weeklyReviewTime
-      : '20:00';
+    const checkinMorning =
+      body.checkinMorning && TIME_RE.test(body.checkinMorning) ? body.checkinMorning : '09:00';
+    const checkinEvening =
+      body.checkinEvening && TIME_RE.test(body.checkinEvening) ? body.checkinEvening : '22:00';
+    const weeklyReviewDay =
+      body.weeklyReviewDay && VALID_WEEKDAYS.includes(body.weeklyReviewDay)
+        ? body.weeklyReviewDay
+        : 'sunday';
+    const weeklyReviewTime =
+      body.weeklyReviewTime && TIME_RE.test(body.weeklyReviewTime)
+        ? body.weeklyReviewTime
+        : '20:00';
 
     const enabledModules = Array.isArray(body.enabledModules)
       ? body.enabledModules.filter((m) => VALID_MODULES.includes(m))
@@ -126,10 +134,7 @@ export async function POST(request: Request) {
       // 2. Update modules — enable selected, disable rest
       for (const modId of VALID_MODULES) {
         const enabled = enabledModules.includes(modId);
-        await tx.unsafe(
-          'UPDATE modules SET enabled = $1 WHERE id = $2',
-          [enabled, modId],
-        );
+        await tx.unsafe('UPDATE modules SET enabled = $1 WHERE id = $2', [enabled, modId]);
       }
 
       // 3. Upsert agent_settings with timezone + schedule columns
@@ -152,7 +157,7 @@ export async function POST(request: Request) {
 
       // 4. Register owner_email in admin.tenants so login auto-resolves to this workspace
       await tx.unsafe(
-        `UPDATE admin.tenants SET owner_email = $1, updated_at = now() WHERE slug = $2`,
+        'UPDATE admin.tenants SET owner_email = $1, updated_at = now() WHERE slug = $2',
         [payload.email, tenantSlug],
       );
     });

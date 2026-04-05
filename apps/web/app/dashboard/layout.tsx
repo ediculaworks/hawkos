@@ -1,7 +1,6 @@
 'use client';
 
 import { CommandPalette } from '@/components/shell/command-palette';
-import { FloatingAgentCTA } from '@/components/shell/floating-agent-cta';
 import { HydrationGate } from '@/components/shell/hydration-gate';
 import { SetupGuard } from '@/components/shell/setup-guard';
 import { Sidebar } from '@/components/shell/sidebar';
@@ -41,7 +40,6 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           </ErrorBoundary>
         </div>
       </main>
-      <FloatingAgentCTA />
       <CommandPalette />
     </div>
   );

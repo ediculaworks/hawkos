@@ -11,6 +11,7 @@ import {
   trackToolCall,
 } from '../cost-tracker.js';
 import { getChatClient, getWorkerClient } from '../llm-client.js';
+import { metrics } from '../metrics.js';
 import {
   estimateTokenCount,
   getContextLimit,
@@ -79,9 +80,26 @@ export const llmMiddleware: Middleware = {
     async function callLLM(msgs: OpenAI.ChatCompletionMessageParam[], stream: boolean) {
       for (let i = 0; i < modelsToTry.length; i++) {
         const model = modelsToTry[i]!;
+        const llmStart = performance.now();
         try {
-          return await callLLMOnce(msgs, stream, model, hasTools, ctx);
+          const res = await callLLMOnce(msgs, stream, model, hasTools, ctx);
+          metrics.observeHistogram(
+            'hawk_llm_latency_seconds',
+            (performance.now() - llmStart) / 1000,
+            { model, tier: ctx.selectedModel === model ? 'primary' : 'fallback' },
+          );
+          metrics.incCounter('hawk_llm_calls_total', {
+            model,
+            tier: ctx.selectedModel === model ? 'primary' : 'fallback',
+            status: 'success',
+          });
+          return res;
         } catch (err) {
+          metrics.incCounter('hawk_llm_calls_total', {
+            model,
+            tier: ctx.selectedModel === model ? 'primary' : 'fallback',
+            status: 'error',
+          });
           const status = (err as { status?: number }).status;
           const isRetriable =
             status === 429 ||
@@ -96,6 +114,11 @@ export const llmMiddleware: Middleware = {
             const reason = status ?? (err instanceof Error ? err.message : 'unknown');
             console.warn(`[middleware:llm] Model ${model} failed (${reason}), trying fallback...`);
             if (i < modelsToTry.length - 1) {
+              const nextModel = modelsToTry[i + 1]!;
+              metrics.incCounter('hawk_fallbacks_total', {
+                from_model: model,
+                to_model: nextModel,
+              });
               await new Promise((r) => setTimeout(r, 1000));
               continue;
             }
@@ -293,9 +316,12 @@ async function callLLMOnce(
     return { content: content || null, toolCalls: toolCalls.filter(Boolean), finishReason };
   }
 
-  const response = await getClientForModel(model, ctx.tenantApiKey).chat.completions.create(opts as never, {
-    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
-  });
+  const response = await getClientForModel(model, ctx.tenantApiKey).chat.completions.create(
+    opts as never,
+    {
+      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+    },
+  );
   const choice = response.choices[0];
   return {
     content: choice?.message.content ?? null,

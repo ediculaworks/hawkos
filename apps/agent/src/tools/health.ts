@@ -7,6 +7,7 @@ import {
   logWeight,
   logWorkout,
 } from '@hawk/module-health/queries';
+import { z } from 'zod';
 
 import type { ToolDefinition } from './types.js';
 
@@ -24,6 +25,14 @@ export const healthTools: Record<string, ToolDefinition> = {
       },
       required: ['duration_h'],
     },
+    schema: z.object({
+      duration_h: z.number().min(0).max(24),
+      quality: z.number().int().min(1).max(10).optional(),
+      date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+    }),
     handler: async (args: { duration_h: number; quality?: number; date?: string }) => {
       const sleep = await logSleep({
         duration_h: args.duration_h,
@@ -48,6 +57,15 @@ export const healthTools: Record<string, ToolDefinition> = {
       },
       required: ['type'],
     },
+    schema: z.object({
+      type: z.string().min(1),
+      duration_minutes: z.number().positive().optional(),
+      notes: z.string().optional(),
+      date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+    }),
     handler: async (args: {
       type: string;
       duration_minutes?: number;
@@ -84,6 +102,7 @@ export const healthTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({ id: z.string().uuid() }),
     handler: async (args: { id: string }) => {
       await deleteWorkout(args.id);
       return 'Treino deletado.';
@@ -102,6 +121,13 @@ export const healthTools: Record<string, ToolDefinition> = {
       },
       required: ['weight_kg'],
     },
+    schema: z.object({
+      weight_kg: z.number().positive().max(500),
+      date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+    }),
     handler: async (args: { weight_kg: number; date?: string }) => {
       const weight = await logWeight({
         weight_kg: args.weight_kg,
@@ -127,6 +153,14 @@ export const healthTools: Record<string, ToolDefinition> = {
       },
       required: ['workout_id', 'exercise_name', 'set_number'],
     },
+    schema: z.object({
+      workout_id: z.string().uuid(),
+      exercise_name: z.string().min(1),
+      set_number: z.number().int().positive(),
+      reps: z.number().int().positive().optional(),
+      weight_kg: z.number().min(0).optional(),
+      rpe: z.number().min(1).max(10).optional(),
+    }),
     handler: async (args: {
       workout_id: string;
       exercise_name: string;
@@ -156,6 +190,10 @@ export const healthTools: Record<string, ToolDefinition> = {
       },
       required: ['exercise_name'],
     },
+    schema: z.object({
+      exercise_name: z.string().min(1),
+      weeks: z.number().int().min(1).max(52).optional(),
+    }),
     handler: async (args: { exercise_name: string; weeks?: number }) => {
       const history = await getExerciseProgress(args.exercise_name, args.weeks ?? 12);
       if (history.length === 0) return `Sem histórico para "${args.exercise_name}".`;

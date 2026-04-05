@@ -6,8 +6,10 @@ import {
   getCategories,
   getFinanceSummary,
   getPortfolioPositions,
+  listTransactions,
 } from '@hawk/module-finances/queries';
 import { eventBus } from '@hawk/shared';
+import { z } from 'zod';
 
 import type { ToolDefinition } from './types.js';
 
@@ -31,6 +33,13 @@ export const financeTools: Record<string, ToolDefinition> = {
       },
       required: ['amount', 'type', 'category'],
     },
+    schema: z.object({
+      amount: z.number().positive(),
+      type: z.enum(['expense', 'income']),
+      category: z.string().min(1),
+      description: z.string().optional(),
+      account: z.string().optional(),
+    }),
     handler: async (args: {
       amount: number;
       type: 'expense' | 'income';
@@ -85,6 +94,7 @@ export const financeTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({ id: z.string().uuid() }),
     handler: async (args: { id: string }) => {
       await deleteTransaction(args.id);
       return 'Transação deletada.';
@@ -99,6 +109,7 @@ export const financeTools: Record<string, ToolDefinition> = {
       type: 'object',
       properties: {},
     },
+    schema: z.object({}),
     handler: async () => {
       const summary = await getFinanceSummary();
       return `Receitas: R$ ${summary.income.toFixed(2)}\nDespesas: R$ ${summary.expenses.toFixed(2)}\nSaldo: R$ ${summary.net.toFixed(2)}`;
@@ -113,6 +124,7 @@ export const financeTools: Record<string, ToolDefinition> = {
       type: 'object',
       properties: {},
     },
+    schema: z.object({}),
     handler: async () => {
       const positions = await getPortfolioPositions();
       if (positions.length === 0) return 'Nenhum ativo no portfólio.';
@@ -144,6 +156,12 @@ export const financeTools: Record<string, ToolDefinition> = {
         month: { type: 'string', description: 'Mês no formato YYYY-MM (default: mês atual)' },
       },
     },
+    schema: z.object({
+      month: z
+        .string()
+        .regex(/^\d{4}-\d{2}$/)
+        .optional(),
+    }),
     handler: async (args: { month?: string }) => {
       const month = args.month ?? new Date().toISOString().slice(0, 7);
       const budget = await getBudgetVsActual(month);
@@ -162,6 +180,38 @@ export const financeTools: Record<string, ToolDefinition> = {
       return [`**Orçamento ${month}** — ${overBudget.length} categorias excedidas`, ...lines].join(
         '\n',
       );
+    },
+  },
+
+  list_transactions: {
+    name: 'list_transactions',
+    modules: ['finances'],
+    description: 'Lista transações recentes com filtros opcionais',
+    parameters: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['expense', 'income'], description: 'Filtrar por tipo' },
+        limit: { type: 'number', description: 'Quantidade (padrão: 20, máx: 50)' },
+        offset: { type: 'number', description: 'Deslocamento para paginação' },
+      },
+      required: [],
+    },
+    schema: z.object({
+      type: z.enum(['expense', 'income']).optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+      offset: z.number().int().min(0).optional(),
+    }),
+    handler: async (args: { type?: 'expense' | 'income'; limit?: number; offset?: number }) => {
+      const limit = args.limit ?? 20;
+      const offset = args.offset ?? 0;
+      const transactions = await listTransactions(undefined, undefined, undefined, limit, offset);
+      const filtered = args.type ? transactions.filter((t) => t.type === args.type) : transactions;
+      if (filtered.length === 0) return 'Nenhuma transação encontrada.';
+      const lines = filtered.map(
+        (t) =>
+          `• ${t.type === 'expense' ? '↓' : '↑'} R$ ${Math.abs(t.amount).toFixed(2)} — ${t.description ?? 'sem descrição'} (${t.date?.slice(0, 10) ?? ''})`,
+      );
+      return `${filtered.length} transação(ões):\n${lines.join('\n')}`;
     },
   },
 };

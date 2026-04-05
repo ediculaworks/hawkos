@@ -171,7 +171,12 @@ export function SectionGeneral({ profile, onSaved }: SectionGeneralProps) {
             </div>
           </div>
           <p className="text-xs text-[var(--color-text-muted)] mt-[var(--space-3)]">
-            Exemplo: {dateFormat === 'DD/MM/YYYY' ? '04/04/2026' : dateFormat === 'MM/DD/YYYY' ? '04/04/2026' : '2026-04-04'}{' '}
+            Exemplo:{' '}
+            {dateFormat === 'DD/MM/YYYY'
+              ? '04/04/2026'
+              : dateFormat === 'MM/DD/YYYY'
+                ? '04/04/2026'
+                : '2026-04-04'}{' '}
             {timeFormat === '24h' ? '14:30' : '2:30 PM'}
           </p>
         </div>

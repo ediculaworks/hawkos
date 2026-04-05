@@ -38,6 +38,7 @@ interface AdminDashboardProps {
     label: string;
     status: string;
     schemaName: string;
+    ownerEmail: string | null;
     createdAt: string;
     updatedAt: string;
     todayMessages: number;
@@ -267,10 +268,16 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
                   Label
                 </th>
                 <th className="text-left px-[var(--space-4)] py-[var(--space-2)] font-medium">
+                  Email
+                </th>
+                <th className="text-left px-[var(--space-4)] py-[var(--space-2)] font-medium">
+                  Criado em
+                </th>
+                <th className="text-left px-[var(--space-4)] py-[var(--space-2)] font-medium">
                   Status
                 </th>
                 <th className="text-right px-[var(--space-4)] py-[var(--space-2)] font-medium">
-                  Msgs
+                  LLM Calls
                 </th>
                 <th className="text-right px-[var(--space-4)] py-[var(--space-2)] font-medium">
                   Tokens
@@ -300,6 +307,25 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
                   </td>
                   <td className="px-[var(--space-4)] py-[var(--space-3)] text-[var(--color-text-primary)]">
                     {t.label || '-'}
+                  </td>
+                  <td className="px-[var(--space-4)] py-[var(--space-3)] text-[var(--color-text-secondary)]">
+                    {t.ownerEmail ? (
+                      <a
+                        href={`mailto:${t.ownerEmail}`}
+                        className="hover:text-[var(--color-accent)] transition-colors"
+                      >
+                        {t.ownerEmail}
+                      </a>
+                    ) : (
+                      <span className="text-[var(--color-text-muted)]">—</span>
+                    )}
+                  </td>
+                  <td className="px-[var(--space-4)] py-[var(--space-3)] text-[var(--color-text-muted)] whitespace-nowrap">
+                    {new Date(t.createdAt).toLocaleDateString('pt-PT', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
                   </td>
                   <td className="px-[var(--space-4)] py-[var(--space-3)]">
                     <span
@@ -388,7 +414,7 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
               {tenants.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={11}
                     className="px-[var(--space-4)] py-[var(--space-6)] text-center text-[var(--color-text-muted)]"
                   >
                     Nenhum tenant encontrado.

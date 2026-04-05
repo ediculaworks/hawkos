@@ -25,6 +25,7 @@ import {
   listHabitsWithTodayStatus,
 } from '@hawk/module-routine/queries';
 
+import { z } from 'zod';
 import type { ToolDefinition } from './types.js';
 
 export const analyticsTools: Record<string, ToolDefinition> = {
@@ -35,6 +36,7 @@ export const analyticsTools: Record<string, ToolDefinition> = {
     modules: ['finances'],
     description: 'Mostra saldos atuais de todas as contas bancárias e carteiras',
     parameters: { type: 'object', properties: {} },
+    schema: z.object({}),
     handler: async () => {
       const accounts = await getAccounts();
       if (accounts.length === 0) return 'Nenhuma conta cadastrada.';
@@ -73,6 +75,12 @@ export const analyticsTools: Record<string, ToolDefinition> = {
         },
       },
     },
+    schema: z.object({
+      days: z.number().int().min(1).max(365).optional(),
+      category: z.string().optional(),
+      type: z.enum(['expense', 'income']).optional(),
+      limit: z.number().int().min(1).max(200).optional(),
+    }),
     handler: async (args: {
       days?: number;
       category?: string;
@@ -129,6 +137,7 @@ export const analyticsTools: Record<string, ToolDefinition> = {
         months: { type: 'number', description: 'Número de meses (default: 6)' },
       },
     },
+    schema: z.object({ months: z.number().int().min(1).max(24).optional() }),
     handler: async (args: { months?: number }) => {
       const history = await getNetWorthHistory(args.months ?? 6);
       if (history.length === 0) return 'Nenhum snapshot de net worth encontrado.';
@@ -147,6 +156,7 @@ export const analyticsTools: Record<string, ToolDefinition> = {
     modules: ['routine'],
     description: 'Status de todos os hábitos de hoje (feitos e pendentes)',
     parameters: { type: 'object', properties: {} },
+    schema: z.object({}),
     handler: async () => {
       const habits = await listHabitsWithTodayStatus();
       if (habits.length === 0) return 'Nenhum hábito cadastrado.';
@@ -166,6 +176,7 @@ export const analyticsTools: Record<string, ToolDefinition> = {
     modules: ['routine'],
     description: 'Score semanal de rotina com detalhamento por hábito',
     parameters: { type: 'object', properties: {} },
+    schema: z.object({}),
     handler: async () => {
       const [score, summaries] = await Promise.all([getWeeklyRoutineScore(), getWeekSummary()]);
       const lines = [`**Score semanal de rotina: ${score}%**`];
@@ -187,6 +198,7 @@ export const analyticsTools: Record<string, ToolDefinition> = {
     modules: ['health'],
     description: 'Resumo de saúde do dia (sono, treinos, peso, humor)',
     parameters: { type: 'object', properties: {} },
+    schema: z.object({}),
     handler: async () => {
       const summary = await getDailyHealthSummary();
       if (!summary) return 'Nenhum dado de saúde registrado hoje.';
@@ -207,6 +219,7 @@ export const analyticsTools: Record<string, ToolDefinition> = {
     modules: ['health'],
     description: 'Tendências de saúde da última semana (sono, humor, exercício)',
     parameters: { type: 'object', properties: {} },
+    schema: z.object({}),
     handler: async () => {
       const [weekStats, recentSleep] = await Promise.all([
         getWeekHealthStats(),
@@ -239,6 +252,7 @@ export const analyticsTools: Record<string, ToolDefinition> = {
     modules: ['objectives'],
     description: 'Lista objetivos ativos por timeframe (curto, médio, longo prazo) com progresso',
     parameters: { type: 'object', properties: {} },
+    schema: z.object({}),
     handler: async () => {
       const byTimeframe = await listObjectivesByTimeframe();
       const lines = ['**Objetivos ativos:**'];
@@ -267,6 +281,7 @@ export const analyticsTools: Record<string, ToolDefinition> = {
     modules: ['objectives'],
     description: 'Lista tarefas atrasadas (vencidas)',
     parameters: { type: 'object', properties: {} },
+    schema: z.object({}),
     handler: async () => {
       const overdue = await listOverdueTasks();
       if (overdue.length === 0) return '✅ Nenhuma tarefa atrasada!';
@@ -284,6 +299,7 @@ export const analyticsTools: Record<string, ToolDefinition> = {
     modules: ['objectives'],
     description: 'Lista tarefas ativas (pendentes e em progresso)',
     parameters: { type: 'object', properties: {} },
+    schema: z.object({ limit: z.number().int().min(1).max(100).optional() }),
     handler: async () => {
       const tasks = await listActiveTasks();
       if (tasks.length === 0) return 'Nenhuma tarefa ativa.';
@@ -304,6 +320,7 @@ export const analyticsTools: Record<string, ToolDefinition> = {
     modules: ['people'],
     description: 'Estatísticas do CRM: total de contatos, interações recentes, dormentes',
     parameters: { type: 'object', properties: {} },
+    schema: z.object({}),
     handler: async () => {
       const stats = await getNetworkStats();
       const s = stats as Record<string, unknown>;
@@ -328,6 +345,7 @@ export const analyticsTools: Record<string, ToolDefinition> = {
         limit: { type: 'number', description: 'Máximo de resultados (default: 10)' },
       },
     },
+    schema: z.object({ days: z.number().int().min(1).max(365).optional() }),
     handler: async (args: { days?: number; limit?: number }) => {
       const dormant = await getDormantContacts(args.days ?? 30);
       const limited = dormant.slice(0, args.limit ?? 10);

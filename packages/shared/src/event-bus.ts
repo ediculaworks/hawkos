@@ -45,10 +45,23 @@ export type DomainEvents = {
   // Knowledge
   'note:created': { noteId: string; title?: string; type: string };
 
+  // Security
+  'security:alert_created': { level: string; description: string; itemId?: string };
+  'security:review_due': { itemId: string; reviewDate: string };
+
+  // Demands
+  'demand:created': { demandId: string; title: string; module: string };
+  'demand:completed': { demandId: string; title: string };
+  'demand:failed': { demandId: string; title: string; error: string };
+
+  // Journal
+  'journal:entry_created': { date: string; mood?: number; energy?: number };
+
   // System
   'session:started': { sessionId: string; channel: string };
   'session:ended': { sessionId: string; channel: string };
   'heartbeat:completed': { profile: string; hadAlerts: boolean };
+  'system:alert': { name: string; severity: 'warning' | 'critical'; message: string };
 };
 
 export type DomainEventName = keyof DomainEvents;

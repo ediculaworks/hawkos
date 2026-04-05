@@ -1,8 +1,8 @@
 'use server';
 
-import { getPool } from "@hawk/db";
+import { getPool } from '@hawk/db';
 
-import { requireAdmin } from "@/lib/auth/session";
+import { requireAdmin } from '@/lib/auth/session';
 
 export async function fetchAdminOverview() {
   await requireAdmin();
@@ -17,9 +17,9 @@ export async function fetchAdminOverview() {
 
   // Query today's metrics
   const metrics = await sql.unsafe(`
-    SELECT COALESCE(SUM(messages_count), 0) as total_messages,
+    SELECT COALESCE(SUM(api_calls), 0) as total_messages,
            COALESCE(SUM(tokens_used), 0) as total_tokens,
-           COALESCE(SUM(cost_usd), 0) as total_cost
+           COALESCE(SUM(tokens_cost_usd), 0) as total_cost
     FROM admin.tenant_metrics
     WHERE date = CURRENT_DATE
   `);
@@ -38,10 +38,10 @@ export async function fetchTenantList() {
   const sql = getPool();
 
   const rows = await sql.unsafe(`
-    SELECT t.id, t.slug, t.label, t.status, t.schema_name, t.created_at, t.updated_at,
-           COALESCE(m.messages_count, 0) as today_messages,
+    SELECT t.id, t.slug, t.label, t.status, t.schema_name, t.owner_email, t.created_at, t.updated_at,
+           COALESCE(m.api_calls, 0) as today_messages,
            COALESCE(m.tokens_used, 0) as today_tokens,
-           COALESCE(m.cost_usd, 0) as today_cost
+           COALESCE(m.tokens_cost_usd, 0) as today_cost
     FROM admin.tenants t
     LEFT JOIN admin.tenant_metrics m ON m.tenant_id = t.id AND m.date = CURRENT_DATE
     ORDER BY t.slug
@@ -77,6 +77,7 @@ export async function fetchTenantList() {
       label: String(row.label ?? ''),
       status: String(row.status),
       schemaName: String(row.schema_name),
+      ownerEmail: row.owner_email ? String(row.owner_email) : null,
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),
       todayMessages: Number(row.today_messages),

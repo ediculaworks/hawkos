@@ -106,7 +106,9 @@ function loadSaved(): PersistedState | null {
 }
 
 function clearSaved() {
-  try { localStorage.removeItem(LS_KEY); } catch {}
+  try {
+    localStorage.removeItem(LS_KEY);
+  } catch {}
 }
 
 // ── Bubble components ─────────────────────────────────────────────
@@ -169,6 +171,7 @@ export default function SetupPage() {
       : 'America/Sao_Paulo',
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: deps are intentional scroll triggers
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streaming]);
@@ -196,6 +199,7 @@ export default function SetupPage() {
 
   // ── Complete ────────────────────────────────────────────────────
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: timezone is a stable ref, not a reactive value
   const handleComplete = useCallback(
     async (payload: OnboardingPayload, assistantText: string) => {
       setStreaming(false);
@@ -242,11 +246,26 @@ export default function SetupPage() {
             weeklyReviewDay: payload.weeklyReviewDay || 'sunday',
             weeklyReviewTime: '20:00',
             enabledModules: payload.enabledModules ?? [
-              'finances', 'health', 'people', 'career', 'objectives', 'routine',
-              'assets', 'entertainment', 'legal', 'housing', 'calendar',
+              'finances',
+              'health',
+              'people',
+              'career',
+              'objectives',
+              'routine',
+              'assets',
+              'entertainment',
+              'legal',
+              'housing',
+              'calendar',
             ],
             enabledAgents: payload.enabledAgents ?? [
-              'bull', 'wolf', 'owl', 'bee', 'beaver', 'fox', 'peacock',
+              'bull',
+              'wolf',
+              'owl',
+              'bee',
+              'beaver',
+              'fox',
+              'peacock',
             ],
           }),
         });
@@ -324,10 +343,7 @@ export default function SetupPage() {
               return updated;
             });
           } else if (event.type === 'complete' && event.payload) {
-            await handleComplete(
-              event.payload as unknown as OnboardingPayload,
-              assistantContent,
-            );
+            await handleComplete(event.payload as unknown as OnboardingPayload, assistantContent);
             return;
           } else if (event.type === 'error') {
             throw new Error(event.error ?? 'Erro do agente');
@@ -390,7 +406,8 @@ export default function SetupPage() {
               Bem-vindo de volta!
             </p>
             <p className="text-sm text-[var(--color-text-secondary)]">
-              Você já tinha começado a configuração. Quer continuar de onde parou ou recomeçar do zero?
+              Você já tinha começado a configuração. Quer continuar de onde parou ou recomeçar do
+              zero?
             </p>
           </div>
           <div className="flex gap-3">
@@ -427,7 +444,6 @@ export default function SetupPage() {
                 ),
               )}
               {streaming && messages[messages.length - 1]?.content === '' && <TypingIndicator />}
-
 
               {error && (
                 <div className="mb-4 rounded-[var(--radius-md)] bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 px-3 py-2">

@@ -1,5 +1,6 @@
 import { getNextQuestion, markQuestionAnswered, markQuestionAsked } from '@hawk/module-memory';
 import { getLinkedMemories } from '@hawk/module-memory/queries';
+import { z } from 'zod';
 
 import type { ToolDefinition } from './types.js';
 
@@ -28,6 +29,21 @@ export const universalTools: Record<string, ToolDefinition> = {
       },
       required: ['content', 'memory_type'],
     },
+    schema: z.object({
+      content: z.string().min(1).max(4000),
+      memory_type: z.enum([
+        'profile',
+        'preference',
+        'entity',
+        'event',
+        'case',
+        'pattern',
+        'procedure',
+      ]),
+      module: z.string().optional(),
+      importance: z.number().int().min(1).max(10).optional(),
+      confidence: z.number().min(0).max(1).optional(),
+    }),
     handler: async () => '', // handled directly in handler.ts
   },
 
@@ -46,6 +62,9 @@ export const universalTools: Record<string, ToolDefinition> = {
         },
       },
     },
+    schema: z.object({
+      topic: z.string().optional(),
+    }),
     handler: async (args: { topic?: string }) => {
       const question = await getNextQuestion(args.topic);
       if (!question) return 'Todas as perguntas de aprofundamento foram respondidas!';
@@ -71,6 +90,10 @@ export const universalTools: Record<string, ToolDefinition> = {
       },
       required: ['question_id', 'answer_summary'],
     },
+    schema: z.object({
+      question_id: z.string().uuid(),
+      answer_summary: z.string().min(1),
+    }),
     handler: async (args: { question_id: string; answer_summary: string }) => {
       await markQuestionAnswered(args.question_id, args.answer_summary);
       return 'Pergunta marcada como respondida.';
@@ -91,6 +114,11 @@ export const universalTools: Record<string, ToolDefinition> = {
       },
       required: ['agent_id', 'query'],
     },
+    schema: z.object({
+      agent_id: z.string().uuid(),
+      query: z.string().min(1),
+      session_context: z.string().optional(),
+    }),
     handler: async (args: { agent_id: string; query: string; session_context?: string }) => {
       try {
         const { runSubAgent } = await import('../sub-agent.js');
@@ -120,6 +148,11 @@ export const universalTools: Record<string, ToolDefinition> = {
       },
       required: ['agent_id', 'reason'],
     },
+    schema: z.object({
+      agent_id: z.string().uuid(),
+      reason: z.string().min(1),
+      summary: z.string().optional(),
+    }),
     handler: async (args: { agent_id: string; reason: string; summary?: string }) => {
       try {
         const { db } = await import('@hawk/db');
@@ -165,6 +198,10 @@ export const universalTools: Record<string, ToolDefinition> = {
       },
       required: ['memory_id'],
     },
+    schema: z.object({
+      memory_id: z.string().uuid(),
+      max_hops: z.number().int().min(1).max(3).optional(),
+    }),
     handler: async (args: { memory_id: string; max_hops?: number }) => {
       const hops = Math.min(args.max_hops ?? 2, 3);
       const linked = await getLinkedMemories(args.memory_id, hops);
@@ -189,6 +226,9 @@ export const universalTools: Record<string, ToolDefinition> = {
       },
       required: ['cep'],
     },
+    schema: z.object({
+      cep: z.string().min(8).max(9),
+    }),
     handler: async (args: { cep: string }) => {
       const { fetchCep } = await import('@hawk/shared');
       const data = await fetchCep(args.cep.replace(/\D/g, ''));
@@ -207,6 +247,9 @@ export const universalTools: Record<string, ToolDefinition> = {
       },
       required: ['cnpj'],
     },
+    schema: z.object({
+      cnpj: z.string().min(14).max(18),
+    }),
     handler: async (args: { cnpj: string }) => {
       const { fetchCnpj } = await import('@hawk/shared');
       const data = await fetchCnpj(args.cnpj.replace(/\D/g, ''));

@@ -2,6 +2,7 @@ import { validateURLForSSRF } from '@hawk/shared';
 import { Readability } from '@mozilla/readability';
 import { parseHTML } from 'linkedom';
 import TurndownService from 'turndown';
+import { z } from 'zod';
 import type { ToolDefinition } from './types.js';
 
 const MAX_FETCH_BYTES = 30_000;
@@ -219,6 +220,10 @@ export const webTools: Record<string, ToolDefinition> = {
       },
       required: ['query'],
     },
+    schema: z.object({
+      query: z.string().min(1),
+      count: z.number().int().min(1).max(10).optional(),
+    }),
     handler: async (args: { query: string; count?: number }) => {
       const count = Math.min(args.count ?? SEARCH_RESULTS_COUNT, 10);
 
@@ -268,6 +273,11 @@ export const webTools: Record<string, ToolDefinition> = {
       },
       required: ['url'],
     },
+    schema: z.object({
+      url: z.string().url(),
+      format: z.enum(['markdown', 'text', 'raw']).optional(),
+      max_chars: z.number().int().positive().max(100000).optional(),
+    }),
     handler: async (args: { url: string; format?: 'markdown' | 'text' | 'raw' }) => {
       // L4: SSRF validation — block private IPs, loopback, metadata endpoints
       const ssrfCheck = validateURLForSSRF(args.url);

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { ToolDefinition } from './types.js';
 
 // ── Security: Allowlist / Blocklist (OpenClaw-inspired) ──────────────
@@ -159,6 +160,11 @@ export const shellTools: Record<string, ToolDefinition> = {
       },
       required: ['command'],
     },
+    schema: z.object({
+      command: z.string().min(1),
+      cwd: z.string().optional(),
+      timeout_ms: z.number().int().positive().max(60000).optional(),
+    }),
     handler: async (args: { command: string; cwd?: string; timeout_ms?: number }) => {
       // 1. Security check
       const blocked = isCommandBlocked(args.command);

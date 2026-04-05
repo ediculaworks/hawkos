@@ -1,9 +1,11 @@
 import {
   createObjective,
   createTask,
+  listObjectivesByTimeframe,
   updateObjective,
   updateTask,
 } from '@hawk/module-objectives/queries';
+import { z } from 'zod';
 
 import type { ToolDefinition } from './types.js';
 
@@ -26,6 +28,15 @@ export const objectiveTools: Record<string, ToolDefinition> = {
       },
       required: ['title', 'timeframe'],
     },
+    schema: z.object({
+      title: z.string().min(1).max(200),
+      description: z.string().optional(),
+      timeframe: z.enum(['short', 'medium', 'long']),
+      target_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+    }),
     handler: async (args: {
       title: string;
       description?: string;
@@ -62,6 +73,14 @@ export const objectiveTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({
+      id: z.string().uuid(),
+      title: z.string().optional(),
+      description: z.string().optional(),
+      status: z.enum(['active', 'paused', 'completed', 'cancelled']).optional(),
+      timeframe: z.enum(['short', 'medium', 'long']).optional(),
+      target_date: z.string().optional(),
+    }),
     handler: async (args: {
       id: string;
       title?: string;
@@ -97,6 +116,15 @@ export const objectiveTools: Record<string, ToolDefinition> = {
       },
       required: ['title'],
     },
+    schema: z.object({
+      title: z.string().min(1).max(500),
+      objective_title: z.string().optional(),
+      priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+      due_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+    }),
     handler: async (args: {
       title: string;
       objective_title?: string;
@@ -136,6 +164,13 @@ export const objectiveTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({
+      id: z.string().uuid(),
+      title: z.string().optional(),
+      status: z.enum(['todo', 'in_progress', 'done', 'cancelled']).optional(),
+      priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+      due_date: z.string().optional(),
+    }),
     handler: async (args: {
       id: string;
       title?: string;
@@ -146,6 +181,35 @@ export const objectiveTools: Record<string, ToolDefinition> = {
       const { id, ...input } = args;
       const task = await updateTask(id, input);
       return `Tarefa atualizada: ${task.title} (${task.status})`;
+    },
+  },
+
+  list_objectives: {
+    name: 'list_objectives',
+    modules: ['objectives'],
+    description: 'Lista todos os objetivos agrupados por prazo (curto/médio/longo)',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+    schema: z.object({}),
+    handler: async () => {
+      const groups = await listObjectivesByTimeframe();
+      const labels: Record<string, string> = {
+        short: 'Curto prazo',
+        medium: 'Médio prazo',
+        long: 'Longo prazo',
+      };
+      const sections = (['short', 'medium', 'long'] as const)
+        .map((tf) => {
+          const objs = groups[tf];
+          if (!objs || objs.length === 0) return null;
+          const lines = objs.map((o) => `  • ${o.title} (${o.status})`);
+          return [`**${labels[tf]}**`, ...lines].join('\n');
+        })
+        .filter(Boolean);
+      return sections.length ? sections.join('\n\n') : 'Nenhum objetivo encontrado.';
     },
   },
 };

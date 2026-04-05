@@ -9,12 +9,73 @@ import { LegalHeader, type LegalTab } from '@/components/legal/legal-header';
 import { ObligationsList } from '@/components/legal/obligations-list';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
-import { fetchUrgentObligations } from '@/lib/actions/legal';
+import { fetchUrgentObligations, queryLegal } from '@/lib/actions/legal';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle } from 'lucide-react';
-import { useState } from 'react';
+import { AlertTriangle, Bot, Send } from 'lucide-react';
+import { useRef, useState } from 'react';
 
 type Tab = LegalTab;
+
+function LegalAIAssistant() {
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  async function handleQuery() {
+    if (!question.trim() || loading) return;
+    setLoading(true);
+    setAnswer(null);
+    try {
+      const result = await queryLegal(question);
+      setAnswer(result);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      handleQuery();
+    }
+  }
+
+  return (
+    <Card>
+      <CardContent className="pt-4 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-primary)]">
+          <Bot className="h-4 w-4 text-[var(--color-accent)]" />
+          Assistente Jurídico
+        </div>
+        <div className="flex gap-2">
+          <textarea
+            ref={textareaRef}
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Pergunta sobre os teus contratos e obrigações... (Ctrl+Enter para enviar)"
+            rows={2}
+            className="flex-1 resize-none rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+          />
+          <button
+            type="button"
+            onClick={handleQuery}
+            disabled={loading || !question.trim()}
+            className="flex items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+          >
+            <Send className="h-3.5 w-3.5" />
+            {loading ? 'A pensar…' : 'Enviar'}
+          </button>
+        </div>
+        {answer && (
+          <div className="rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] px-4 py-3 text-sm text-[var(--color-text-primary)] whitespace-pre-wrap leading-relaxed">
+            {answer}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function LegalPage() {
   const [activeTab, setActiveTab] = useState<Tab>('today');
@@ -29,6 +90,7 @@ export default function LegalPage() {
 
   return (
     <div className="space-y-[var(--space-6)]">
+      <LegalAIAssistant />
       <LegalHeader
         activeTab={activeTab}
         onTabChange={(tab) => {

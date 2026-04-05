@@ -79,6 +79,19 @@ export const persistenceMiddleware: Middleware = {
       );
     }
 
+    // Persist trace spans for observability
+    if (ctx.spans.length > 0) {
+      logActivity('session_cost', `trace=${ctx.traceId} spans=${ctx.spans.length}`, undefined, {
+        trace_id: ctx.traceId,
+        spans: ctx.spans.map((s) => ({
+          name: s.name,
+          duration_ms: Math.round(s.endMs - s.startMs),
+          ...(s.metadata ? { metadata: s.metadata } : {}),
+        })),
+        session_id: ctx.sessionId,
+      }).catch(() => {});
+    }
+
     // Emit hook
     hookRegistry
       .emit('message:sent', {

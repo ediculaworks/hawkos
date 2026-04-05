@@ -4,7 +4,6 @@
 
 function getTenantConfig() {
   if (typeof window !== 'undefined' && window.__HAWK_TENANT__) {
-    const t = window.__HAWK_TENANT__;
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const host = window.location.host; // includes port if non-standard
     return {

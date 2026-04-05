@@ -9,20 +9,20 @@ import { Input } from '@/components/ui/input';
 import { ListSkeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import {
-  type IntegrationSummary,
-  fetchIntegrations,
-  saveIntegration,
-} from '@/lib/actions/integrations';
-import {
   connectWithApiKey,
   disconnectExtension,
   fetchExtensions,
   toggleSync,
   triggerSync,
 } from '@/lib/actions/extensions';
+import {
+  type IntegrationSummary,
+  fetchIntegrations,
+  saveIntegration,
+} from '@/lib/actions/integrations';
 import { agentHeaders, getAgentApiUrl } from '@/lib/config';
-import type { ExtensionView } from '@hawk/extensions/core/types';
 import type { IntegrationProvider } from '@hawk/admin';
+import type { ExtensionView } from '@hawk/extensions/core/types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -79,13 +79,62 @@ interface ChannelDef {
 }
 
 const CHANNELS: ChannelDef[] = [
-  { id: 'discord', name: 'Discord', description: 'Canal principal via bot Discord', icon: Bot, color: '#5865F2', available: true },
-  { id: 'web', name: 'Web Chat', description: 'Chat integrado no dashboard', icon: Globe, color: 'var(--color-accent)', available: true },
-  { id: 'telegram', name: 'Telegram', description: 'Bot Telegram para mensagens rapidas', icon: Send, color: '#26A5E4', available: false },
-  { id: 'whatsapp', name: 'WhatsApp', description: 'Via WhatsApp Business API', icon: MessageCircle, color: '#25D366', available: false },
-  { id: 'slack', name: 'Slack', description: 'Integracao com workspaces Slack', icon: Slack, color: '#E01E5A', available: false },
-  { id: 'email', name: 'Email', description: 'Enviar e receber via SMTP/IMAP', icon: Mail, color: '#EA4335', available: false },
-  { id: 'voice', name: 'Voz', description: 'Interacao por voz via Whisper + TTS', icon: Phone, color: '#8B5CF6', available: false },
+  {
+    id: 'discord',
+    name: 'Discord',
+    description: 'Canal principal via bot Discord',
+    icon: Bot,
+    color: '#5865F2',
+    available: true,
+  },
+  {
+    id: 'web',
+    name: 'Web Chat',
+    description: 'Chat integrado no dashboard',
+    icon: Globe,
+    color: 'var(--color-accent)',
+    available: true,
+  },
+  {
+    id: 'telegram',
+    name: 'Telegram',
+    description: 'Bot Telegram para mensagens rapidas',
+    icon: Send,
+    color: '#26A5E4',
+    available: false,
+  },
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp',
+    description: 'Via WhatsApp Business API',
+    icon: MessageCircle,
+    color: '#25D366',
+    available: false,
+  },
+  {
+    id: 'slack',
+    name: 'Slack',
+    description: 'Integracao com workspaces Slack',
+    icon: Slack,
+    color: '#E01E5A',
+    available: false,
+  },
+  {
+    id: 'email',
+    name: 'Email',
+    description: 'Enviar e receber via SMTP/IMAP',
+    icon: Mail,
+    color: '#EA4335',
+    available: false,
+  },
+  {
+    id: 'voice',
+    name: 'Voz',
+    description: 'Interacao por voz via Whisper + TTS',
+    icon: Phone,
+    color: '#8B5CF6',
+    available: false,
+  },
 ];
 
 // ── Extension icons ─────────────────────────────────────────────────────────
@@ -101,7 +150,12 @@ function getExtIcon(icon: string) {
 
 function formatDate(iso: string | null) {
   if (!iso) return 'Nunca';
-  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 // ── Main Page ───────────────────────────────────────────────────────────────
@@ -223,12 +277,18 @@ function ChannelsTab() {
                 </div>
                 <div>
                   <div className="flex items-center gap-[var(--space-2)]">
-                    <span className="text-sm font-medium text-[var(--color-text-primary)]">{ch.name}</span>
+                    <span className="text-sm font-medium text-[var(--color-text-primary)]">
+                      {ch.name}
+                    </span>
                     {!ch.available && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-muted)]">Em breve</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-muted)]">
+                        Em breve
+                      </span>
                     )}
                     {ch.available && isEnabled && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-success)]/15 text-[var(--color-success)]">Ativo</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-success)]/15 text-[var(--color-success)]">
+                        Ativo
+                      </span>
                     )}
                   </div>
                   <p className="text-xs text-[var(--color-text-muted)]">{ch.description}</p>
@@ -279,7 +339,9 @@ function IntegrationsTab() {
   };
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: load on mount
-  useEffect(() => { loadExtensions(); }, []);
+  useEffect(() => {
+    loadExtensions();
+  }, []);
 
   const handleToggle = useCallback(
     async (provider: IntegrationProvider, enabled: boolean) => {
@@ -390,37 +452,55 @@ function IntegrationsTab() {
               <div className="grid gap-[var(--space-4)] md:grid-cols-2">
                 {extensions.map((ext) => (
                   <Card key={ext.id} className="relative overflow-hidden">
-                    <div className={`absolute left-0 top-0 h-full w-1 ${
-                      ext.connected ? 'bg-[var(--color-success)]'
-                        : ext.status === 'error' ? 'bg-[var(--color-danger)]'
-                        : 'bg-[var(--color-surface-3)]'
-                    }`} />
+                    <div
+                      className={`absolute left-0 top-0 h-full w-1 ${
+                        ext.connected
+                          ? 'bg-[var(--color-success)]'
+                          : ext.status === 'error'
+                            ? 'bg-[var(--color-danger)]'
+                            : 'bg-[var(--color-surface-3)]'
+                      }`}
+                    />
 
                     <CardHeader className="pl-[var(--space-6)]">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-[var(--space-3)]">
-                          <div className={`flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] ${
-                            ext.connected
-                              ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
-                              : 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]'
-                          }`}>
+                          <div
+                            className={`flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] ${
+                              ext.connected
+                                ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                                : 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]'
+                            }`}
+                          >
                             {getExtIcon(ext.icon)}
                           </div>
                           <div>
                             <CardTitle className="text-base">{ext.name}</CardTitle>
-                            <p className="text-xs text-[var(--color-text-muted)]">{ext.description}</p>
+                            <p className="text-xs text-[var(--color-text-muted)]">
+                              {ext.description}
+                            </p>
                           </div>
                         </div>
-                        <span className={`text-xs px-[var(--space-2)] py-[var(--space-0-5)] rounded-full whitespace-nowrap ${
-                          ext.connected ? 'bg-[var(--color-success)]/15 text-[var(--color-success)]'
-                            : ext.status === 'error' ? 'bg-[var(--color-danger)]/15 text-[var(--color-danger)]'
-                            : 'bg-[var(--color-surface-3)] text-[var(--color-text-muted)]'
-                        }`}>
+                        <span
+                          className={`text-xs px-[var(--space-2)] py-[var(--space-0-5)] rounded-full whitespace-nowrap ${
+                            ext.connected
+                              ? 'bg-[var(--color-success)]/15 text-[var(--color-success)]'
+                              : ext.status === 'error'
+                                ? 'bg-[var(--color-danger)]/15 text-[var(--color-danger)]'
+                                : 'bg-[var(--color-surface-3)] text-[var(--color-text-muted)]'
+                          }`}
+                        >
                           {ext.connected ? (
-                            <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Conectado</span>
+                            <span className="flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" /> Conectado
+                            </span>
                           ) : ext.status === 'error' ? (
-                            <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Erro</span>
-                          ) : 'Desconectado'}
+                            <span className="flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" /> Erro
+                            </span>
+                          ) : (
+                            'Desconectado'
+                          )}
                         </span>
                       </div>
                     </CardHeader>
@@ -438,15 +518,32 @@ function IntegrationsTab() {
                             <span>Ultimo sync: {formatDate(ext.lastSyncAt)}</span>
                             <div className="flex items-center gap-[var(--space-2)]">
                               <span className="text-xs">Auto-sync</span>
-                              <Switch checked={ext.syncEnabled} onCheckedChange={(v) => handleToggleSync(ext.id, v)} />
+                              <Switch
+                                checked={ext.syncEnabled}
+                                onCheckedChange={(v) => handleToggleSync(ext.id, v)}
+                              />
                             </div>
                           </div>
                           <div className="flex gap-[var(--space-2)]">
-                            <Button size="sm" variant="outline" onClick={() => handleSync(ext.id)} disabled={syncing === ext.id}>
-                              {syncing === ext.id ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleSync(ext.id)}
+                              disabled={syncing === ext.id}
+                            >
+                              {syncing === ext.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                              ) : (
+                                <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                              )}
                               Sincronizar
                             </Button>
-                            <Button size="sm" variant="ghost" className="text-[var(--color-danger)]" onClick={() => handleExtDisconnect(ext.id)}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-[var(--color-danger)]"
+                              onClick={() => handleExtDisconnect(ext.id)}
+                            >
                               <Unplug className="h-3.5 w-3.5 mr-1" /> Desconectar
                             </Button>
                           </div>
@@ -461,21 +558,39 @@ function IntegrationsTab() {
                                 type="password"
                                 placeholder="Cole sua API key..."
                                 value={apiKeyInput[ext.id] ?? ''}
-                                onChange={(e) => setApiKeyInput((prev) => ({ ...prev, [ext.id]: e.target.value }))}
+                                onChange={(e) =>
+                                  setApiKeyInput((prev) => ({ ...prev, [ext.id]: e.target.value }))
+                                }
                                 className="text-sm"
                               />
-                              <Button size="sm" onClick={() => handleApiKeySubmit(ext.id)}>Salvar</Button>
-                              <Button size="sm" variant="ghost" onClick={() => setShowApiKeyFor(null)}>Cancelar</Button>
+                              <Button size="sm" onClick={() => handleApiKeySubmit(ext.id)}>
+                                Salvar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setShowApiKeyFor(null)}
+                              >
+                                Cancelar
+                              </Button>
                             </div>
                           )}
                           {showApiKeyFor !== ext.id && (
                             <div className="flex gap-[var(--space-2)]">
                               <Button size="sm" onClick={() => handleExtConnect(ext)}>
-                                {ext.authMethod === 'api_key' ? <Key className="h-3.5 w-3.5 mr-1" /> : <ExternalLink className="h-3.5 w-3.5 mr-1" />}
+                                {ext.authMethod === 'api_key' ? (
+                                  <Key className="h-3.5 w-3.5 mr-1" />
+                                ) : (
+                                  <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                                )}
                                 Conectar
                               </Button>
                               {ext.authMethod === 'oauth2' && (
-                                <Button size="sm" variant="ghost" onClick={() => setShowApiKeyFor(ext.id)}>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setShowApiKeyFor(ext.id)}
+                                >
                                   <Key className="h-3.5 w-3.5 mr-1" /> API Key
                                 </Button>
                               )}
@@ -515,8 +630,8 @@ function MCPTab() {
           Model Context Protocol
         </h3>
         <p className="text-xs text-[var(--color-text-muted)] max-w-sm mx-auto mb-[var(--space-4)]">
-          Conecte servidores MCP para expandir as capacidades do agente com tools externas,
-          acesso a dados e integracao com servicos.
+          Conecte servidores MCP para expandir as capacidades do agente com tools externas, acesso a
+          dados e integracao com servicos.
         </p>
         <div className="space-y-[var(--space-2)]">
           {[
@@ -525,12 +640,17 @@ function MCPTab() {
             { name: 'Browser', desc: 'Navegacao web e scraping' },
             { name: 'Custom Server', desc: 'Servidor MCP customizado via stdio/SSE' },
           ].map((s) => (
-            <div key={s.name} className="flex items-center justify-between p-[var(--space-3)] rounded-[var(--radius-md)] bg-[var(--color-surface-2)] text-left">
+            <div
+              key={s.name}
+              className="flex items-center justify-between p-[var(--space-3)] rounded-[var(--radius-md)] bg-[var(--color-surface-2)] text-left"
+            >
               <div>
                 <div className="text-sm font-medium text-[var(--color-text-primary)]">{s.name}</div>
                 <div className="text-xs text-[var(--color-text-muted)]">{s.desc}</div>
               </div>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-muted)]">Em breve</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-muted)]">
+                Em breve
+              </span>
             </div>
           ))}
         </div>
@@ -549,9 +669,13 @@ function APITab() {
         <div className="flex items-center justify-between mb-[var(--space-3)]">
           <div className="flex items-center gap-[var(--space-2)]">
             <Key className="h-4 w-4 text-[var(--color-accent)]" />
-            <h3 className="text-sm font-medium text-[var(--color-text-primary)]">Personal Access Tokens</h3>
+            <h3 className="text-sm font-medium text-[var(--color-text-primary)]">
+              Personal Access Tokens
+            </h3>
           </div>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-muted)]">Em breve</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-muted)]">
+            Em breve
+          </span>
         </div>
         <p className="text-xs text-[var(--color-text-muted)] mb-[var(--space-3)]">
           Crie tokens para aceder a API do Hawk OS programaticamente.
@@ -568,7 +692,9 @@ function APITab() {
             <Code className="h-4 w-4 text-[var(--color-accent)]" />
             <h3 className="text-sm font-medium text-[var(--color-text-primary)]">REST API</h3>
           </div>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-muted)]">Em breve</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-muted)]">
+            Em breve
+          </span>
         </div>
         <p className="text-xs text-[var(--color-text-muted)] mb-[var(--space-3)]">
           Acesse os dados do Hawk OS via API REST.
@@ -579,10 +705,19 @@ function APITab() {
             { method: 'POST', path: '/api/v1/chat', desc: 'Enviar mensagem ao agente' },
             { method: 'GET', path: '/api/v1/modules/:id', desc: 'Dados de um modulo' },
           ].map((ep) => (
-            <div key={ep.path} className="flex items-center gap-[var(--space-2)] p-[var(--space-2)] rounded-[var(--radius-md)] bg-[var(--color-surface-2)] text-xs font-mono">
-              <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                ep.method === 'GET' ? 'bg-[var(--color-success)]/15 text-[var(--color-success)]' : 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
-              }`}>{ep.method}</span>
+            <div
+              key={ep.path}
+              className="flex items-center gap-[var(--space-2)] p-[var(--space-2)] rounded-[var(--radius-md)] bg-[var(--color-surface-2)] text-xs font-mono"
+            >
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                  ep.method === 'GET'
+                    ? 'bg-[var(--color-success)]/15 text-[var(--color-success)]'
+                    : 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
+                }`}
+              >
+                {ep.method}
+              </span>
               <span className="text-[var(--color-text-secondary)] flex-1">{ep.path}</span>
               <ChevronRight className="h-3 w-3 text-[var(--color-text-muted)]" />
             </div>
@@ -604,8 +739,8 @@ function SkillsTab() {
           Agent Skills
         </h3>
         <p className="text-xs text-[var(--color-text-muted)] max-w-sm mx-auto mb-[var(--space-4)]">
-          Skills sao capacidades modulares do agente. Cada skill adiciona tools, contexto
-          e comportamentos especificos.
+          Skills sao capacidades modulares do agente. Cada skill adiciona tools, contexto e
+          comportamentos especificos.
         </p>
         <div className="space-y-[var(--space-2)]">
           {[
@@ -614,12 +749,17 @@ function SkillsTab() {
             { name: 'Image Analysis', desc: 'Analisar imagens via modelos multimodais' },
             { name: 'Voice Transcription', desc: 'Transcrever audio via Whisper' },
           ].map((s) => (
-            <div key={s.name} className="flex items-center justify-between p-[var(--space-3)] rounded-[var(--radius-md)] bg-[var(--color-surface-2)] text-left">
+            <div
+              key={s.name}
+              className="flex items-center justify-between p-[var(--space-3)] rounded-[var(--radius-md)] bg-[var(--color-surface-2)] text-left"
+            >
               <div>
                 <div className="text-sm font-medium text-[var(--color-text-primary)]">{s.name}</div>
                 <div className="text-xs text-[var(--color-text-muted)]">{s.desc}</div>
               </div>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-muted)]">Em breve</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-muted)]">
+                Em breve
+              </span>
             </div>
           ))}
         </div>
@@ -648,8 +788,13 @@ function MarketplaceTab() {
             { name: 'Automacoes', count: '0' },
             { name: 'Conectores', count: '0' },
           ].map((cat) => (
-            <div key={cat.name} className="p-[var(--space-3)] rounded-[var(--radius-md)] bg-[var(--color-surface-2)]">
-              <div className="text-lg font-semibold text-[var(--color-text-muted)]">{cat.count}</div>
+            <div
+              key={cat.name}
+              className="p-[var(--space-3)] rounded-[var(--radius-md)] bg-[var(--color-surface-2)]"
+            >
+              <div className="text-lg font-semibold text-[var(--color-text-muted)]">
+                {cat.count}
+              </div>
               <div className="text-[10px] text-[var(--color-text-muted)]">{cat.name}</div>
             </div>
           ))}

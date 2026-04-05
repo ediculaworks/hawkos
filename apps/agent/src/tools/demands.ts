@@ -8,6 +8,7 @@ import {
   updateStep,
 } from '@hawk/module-demands/queries';
 import { triageDemand } from '@hawk/module-demands/triage';
+import { z } from 'zod';
 
 import type { ToolDefinition } from './types.js';
 
@@ -41,6 +42,13 @@ export const demandTools: Record<string, ToolDefinition> = {
       },
       required: ['title'],
     },
+    schema: z.object({
+      title: z.string().min(1).max(200),
+      description: z.string().optional(),
+      priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+      module: z.string().optional(),
+      deadline: z.string().optional(),
+    }),
     handler: async (args: {
       title: string;
       description?: string;
@@ -78,6 +86,11 @@ export const demandTools: Record<string, ToolDefinition> = {
         },
       },
     },
+    schema: z.object({
+      status: z
+        .enum(['running', 'paused', 'planned', 'triaging', 'completed', 'failed'])
+        .optional(),
+    }),
     handler: async (args: { status?: string }) => {
       const demands = args.status ? await getActiveDemands() : await getActiveDemands();
 
@@ -115,6 +128,9 @@ export const demandTools: Record<string, ToolDefinition> = {
       },
       required: ['demand_id'],
     },
+    schema: z.object({
+      demand_id: z.string().uuid(),
+    }),
     handler: async (args: { demand_id: string }) => {
       const d = await getDemandWithSteps(args.demand_id);
 
@@ -163,6 +179,11 @@ ${stepLines.join('\n')}`;
       },
       required: ['step_id', 'approved'],
     },
+    schema: z.object({
+      step_id: z.string().uuid(),
+      approved: z.boolean(),
+      feedback: z.string().optional(),
+    }),
     handler: async (args: {
       step_id: string;
       approved: boolean;
@@ -197,6 +218,10 @@ ${stepLines.join('\n')}`;
       },
       required: ['demand_id'],
     },
+    schema: z.object({
+      demand_id: z.string().uuid(),
+      reason: z.string().optional(),
+    }),
     handler: async (args: { demand_id: string; reason?: string }) => {
       // Cancel all pending/ready steps
       const steps = await listSteps(args.demand_id);
@@ -217,6 +242,45 @@ ${stepLines.join('\n')}`;
       });
 
       return 'Demanda cancelada com sucesso.';
+    },
+  },
+
+  update_demand: {
+    name: 'update_demand',
+    modules: ['objectives'],
+    description: 'Atualiza título, descrição, prioridade ou contexto de uma demanda existente',
+    parameters: {
+      type: 'object',
+      properties: {
+        demand_id: { type: 'string', description: 'ID da demanda' },
+        title: { type: 'string', description: 'Novo título' },
+        description: { type: 'string', description: 'Nova descrição' },
+        priority: {
+          type: 'string',
+          enum: ['low', 'normal', 'high', 'critical'],
+          description: 'Nova prioridade',
+        },
+        context: { type: 'string', description: 'Contexto adicional para o agente' },
+      },
+      required: ['demand_id'],
+    },
+    schema: z.object({
+      demand_id: z.string().uuid(),
+      title: z.string().min(1).optional(),
+      description: z.string().optional(),
+      priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+      context: z.string().optional(),
+    }),
+    handler: async (args: {
+      demand_id: string;
+      title?: string;
+      description?: string;
+      priority?: 'low' | 'medium' | 'high' | 'urgent';
+      context?: string;
+    }) => {
+      const { demand_id, ...updates } = args;
+      const demand = await updateDemand(demand_id, updates);
+      return `Demanda atualizada: ${demand.title}`;
     },
   },
 };

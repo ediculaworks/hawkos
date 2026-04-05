@@ -21,7 +21,7 @@ const MODEL_CONTEXT_LIMITS: Record<string, number> = {
   'qwen3:4b': 256_000,
   'qwen3:1.7b': 40_000,
   'qwen3:8b': 256_000,
-  'qwen2.5:3b': 32_768,   // legacy fallback
+  'qwen2.5:3b': 32_768, // legacy fallback
   'ministral-3:3b': 256_000,
   'phi4-mini': 131_072,
   // Qwen family

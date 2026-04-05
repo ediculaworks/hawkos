@@ -92,7 +92,6 @@ export function ChatHistoryPanel({
       <div
         ref={panelRef}
         className="fixed top-0 right-0 z-50 h-full w-[300px] bg-[var(--color-surface-1)] border-l border-[var(--color-border)] flex flex-col shadow-xl"
-        role="dialog"
         aria-label="Histórico de sessões"
       >
         {/* Header */}

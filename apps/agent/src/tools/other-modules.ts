@@ -3,10 +3,22 @@ import { deleteAsset, deleteDocument } from '@hawk/module-assets/queries';
 import { findWorkspaceByName, logWork } from '@hawk/module-career/queries';
 import { createMedia, updateMediaStatus } from '@hawk/module-entertainment/queries';
 import { deleteBill, deleteMaintenanceLog } from '@hawk/module-housing/queries';
-import { upsertJournalEntry } from '@hawk/module-journal/queries';
+import {
+  getMoodTrend,
+  getWritingStreak,
+  searchEntries,
+  upsertJournalEntry,
+} from '@hawk/module-journal/queries';
 import { deleteContract, deleteLegalEntity, deleteObligation } from '@hawk/module-legal/queries';
 import { deleteMemory } from '@hawk/module-memory/queries';
+import {
+  createSecurityItem,
+  getComplianceStatus,
+  getExpiringItems,
+  markReviewComplete,
+} from '@hawk/module-security/queries';
 import { createReflection } from '@hawk/module-spirituality/queries';
+import { z } from 'zod';
 
 import type { ToolDefinition } from './types.js';
 
@@ -26,6 +38,15 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['workspace_name', 'duration_minutes'],
     },
+    schema: z.object({
+      workspace_name: z.string().min(1),
+      duration_minutes: z.number().int().positive().max(1440),
+      description: z.string().optional(),
+      date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+    }),
     handler: async (args: {
       workspace_name: string;
       duration_minutes: number;
@@ -61,6 +82,11 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['content'],
     },
+    schema: z.object({
+      content: z.string().min(1).max(50000),
+      mood: z.number().int().min(1).max(10).optional(),
+      energy: z.number().int().min(1).max(10).optional(),
+    }),
     handler: async (args: { content: string; mood?: number; energy?: number }) => {
       await upsertJournalEntry({
         content: args.content,
@@ -89,6 +115,11 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['content'],
     },
+    schema: z.object({
+      content: z.string().min(1).max(10000),
+      type: z.enum(['reflection', 'gratitude', 'intention', 'values', 'mantra']).optional(),
+      mood: z.number().int().min(1).max(5).optional(),
+    }),
     handler: async (args: { content: string; type?: string; mood?: number }) => {
       const reflection = await createReflection({
         content: args.content,
@@ -127,6 +158,12 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['title', 'type'],
     },
+    schema: z.object({
+      title: z.string().min(1).max(200),
+      type: z.enum(['movie', 'series', 'book_fiction', 'game', 'podcast', 'music_album']),
+      status: z.enum(['want', 'watching', 'completed', 'abandoned']).optional(),
+      platform: z.string().optional(),
+    }),
     handler: async (args: { title: string; type: string; status?: string; platform?: string }) => {
       const media = await createMedia({
         title: args.title,
@@ -155,6 +192,11 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['id', 'status'],
     },
+    schema: z.object({
+      id: z.string().uuid(),
+      status: z.enum(['want', 'watching', 'completed', 'abandoned']),
+      rating: z.number().min(1).max(10).optional(),
+    }),
     handler: async (args: { id: string; status: string; rating?: number }) => {
       const media = await updateMediaStatus(
         args.id,
@@ -177,6 +219,9 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['query'],
     },
+    schema: z.object({
+      query: z.string().min(1),
+    }),
     handler: async (args: { query: string }) => {
       const docs = await searchDocuments(args.query);
       if (docs.length === 0) return `Nenhum documento encontrado para "${args.query}".`;
@@ -202,6 +247,7 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({ id: z.string().uuid() }),
     handler: async (args: { id: string }) => {
       await deleteAsset(args.id);
       return 'Ativo deletado.';
@@ -220,6 +266,7 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({ id: z.string().uuid() }),
     handler: async (args: { id: string }) => {
       await deleteDocument(args.id);
       return 'Documento deletado.';
@@ -239,6 +286,7 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({ id: z.string().uuid() }),
     handler: async (args: { id: string }) => {
       await deleteBill(args.id);
       return 'Conta deletada.';
@@ -257,6 +305,7 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({ id: z.string().uuid() }),
     handler: async (args: { id: string }) => {
       await deleteMaintenanceLog(args.id);
       return 'Registro de manutenção deletado.';
@@ -276,6 +325,7 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({ id: z.string().uuid() }),
     handler: async (args: { id: string }) => {
       await deleteObligation(args.id);
       return 'Obrigação deletada.';
@@ -294,6 +344,7 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({ id: z.string().uuid() }),
     handler: async (args: { id: string }) => {
       await deleteContract(args.id);
       return 'Contrato deletado.';
@@ -312,6 +363,7 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({ id: z.string().uuid() }),
     handler: async (args: { id: string }) => {
       await deleteLegalEntity(args.id);
       return 'Entidade jurídica deletada.';
@@ -331,9 +383,173 @@ export const otherModuleTools: Record<string, ToolDefinition> = {
       },
       required: ['id'],
     },
+    schema: z.object({ id: z.string().uuid() }),
     handler: async (args: { id: string }) => {
       await deleteMemory(args.id);
       return 'Memória deletada.';
+    },
+  },
+
+  // ==== JOURNAL (search & analytics) ====
+  search_journal: {
+    name: 'search_journal',
+    modules: ['journal'],
+    description: 'Pesquisa entries do diário por texto no conteúdo',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Texto a pesquisar' },
+        limit: { type: 'number', description: 'Número de resultados (máx 50)' },
+      },
+      required: ['query'],
+    },
+    schema: z.object({
+      query: z.string().min(1),
+      limit: z.number().int().min(1).max(50).optional(),
+    }),
+    handler: async (args: { query: string; limit?: number }) => {
+      const entries = await searchEntries(args.query, args.limit ?? 10);
+      if (entries.length === 0) return `Nenhuma entry encontrada para "${args.query}".`;
+      const lines = entries.map(
+        (e) => `• ${e.date} (mood: ${e.mood ?? '—'}): ${e.content.slice(0, 120)}...`,
+      );
+      return `${entries.length} entries encontradas:\n${lines.join('\n')}`;
+    },
+  },
+
+  get_mood_trend: {
+    name: 'get_mood_trend',
+    modules: ['journal'],
+    description: 'Tendência de mood e energia nas últimas N semanas',
+    parameters: {
+      type: 'object',
+      properties: {
+        weeks: { type: 'number', description: 'Número de semanas (padrão: 8)' },
+      },
+      required: [],
+    },
+    schema: z.object({ weeks: z.number().int().min(1).max(52).optional() }),
+    handler: async (args: { weeks?: number }) => {
+      const trend = await getMoodTrend(args.weeks ?? 8);
+      if (trend.length === 0) return 'Sem dados de mood.';
+      const lines = trend.map(
+        (t) => `• ${t.week}: mood ${t.avg_mood ?? '—'}/10, energia ${t.avg_energy ?? '—'}/10`,
+      );
+      return `Tendência de mood (${trend.length} semanas):\n${lines.join('\n')}`;
+    },
+  },
+
+  get_writing_streak: {
+    name: 'get_writing_streak',
+    modules: ['journal'],
+    description: 'Streak atual de dias consecutivos escrevendo no diário',
+    parameters: { type: 'object', properties: {}, required: [] },
+    schema: z.object({}),
+    handler: async () => {
+      const result = await getWritingStreak();
+      if (result.streak === 0) return 'Nenhum streak activo. Última entrada: sem dados.';
+      return `Streak actual: ${result.streak} dia(s) consecutivo(s). Última entrada: ${result.last_entry_date}.`;
+    },
+  },
+
+  // ==== SECURITY ====
+  create_security_item: {
+    name: 'create_security_item',
+    modules: ['security'],
+    description: 'Cria um novo item de segurança (conta, backup, 2FA, password manager, etc.)',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Nome do item' },
+        type: {
+          type: 'string',
+          enum: ['account', 'backup', '2fa', 'recovery', 'password_manager', 'other'],
+          description: 'Categoria',
+        },
+        status: {
+          type: 'string',
+          enum: ['ok', 'needs_attention', 'critical'],
+          description: 'Status inicial',
+        },
+        notes: { type: 'string', description: 'Notas opcionais' },
+      },
+      required: ['name', 'type'],
+    },
+    schema: z.object({
+      name: z.string().min(1).max(200),
+      type: z.enum(['account', 'backup', '2fa', 'recovery', 'password_manager', 'other']),
+      status: z.enum(['ok', 'needs_attention', 'critical']).optional(),
+      notes: z.string().optional(),
+    }),
+    handler: async (args: {
+      name: string;
+      type: 'account' | 'backup' | '2fa' | 'recovery' | 'password_manager' | 'other';
+      status?: 'ok' | 'needs_attention' | 'critical';
+      notes?: string;
+    }) => {
+      const item = await createSecurityItem(args);
+      return `Item de segurança criado: ${item.name} (${item.type}, ${item.status})`;
+    },
+  },
+
+  get_security_compliance: {
+    name: 'get_security_compliance',
+    modules: ['security'],
+    description: 'Verifica status de compliance de segurança — itens críticos e reviews vencidas',
+    parameters: { type: 'object', properties: {}, required: [] },
+    schema: z.object({}),
+    handler: async () => {
+      const status = await getComplianceStatus();
+      if (status.compliant)
+        return '✅ Segurança em conformidade. Nenhum item crítico ou review vencida.';
+      return [
+        `⚠️ Conformidade: ${status.compliant ? 'OK' : 'NÃO CONFORME'}`,
+        `  Críticos: ${status.critical_count}`,
+        `  Reviews vencidas: ${status.overdue_count}`,
+        `  Itens que precisam atenção: ${status.items_needing_attention.length}`,
+      ].join('\n');
+    },
+  },
+
+  get_expiring_security_items: {
+    name: 'get_expiring_security_items',
+    modules: ['security'],
+    description: 'Lista itens de segurança com review a vencer nos próximos N dias',
+    parameters: {
+      type: 'object',
+      properties: {
+        days: { type: 'number', description: 'Horizonte em dias (padrão: 30)' },
+      },
+      required: [],
+    },
+    schema: z.object({ days: z.number().int().min(1).max(365).optional() }),
+    handler: async (args: { days?: number }) => {
+      const items = await getExpiringItems(args.days ?? 30);
+      if (items.length === 0) return `Nenhum item a expirar nos próximos ${args.days ?? 30} dias.`;
+      const lines = items.map((i) => `• ${i.name} (${i.type}) — review: ${i.next_review}`);
+      return `${items.length} item(s) a expirar:\n${lines.join('\n')}`;
+    },
+  },
+
+  mark_security_review_complete: {
+    name: 'mark_security_review_complete',
+    modules: ['security'],
+    description: 'Marca a review de um item de segurança como feita (next_review +90 dias)',
+    parameters: {
+      type: 'object',
+      properties: {
+        item_id: { type: 'string', description: 'ID do item' },
+        notes: { type: 'string', description: 'Notas sobre a review' },
+      },
+      required: ['item_id'],
+    },
+    schema: z.object({
+      item_id: z.string().uuid(),
+      notes: z.string().optional(),
+    }),
+    handler: async (args: { item_id: string; notes?: string }) => {
+      const item = await markReviewComplete(args.item_id, args.notes);
+      return `Review concluída para "${item.name}". Próxima review: ${item.next_review}.`;
     },
   },
 };

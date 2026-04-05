@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { ToolDefinition } from './types.js';
 
 /** Helper to run git commands and return output */
@@ -33,6 +34,7 @@ export const gitTools: Record<string, ToolDefinition> = {
         cwd: { type: 'string', description: 'Diretório do repositório (opcional)' },
       },
     },
+    schema: z.object({ cwd: z.string().optional() }),
     handler: async (args: { cwd?: string }) => {
       return runGit(['status', '--short', '--branch'], args.cwd);
     },
@@ -50,6 +52,11 @@ export const gitTools: Record<string, ToolDefinition> = {
         cwd: { type: 'string', description: 'Diretório do repositório (opcional)' },
       },
     },
+    schema: z.object({
+      file: z.string().optional(),
+      staged: z.boolean().optional(),
+      cwd: z.string().optional(),
+    }),
     handler: async (args: { file?: string; staged?: boolean; cwd?: string }) => {
       const gitArgs = ['diff'];
       if (args.staged) gitArgs.push('--cached');
@@ -83,6 +90,11 @@ export const gitTools: Record<string, ToolDefinition> = {
         cwd: { type: 'string', description: 'Diretório do repositório (opcional)' },
       },
     },
+    schema: z.object({
+      count: z.number().int().min(1).max(100).optional(),
+      file: z.string().optional(),
+      cwd: z.string().optional(),
+    }),
     handler: async (args: { count?: number; file?: string; cwd?: string }) => {
       const gitArgs = ['log', '--oneline', `-${args.count ?? 10}`, '--format=%h %ar %s'];
       if (args.file) gitArgs.push('--', args.file);
@@ -108,6 +120,11 @@ export const gitTools: Record<string, ToolDefinition> = {
       },
       required: ['message'],
     },
+    schema: z.object({
+      message: z.string().min(1),
+      files: z.array(z.string()).optional(),
+      cwd: z.string().optional(),
+    }),
     handler: async (args: { message: string; files?: string[]; cwd?: string }) => {
       // Stage files
       if (args.files && args.files.length > 0) {
@@ -136,6 +153,7 @@ export const gitTools: Record<string, ToolDefinition> = {
         cwd: { type: 'string', description: 'Diretório do repositório (opcional)' },
       },
     },
+    schema: z.object({ branch: z.string().optional(), cwd: z.string().optional() }),
     handler: async (args: { branch?: string; cwd?: string }) => {
       const gitArgs = ['push'];
       if (args.branch) gitArgs.push('origin', args.branch);
@@ -154,6 +172,7 @@ export const gitTools: Record<string, ToolDefinition> = {
         cwd: { type: 'string', description: 'Diretório do repositório (opcional)' },
       },
     },
+    schema: z.object({ cwd: z.string().optional() }),
     handler: async (args: { cwd?: string }) => {
       return runGit(['pull'], args.cwd);
     },
@@ -175,6 +194,11 @@ export const gitTools: Record<string, ToolDefinition> = {
         cwd: { type: 'string', description: 'Diretório do repositório (opcional)' },
       },
     },
+    schema: z.object({
+      action: z.enum(['list', 'create', 'switch']).optional(),
+      name: z.string().optional(),
+      cwd: z.string().optional(),
+    }),
     handler: async (args: { action?: string; name?: string; cwd?: string }) => {
       const action = args.action ?? 'list';
 
@@ -212,6 +236,11 @@ export const gitTools: Record<string, ToolDefinition> = {
         cwd: { type: 'string', description: 'Diretório do repositório (opcional)' },
       },
     },
+    schema: z.object({
+      action: z.enum(['save', 'pop', 'list', 'drop']).optional(),
+      message: z.string().optional(),
+      cwd: z.string().optional(),
+    }),
     handler: async (args: { action?: string; message?: string; cwd?: string }) => {
       const action = args.action ?? 'save';
 

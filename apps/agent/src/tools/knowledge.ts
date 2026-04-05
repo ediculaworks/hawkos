@@ -1,4 +1,5 @@
 import { createNote, searchKnowledge } from '@hawk/module-knowledge/queries';
+import { z } from 'zod';
 
 import type { ToolDefinition } from './types.js';
 
@@ -21,6 +22,12 @@ export const knowledgeTools: Record<string, ToolDefinition> = {
       },
       required: ['content'],
     },
+    schema: z.object({
+      content: z.string().min(1).max(10000),
+      title: z.string().max(200).optional(),
+      type: z.enum(['note', 'insight', 'reference', 'book_note', 'quote']).optional(),
+      tags: z.array(z.string()).optional(),
+    }),
     handler: async (args: { content: string; title?: string; type?: string; tags?: string[] }) => {
       const note = await createNote({
         content: args.content,
@@ -49,6 +56,11 @@ export const knowledgeTools: Record<string, ToolDefinition> = {
       },
       required: ['query'],
     },
+    schema: z.object({
+      query: z.string().min(1),
+      type: z.enum(['note', 'insight', 'reference', 'book_note', 'quote', 'bookmark']).optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+    }),
     handler: async (args: { query: string; type?: string; limit?: number }) => {
       const results = await searchKnowledge(args.query, args.limit ?? 5, {
         type: args.type as

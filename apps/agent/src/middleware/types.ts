@@ -63,6 +63,15 @@ export interface HandlerContext {
 
   // ── Cost (set by cost middleware) ──────────────────────────
   sessionCost: SessionCost | null;
+
+  // ── Tracing (set by pipeline runner) ───────────────────────
+  traceId: string;
+  spans: Array<{
+    name: string;
+    startMs: number;
+    endMs: number;
+    metadata?: Record<string, unknown>;
+  }>;
 }
 
 // ── Middleware Type ──────────────────────────────────────────────────
@@ -135,5 +144,8 @@ export function createHandlerContext(params: {
     totalTokens: 0,
 
     sessionCost: null,
+
+    traceId: crypto.randomUUID(),
+    spans: [],
   };
 }

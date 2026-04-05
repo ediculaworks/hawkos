@@ -172,9 +172,7 @@ export function SectionAgent() {
           <Bot className="h-5 w-5 text-[var(--color-accent)]" />
           <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Agente</h2>
         </div>
-        <p className="text-sm text-[var(--color-text-muted)]">
-          Configuracoes do agente AI.
-        </p>
+        <p className="text-sm text-[var(--color-text-muted)]">Configuracoes do agente AI.</p>
         {offline && (
           <p className="text-xs text-[var(--color-warning)] mt-[var(--space-2)]">
             Agente offline. Mostrando valores padrao.

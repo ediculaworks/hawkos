@@ -162,7 +162,7 @@ export function useChat() {
         return next;
       });
     },
-    [] // eslint-disable-line react-hooks/exhaustive-deps
+    [], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const loadSessions = useCallback(async () => {
@@ -212,11 +212,23 @@ export function useChat() {
         sessionStorage.removeItem(DELEGATION_KEY);
         setActiveSession(pendingDelegation.sessionId);
         addTab(pendingDelegation.sessionId);
-        socket.send(JSON.stringify({ type: 'chat_join', tenantSlug: getTenantSlug(), sessionId: pendingDelegation.sessionId }));
+        socket.send(
+          JSON.stringify({
+            type: 'chat_join',
+            tenantSlug: getTenantSlug(),
+            sessionId: pendingDelegation.sessionId,
+          }),
+        );
         // Send the first message once the join completes (handled in chat_joined handler)
         pendingMessageRef.current = pendingDelegation.message;
       } else if (storedSession) {
-        socket.send(JSON.stringify({ type: 'chat_join', tenantSlug: getTenantSlug(), sessionId: storedSession }));
+        socket.send(
+          JSON.stringify({
+            type: 'chat_join',
+            tenantSlug: getTenantSlug(),
+            sessionId: storedSession,
+          }),
+        );
         // Restore messages for the active session on page load
         loadMessages(storedSession);
       }
@@ -420,7 +432,13 @@ export function useChat() {
       // Notify WebSocket about new session
       const socket = wsRef.current;
       if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'chat_join', tenantSlug: getTenantSlug(), sessionId: data.sessionId }));
+        socket.send(
+          JSON.stringify({
+            type: 'chat_join',
+            tenantSlug: getTenantSlug(),
+            sessionId: data.sessionId,
+          }),
+        );
       }
 
       setActiveSession(data.sessionId);

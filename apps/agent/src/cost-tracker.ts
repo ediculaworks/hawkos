@@ -2,6 +2,7 @@
  * Session cost tracking — accumulates token usage across LLM calls.
  * Logs final cost to activity_log when session completes.
  */
+import { metrics } from './metrics.js';
 
 export interface SessionCost {
   promptTokens: number;
@@ -44,6 +45,12 @@ export function trackLLMCall(
     cost.promptTokens += usage.prompt_tokens ?? 0;
     cost.completionTokens += usage.completion_tokens ?? 0;
     cost.totalTokens += usage.total_tokens ?? 0;
+    const totalTokens = usage.total_tokens ?? 0;
+    if (totalTokens > 0) {
+      const costUsd = estimateCostUsd(totalTokens, cost.model);
+      metrics.incGauge('hawk_daily_tokens_used', totalTokens);
+      metrics.incGauge('hawk_daily_cost_usd', costUsd);
+    }
   }
 }
 
