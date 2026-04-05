@@ -32,4 +32,4 @@ export const ALERT_THRESHOLDS = {
 } as const;
 
 // Modelo AI padrão (via OpenRouter)
-export const AI_MODEL = process.env.OPENROUTER_MODEL ?? 'openrouter/auto';
+export const AI_MODEL = process.env.OPENROUTER_MODEL ?? 'qwen/qwen3.6-plus:free';

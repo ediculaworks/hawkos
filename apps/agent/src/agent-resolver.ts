@@ -1,6 +1,6 @@
 import { db } from '@hawk/db';
 
-const DEFAULT_MODEL = 'openrouter/auto';
+const DEFAULT_MODEL = 'qwen/qwen3.6-plus:free';
 
 export interface ResolvedAgent {
   id: string;

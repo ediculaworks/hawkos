@@ -19,7 +19,7 @@ function getClient(): OpenAI {
   return _client;
 }
 
-const TRIAGE_MODEL = process.env.OPENROUTER_MODEL ?? 'openrouter/auto';
+const TRIAGE_MODEL = process.env.OPENROUTER_MODEL ?? 'qwen/qwen3.6-plus:free';
 
 async function loadAvailableAgents(): Promise<
   { id: string; name: string; description: string; tools_enabled: string[] }[]

@@ -39,7 +39,7 @@ function getClient(): OpenAI {
   return _client;
 }
 
-const DEFAULT_MODEL = process.env.OPENROUTER_MODEL ?? 'openrouter/auto';
+const DEFAULT_MODEL = process.env.OPENROUTER_MODEL ?? 'qwen/qwen3.6-plus:free';
 
 async function loadAgentInfo(
   agentId: string,

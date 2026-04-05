@@ -74,7 +74,7 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
         label: 'Modelo',
         type: 'select',
         options: [
-          { value: 'openrouter/auto', label: 'Auto (recomendado)' },
+          { value: 'qwen/qwen3.6-plus:free', label: 'Qwen 3.6 Plus (gratuito)' },
           { value: 'anthropic/claude-sonnet-4', label: 'Claude Sonnet 4' },
           { value: 'anthropic/claude-haiku-4', label: 'Claude Haiku 4' },
           { value: 'google/gemini-2.5-flash-preview', label: 'Gemini 2.5 Flash' },

@@ -44,7 +44,7 @@ interface AgentSettings {
 const DEFAULTS: AgentSettings = {
   agent_name: 'Hawk',
   tenant_name: 'My Agent',
-  llm_model: 'openrouter/auto',
+  llm_model: 'qwen/qwen3.6-plus:free',
   temperature: 0.7,
   max_tokens: 2048,
   heartbeat_interval: 30,
