@@ -4,6 +4,7 @@ import { ChatInput } from '@/components/chat/chat-input';
 import { MarkdownRenderer } from '@/components/chat/markdown-renderer';
 import { saveIntegration } from '@/lib/actions/integrations';
 import { parseSseStream } from '@/lib/utils/parse-sse';
+import { AnimatePresence, motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -40,6 +41,53 @@ interface OnboardingPayload {
 }
 
 type Status = 'chatting' | 'completing' | 'done';
+
+// ── Welcome Animation ─────────────────────────────────────────
+
+function WelcomeAnimation({ name, onDone }: { name: string; onDone: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3200);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-[var(--color-bg)] z-50">
+      <motion.div
+        initial={{ scale: 0.5, opacity: 0 }}
+        animate={{ scale: [0.5, 1.2, 1], opacity: 1 }}
+        transition={{ duration: 0.8, ease: 'easeOut' }}
+        className="h-20 w-20 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-2xl font-bold text-white mb-8 shadow-lg"
+      >
+        HA
+      </motion.div>
+
+      <motion.h1
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.9, duration: 0.5 }}
+        className="text-2xl font-semibold text-[var(--color-text-primary)] mb-2"
+      >
+        Bem-vindo, {name}!
+      </motion.h1>
+
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.6, duration: 0.6 }}
+        className="text-sm text-[var(--color-text-secondary)]"
+      >
+        O Hawk está pronto.
+      </motion.p>
+
+      <motion.div
+        initial={{ scaleX: 0, opacity: 0 }}
+        animate={{ scaleX: 1, opacity: 1 }}
+        transition={{ delay: 2.0, duration: 0.8, ease: 'easeInOut' }}
+        className="mt-8 h-0.5 w-32 rounded-full bg-[var(--color-accent)] origin-left"
+      />
+    </div>
+  );
+}
 
 // ── LocalStorage resume ───────────────────────────────────────────
 
@@ -112,6 +160,7 @@ export default function SetupPage() {
   const [error, setError] = useState<string | null>(null);
   const [showResume, setShowResume] = useState(false);
   const [savedMessages, setSavedMessages] = useState<OnboardingMessage[]>([]);
+  const [userName, setUserName] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const timezone = useRef(
@@ -151,6 +200,7 @@ export default function SetupPage() {
     async (payload: OnboardingPayload, assistantText: string) => {
       setStreaming(false);
       setStatus('completing');
+      if (payload.name) setUserName(payload.name);
 
       // Show farewell if not already in stream
       if (payload.farewell && !assistantText.includes(payload.farewell)) {
@@ -317,8 +367,18 @@ export default function SetupPage() {
 
   const isLoading = streaming || status === 'completing';
 
+  const handleAnimationDone = useCallback(() => {
+    router.push('/dashboard');
+  }, [router]);
+
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
+      <AnimatePresence>
+        {status === 'done' && (
+          <WelcomeAnimation name={userName || 'você'} onDone={handleAnimationDone} />
+        )}
+      </AnimatePresence>
+
       {/* Resume choice screen */}
       {showResume && (
         <div className="flex-1 flex flex-col items-center justify-center px-4 gap-6">
@@ -368,32 +428,6 @@ export default function SetupPage() {
               )}
               {streaming && messages[messages.length - 1]?.content === '' && <TypingIndicator />}
 
-              {/* Completion navigation */}
-              {status === 'done' && (
-                <div className="flex flex-wrap gap-3 mt-2 mb-6 pl-11">
-                  <button
-                    type="button"
-                    onClick={() => router.push('/dashboard')}
-                    className="px-4 py-2.5 text-sm font-medium rounded-[var(--radius-md)] bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer"
-                  >
-                    Ver Dashboard
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/dashboard/chat')}
-                    className="px-4 py-2.5 text-sm rounded-[var(--radius-md)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
-                  >
-                    Abrir Chat
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/dashboard/wiki')}
-                    className="px-4 py-2.5 text-sm rounded-[var(--radius-md)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
-                  >
-                    Ver Wiki
-                  </button>
-                </div>
-              )}
 
               {error && (
                 <div className="mb-4 rounded-[var(--radius-md)] bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 px-3 py-2">

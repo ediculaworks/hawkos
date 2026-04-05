@@ -3,6 +3,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cron, { type ScheduledTask } from 'node-cron';
 import { hookRegistry } from '../hooks/index.js';
+import { WORKER_MODEL, getWorkerClient } from '../llm-client.js';
+
+const HEARTBEAT_SYSTEM_PROMPT =
+  'Você é um monitor de sistema pessoal. Analise o checklist fornecido. Se tudo estiver em ordem, responda apenas: HEARTBEAT_OK. Caso contrário, liste os pontos de atenção de forma concisa (máximo 5 linhas). Responda em português do Brasil.';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HEARTBEAT_PATH = join(__dirname, '../../../workspace/HEARTBEAT.md');
@@ -132,12 +136,21 @@ export async function runHeartbeat(): Promise<string | null> {
   await hookRegistry.emit('automation:before', { automationName: 'heartbeat' }).catch(() => {});
 
   try {
-    const { handleAutomationMessage } = await import('../handler.js');
-    const response = await handleAutomationMessage(prompt);
+    const completion = await getWorkerClient().chat.completions.create({
+      model: WORKER_MODEL,
+      messages: [
+        { role: 'system', content: HEARTBEAT_SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      max_tokens: 500,
+      stream: false,
+    });
+
+    const response = completion.choices[0]?.message?.content ?? null;
 
     await hookRegistry.emit('automation:after', { automationName: 'heartbeat' }).catch(() => {});
 
-    if (response?.includes('HEARTBEAT_OK')) {
+    if (!response || response.includes('HEARTBEAT_OK')) {
       console.log(`[heartbeat] All clear (${profile} mode)`);
       return null;
     }

@@ -135,45 +135,16 @@ export async function handleOnboardingRoute(
         }
 
         const client = useOllama ? getWorkerClient() : getChatClient();
-        const model = useOllama ? WORKER_MODEL : 'qwen/qwen3.6-plus:free';
+        // openrouter/free auto-routes to the best available free model internally
+        const model = useOllama ? WORKER_MODEL : 'openrouter/free';
 
-        // Fallback models if primary is rate-limited
-        const FALLBACK_MODELS = [
-          'meta-llama/llama-3.3-70b-instruct:free',
-          'nvidia/nemotron-3-nano-30b-a3b:free',
-          'google/gemma-3-12b-it:free',
-        ];
-
-        let openaiStream: Awaited<ReturnType<typeof client.chat.completions.create>>;
-        let attemptModel = model;
-        let lastError: Error | null = null;
-
-        for (const candidate of [model, ...FALLBACK_MODELS]) {
-          try {
-            openaiStream = await client.chat.completions.create({
-              model: candidate,
-              messages,
-              tools: [COMPLETE_ONBOARDING_TOOL],
-              tool_choice: 'auto',
-              stream: true,
-            });
-            attemptModel = candidate;
-            lastError = null;
-            break;
-          } catch (err) {
-            const e = err instanceof Error ? err : new Error(String(err));
-            // Only retry on rate limit errors
-            if (e.message.includes('429') || e.message.toLowerCase().includes('rate')) {
-              lastError = e;
-              continue;
-            }
-            throw err; // non-rate-limit error — rethrow immediately
-          }
-        }
-
-        if (lastError || !openaiStream!) {
-          throw lastError ?? new Error('All models rate-limited');
-        }
+        const openaiStream = await client.chat.completions.create({
+          model,
+          messages,
+          tools: [COMPLETE_ONBOARDING_TOOL],
+          tool_choice: 'auto',
+          stream: true,
+        });
 
         // Accumulate tool call data across streaming chunks
         let toolCallId = '';
