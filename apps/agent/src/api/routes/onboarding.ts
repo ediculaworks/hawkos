@@ -109,35 +109,34 @@ export async function handleOnboardingRoute(
       }
 
       try {
-        // Try Ollama first; fall back to OpenRouter if model not available yet
-        let client = getWorkerClient();
-        let model = WORKER_MODEL;
-        let openaiStream: Awaited<ReturnType<typeof client.chat.completions.create>>;
-        try {
-          openaiStream = await client.chat.completions.create({
-            model,
-            messages,
-            tools: [COMPLETE_ONBOARDING_TOOL],
-            tool_choice: 'auto',
-            stream: true,
-          });
-        } catch (ollamaErr) {
-          const msg = ollamaErr instanceof Error ? ollamaErr.message : String(ollamaErr);
-          if (msg.includes('not found') || msg.includes('404') || msg.includes('does not exist')) {
-            // Ollama model not downloaded yet — fall back to OpenRouter
-            client = getChatClient();
-            model = process.env.MODEL_TIER_DEFAULT ?? 'qwen/qwen3.6-plus:free';
-            openaiStream = await client.chat.completions.create({
-              model,
-              messages,
-              tools: [COMPLETE_ONBOARDING_TOOL],
-              tool_choice: 'auto',
-              stream: true,
+        // Prefer Ollama (local, free). Pre-check if the model is available to avoid
+        // streaming errors that can't be caught mid-iteration.
+        const ollamaBase = process.env.OLLAMA_BASE_URL?.replace('/v1', '');
+        let ollamaReady = false;
+        if (ollamaBase) {
+          try {
+            const tagsRes = await fetch(`${ollamaBase}/api/tags`, {
+              signal: AbortSignal.timeout(2000),
             });
-          } else {
-            throw ollamaErr;
+            if (tagsRes.ok) {
+              const tags = (await tagsRes.json()) as { models?: { name: string }[] };
+              ollamaReady = tags.models?.some((m) => m.name.startsWith('qwen3')) ?? false;
+            }
+          } catch {
+            // Ollama unreachable — use OpenRouter
           }
         }
+
+        const client = ollamaReady ? getWorkerClient() : getChatClient();
+        const model = ollamaReady ? WORKER_MODEL : 'qwen/qwen3.6-plus:free';
+
+        const openaiStream = await client.chat.completions.create({
+          model,
+          messages,
+          tools: [COMPLETE_ONBOARDING_TOOL],
+          tool_choice: 'auto',
+          stream: true,
+        });
 
         // Accumulate tool call data across streaming chunks
         let toolCallId = '';
