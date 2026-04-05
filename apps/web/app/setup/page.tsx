@@ -7,6 +7,15 @@ import { parseSseStream } from '@/lib/utils/parse-sse';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+// Static first message — no LLM needed, works without any API key
+const STATIC_GREETING = `Olá! Sou o **Hawk**, o teu assistente de IA pessoal. 🦅
+
+Para começarmos, preciso de uma chave da **OpenRouter** — é gratuita e dá acesso a modelos como Qwen, Llama e outros.
+
+Cria conta em [openrouter.ai](https://openrouter.ai) e copia a tua chave (começa com \`sk-or-\`).
+
+Se já tens, cola aqui. Se preferires configurar depois, escreve "pular".`;
+
 // ── Types ─────────────────────────────────────────────────────────
 
 interface OnboardingMessage {
@@ -124,14 +133,14 @@ export default function SetupPage() {
     }
   }, [messages, status]);
 
-  // Init: check for saved progress
+  // Init: check for saved progress or show static greeting
   useEffect(() => {
     const saved = loadSaved();
     if (saved && saved.messages.length > 1) {
       setSavedMessages(saved.messages);
       setShowResume(true);
     } else {
-      sendMessage('__init__');
+      setMessages([{ role: 'assistant', content: STATIC_GREETING }]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -215,15 +224,22 @@ export default function SetupPage() {
     async (text: string) => {
       if (streaming || status === 'completing' || status === 'done') return;
 
-      const isInit = text === '__init__';
-      const history: OnboardingMessage[] = isInit
-        ? [...messages]
-        : [...messages, { role: 'user', content: text }];
-
-      if (!isInit) {
-        setMessages(history);
-        setInputValue('');
+      // Detect OpenRouter key pasted as first user response — save immediately
+      // and replace in history with a neutral placeholder (don't expose raw key to LLM)
+      let messageForLLM = text;
+      const isFirstUserMessage = messages.filter((m) => m.role === 'user').length === 0;
+      if (isFirstUserMessage && text.trim().startsWith('sk-or-')) {
+        try {
+          await saveIntegration('openrouter', { api_key: text.trim() }, true);
+          messageForLLM = 'Já configurei minha chave da OpenRouter.';
+        } catch {
+          // Save failed — continue anyway, key can be set later in Settings
+        }
       }
+
+      const history: OnboardingMessage[] = [...messages, { role: 'user', content: messageForLLM }];
+      setMessages([...messages, { role: 'user', content: messageForLLM }]);
+      setInputValue('');
 
       setStreaming(true);
       setError(null);
@@ -241,7 +257,7 @@ export default function SetupPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             history: history.filter((m) => m.role !== 'assistant' || m.content !== ''),
-            message: text,
+            message: messageForLLM,
             timezone: timezone.current,
           }),
           signal: controller.signal,
@@ -283,15 +299,13 @@ export default function SetupPage() {
   const handleContinue = useCallback(() => {
     setMessages(savedMessages);
     setShowResume(false);
-    // Send a continuation signal so the LLM knows to resume
-    sendMessage('__init__');
-  }, [savedMessages, sendMessage]);
+  }, [savedMessages]);
 
   const handleRestart = useCallback(() => {
     clearSaved();
     setShowResume(false);
-    sendMessage('__init__');
-  }, [sendMessage]);
+    setMessages([{ role: 'assistant', content: STATIC_GREETING }]);
+  }, []);
 
   // ── Render ──────────────────────────────────────────────────────
 
