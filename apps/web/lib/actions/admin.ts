@@ -209,6 +209,139 @@ export async function createTenantAction(data: {
   }
 }
 
+const TABLES_TO_WIPE = [
+  'session_memories',
+  'agent_conversations',
+  'conversation_summaries',
+  'conversation_messages',
+  'session_archives',
+  'agent_messages',
+  'agent_memories',
+  'activity_log',
+  'medication_logs',
+  'medications',
+  'conditions',
+  'substance_logs',
+  'lab_results',
+  'body_measurements',
+  'nutrition_logs',
+  'workout_sets',
+  'workout_sessions',
+  'sleep_sessions',
+  'health_observations',
+  'finance_transactions',
+  'finance_recurring',
+  'finance_accounts',
+  'finance_categories',
+  'calendar_reminders',
+  'calendar_attendees',
+  'calendar_events',
+  'calendar_sync_config',
+  'habit_logs',
+  'habits',
+  'journal_entries',
+  'tasks',
+  'objectives',
+  'interactions',
+  'people',
+  'work_logs',
+  'projects',
+  'workspaces',
+  'legal_obligations',
+  'contracts',
+  'legal_entities',
+  'knowledge_notes',
+  'books',
+  'documents',
+  'assets',
+  'maintenance_logs',
+  'housing_bills',
+  'residences',
+  'security_items',
+  'media_items',
+  'hobby_logs',
+  'social_posts',
+  'social_goals',
+  'reflections',
+  'personal_values',
+  'entity_tags',
+  'tags',
+  'data_gaps',
+  'onboarding_questions',
+  'modules',
+];
+
+export async function resetTenantData(tenantId: string): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const sql = getPool();
+
+  const rows = await sql.unsafe('SELECT schema_name FROM admin.tenants WHERE id = $1', [tenantId]);
+  const schemaName = rows[0]?.schema_name as string | undefined;
+  if (!schemaName) return { ok: false, error: 'Tenant não encontrado' };
+
+  try {
+    for (const table of TABLES_TO_WIPE) {
+      try {
+        await sql.unsafe(`DELETE FROM "${schemaName}".${table}`);
+      } catch {
+        /* table may not exist — skip */
+      }
+    }
+
+    // Reset profile
+    try {
+      await sql.unsafe(
+        `UPDATE "${schemaName}".profile SET name = 'User', birth_date = '2000-01-01', metadata = '{}', onboarding_complete = false, cpf = null`,
+      );
+    } catch {
+      /* skip */
+    }
+
+    // Clear integration_configs (tenant-level API keys, not admin.tenants credentials)
+    try {
+      await sql.unsafe(`DELETE FROM "${schemaName}".integration_configs`);
+    } catch {
+      /* skip */
+    }
+
+    // Re-seed modules as disabled
+    const moduleIds = [
+      'finances',
+      'health',
+      'people',
+      'career',
+      'objectives',
+      'knowledge',
+      'routine',
+      'assets',
+      'entertainment',
+      'legal',
+      'social',
+      'spirituality',
+      'housing',
+      'security',
+      'calendar',
+      'journal',
+    ];
+    for (const id of moduleIds) {
+      try {
+        await sql.unsafe(
+          `INSERT INTO "${schemaName}".modules (id, enabled) VALUES ($1, false)
+           ON CONFLICT (id) DO UPDATE SET enabled = false`,
+          [id],
+        );
+      } catch {
+        /* skip */
+      }
+    }
+
+    revalidatePath('/dashboard/admin');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Erro ao limpar dados' };
+  }
+}
+
 export async function deleteTenant(tenantId: string) {
   await requireAdmin();
   const sql = getPool();

@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 
-import { deleteTenant, updateTenantStatus } from '@/lib/actions/admin';
+import { deleteTenant, resetTenantData, updateTenantStatus } from '@/lib/actions/admin';
 
 import { CreateTenantModal } from './create-tenant-modal';
 
@@ -105,6 +105,7 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
   const logsBottomRef = useRef<HTMLDivElement>(null);
   const logReaderRef = useRef<AbortController | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState<string | null>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -206,6 +207,16 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
       startTransition(() => router.refresh());
     } catch {
       // delete failed — refresh will show current state
+    }
+  }
+
+  async function handleReset(tenantId: string) {
+    try {
+      await resetTenantData(tenantId);
+      setConfirmReset(null);
+      startTransition(() => router.refresh());
+    } catch {
+      // reset failed — refresh will show current state
     }
   }
 
@@ -386,6 +397,15 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
                           </div>
                         )}
                       </div>
+                      {/* Reset button */}
+                      <button
+                        type="button"
+                        onClick={() => setConfirmReset(confirmReset === t.id ? null : t.id)}
+                        className="rounded-[var(--radius-md)] px-2 py-1 text-xs text-[var(--color-text-muted)] hover:bg-amber-500/10 hover:text-amber-400 transition-colors"
+                        title="Limpar dados (factory reset)"
+                      >
+                        Reset
+                      </button>
                       {/* Delete button */}
                       <button
                         type="button"
@@ -396,6 +416,28 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
+                    {/* Confirm reset */}
+                    {confirmReset === t.id && (
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        <span className="text-[10px] text-amber-400">
+                          Apagar todos os dados de {t.slug}?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmReset(null)}
+                          className="rounded px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleReset(t.id)}
+                          className="rounded bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-400 hover:bg-amber-500/25 transition-colors"
+                        >
+                          Confirmar
+                        </button>
+                      </div>
+                    )}
                     {/* Confirm delete */}
                     {confirmDelete === t.id && (
                       <div className="mt-2 flex items-center justify-end gap-2">

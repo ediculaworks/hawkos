@@ -146,7 +146,9 @@
       "Read(//c/Users/lucas/Documents/GitHub/hawkos/packages/auth/src/**)",
       "Read(//c/Users/lucas/Documents/GitHub/hawkos/apps/web/app/api/**)",
       "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker logs hawkos-web-1 --tail 30 2>&1 | grep -i 'auth_users\\\\|schema\\\\|migration\\\\|error' | head -20\")",
-      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker exec hawkos-postgres-1 psql -U hawkos -d hawkos -c \\\\\"SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'tenant_%' ORDER BY schema_name\\\\\"\")"
+      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker exec hawkos-postgres-1 psql -U hawkos -d hawkos -c \\\\\"SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'tenant_%' ORDER BY schema_name\\\\\"\")",
+      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && git pull && docker compose build web agent && docker compose up -d web agent\")",
+      "Bash(find /c/Users/lucas/Documents/GitHub/hawkos/packages/db/supabase/migrations -name \"20260316*.sql\" -exec grep -h \"^CREATE TABLE\" {} \\\\;)"
     ],
     "deny": ["Read(./secrets/**)", "Bash(npm publish *)"],
     "ask": ["Bash(git push *)", "Bash(git commit *)", "Bash(rm *)", "Bash(bun db:migrate)"],
