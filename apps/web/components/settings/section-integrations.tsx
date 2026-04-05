@@ -1,9 +1,6 @@
 'use client';
 
-import {
-  fetchIntegrations,
-  toggleIntegration,
-} from '@/lib/actions/integrations';
+import { fetchIntegrations } from '@/lib/actions/integrations';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
@@ -21,9 +18,9 @@ export function SectionIntegrations() {
     staleTime: 30_000,
   });
 
-  const handleToggle = async (provider: string, enabled: boolean) => {
-    await toggleIntegration(provider as never, enabled);
-    queryClient.invalidateQueries({ queryKey: ['integrations'] });
+  // Toggle is handled by opening the form and resaving — no dedicated toggle endpoint
+  const handleToggle = (_provider: string, _enabled: boolean) => {
+    // no-op: configure via the settings form
   };
 
   const handleSaved = () => {
