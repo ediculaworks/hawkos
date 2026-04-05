@@ -1,4 +1,4 @@
-import { WORKER_MODEL, getWorkerClient } from '../../llm-client.js';
+import { WORKER_MODEL, getChatClient, getWorkerClient } from '../../llm-client.js';
 import { buildOnboardingSystemPrompt } from './onboarding-prompt.js';
 
 interface Message {
@@ -125,7 +125,6 @@ export async function handleOnboardingRoute(
           const msg = ollamaErr instanceof Error ? ollamaErr.message : String(ollamaErr);
           if (msg.includes('not found') || msg.includes('404') || msg.includes('does not exist')) {
             // Ollama model not downloaded yet — fall back to OpenRouter
-            const { getChatClient } = await import('../../llm-client.js');
             client = getChatClient();
             model = process.env.MODEL_TIER_DEFAULT ?? 'qwen/qwen3.6-plus:free';
             openaiStream = await client.chat.completions.create({
