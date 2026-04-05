@@ -3,7 +3,6 @@
  * Runs as post-processing after LLM response.
  */
 
-import { getCurrentSchema } from '@hawk/db';
 import { saveMessage } from '@hawk/module-memory/queries';
 import { logActivity } from '../activity-logger.js';
 import { hookRegistry } from '../hooks/index.js';
@@ -13,9 +12,7 @@ import type { HandlerContext, Middleware } from './types.js';
 export const persistenceMiddleware: Middleware = {
   name: 'persistence',
   execute: async (ctx: HandlerContext, next) => {
-    // Save user message — await to ensure schema context is preserved.
-    const schema = getCurrentSchema();
-    console.log('[persistence] schema context:', schema, 'session:', ctx.sessionId.slice(0, 8));
+    // Save user message
     await saveMessage({
       session_id: ctx.sessionId,
       role: 'user',

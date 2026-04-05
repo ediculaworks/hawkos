@@ -214,8 +214,8 @@ class QueryBuilder<T = any> {
   // ── SELECT ──────────────────────────────────────────────────────────────
 
   select(columns?: string, options?: { count?: 'exact'; head?: boolean }): QueryBuilder<T> {
-    if (this._operation !== 'select' && columns !== undefined) {
-      // .select() called after insert/update/delete — means "RETURNING"
+    if (this._operation !== 'select') {
+      // .select() called after insert/update/delete — means "RETURNING *"
       this._returnSelect = true;
       if (columns && columns !== '*') {
         this._selectStr = columns;
@@ -223,13 +223,16 @@ class QueryBuilder<T = any> {
         this._columns = parsed.columns;
         this._embeds = parsed.embeds;
       }
-    } else {
-      this._operation = 'select';
-      this._selectStr = columns || '*';
-      const parsed = parseSelectColumns(this._selectStr);
-      this._columns = parsed.columns;
-      this._embeds = parsed.embeds;
+      if (options?.count) this._countMode = options.count;
+      if (options?.head) this._headOnly = true;
+      return this;
     }
+    // Regular SELECT
+    this._operation = 'select';
+    this._selectStr = columns || '*';
+    const parsed = parseSelectColumns(this._selectStr);
+    this._columns = parsed.columns;
+    this._embeds = parsed.embeds;
     if (options?.count) this._countMode = options.count;
     if (options?.head) this._headOnly = true;
     return this;
