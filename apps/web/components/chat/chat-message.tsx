@@ -32,13 +32,16 @@ export const ChatMessageBubble = memo(ChatMessageInner, (prev, next) => {
   return prev.message.content === next.message.content && prev.isLast === next.isLast;
 });
 
+function formatTimestamp(dateStr: string | undefined): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const date = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `${date} ${time}`;
+}
+
 function UserMessage({ message }: { message: ChatMessage }) {
-  const timestamp = message.created_at
-    ? new Date(message.created_at).toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : '';
+  const timestamp = formatTimestamp(message.created_at);
 
   return (
     <div className="flex justify-end gap-3 mb-4">
@@ -77,12 +80,7 @@ function AssistantMessage({
 }) {
   const [copied, setCopied] = useState(false);
 
-  const timestamp = message.created_at
-    ? new Date(message.created_at).toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : '';
+  const timestamp = formatTimestamp(message.created_at);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(message.content);

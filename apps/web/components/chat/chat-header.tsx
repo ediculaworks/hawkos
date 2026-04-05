@@ -35,13 +35,7 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ agent, connected }: ChatHeaderProps) {
   if (!agent) {
-    return (
-      <div className="flex items-center justify-center px-4 py-4 border-b border-[var(--color-border-subtle)]">
-        <span className="text-sm text-[var(--color-text-muted)]">
-          Selecione um agente para conversar
-        </span>
-      </div>
-    );
+    return <div className="border-b border-[var(--color-border-subtle)] h-[57px]" />;
   }
 
   const modules = agent.enabled_tools ?? [];
