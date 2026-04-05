@@ -141,7 +141,10 @@
       "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker logs hawkos-web-1 --tail 80 2>&1 | grep -A 5 'errorMissingColumn\\\\|column\\\\|ERROR'\")",
       "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker exec hawkos-postgres-1 psql -U postgres -d hawkos -c '\\\\d admin.tenant_metrics'\")",
       "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker exec hawkos-postgres-1 psql -U hawk -d hawkos -c '\\\\d admin.tenant_metrics'\")",
-      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && cat .env | grep POSTGRES_USER\")"
+      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && cat .env | grep POSTGRES_USER\")",
+      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker logs hawkos-web-1 --tail 10 2>&1 | grep -i error\")",
+      "Read(//c/Users/lucas/Documents/GitHub/hawkos/packages/auth/src/**)",
+      "Read(//c/Users/lucas/Documents/GitHub/hawkos/apps/web/app/api/**)"
     ],
     "deny": ["Read(./secrets/**)", "Bash(npm publish *)"],
     "ask": ["Bash(git push *)", "Bash(git commit *)", "Bash(rm *)", "Bash(bun db:migrate)"],

@@ -1,6 +1,7 @@
 'use server';
 
 import { createAdminClientFromEnv } from '@hawk/admin';
+import { createUser } from '@hawk/auth';
 import { getPool } from '@hawk/db';
 import { revalidatePath } from 'next/cache';
 
@@ -139,6 +140,8 @@ export async function updateTenantStatus(tenantId: string, status: string) {
 
 export async function createTenantAction(data: {
   label: string;
+  email: string;
+  password: string;
   discordConfig?: {
     bot_token?: string;
     client_id?: string;
@@ -152,7 +155,10 @@ export async function createTenantAction(data: {
 }): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
   await requireAdmin();
 
+  const sql = getPool();
+
   try {
+    // 1. Create the tenant schema + record
     const admin = createAdminClientFromEnv();
     const result = await admin.createTenant({
       label: data.label,
@@ -162,8 +168,31 @@ export async function createTenantAction(data: {
     if (!result.success || !result.tenant) {
       return { ok: false, error: result.error ?? 'Erro ao criar tenant' };
     }
+
+    const { slug, schema_name: schemaName, id: tenantId } = result.tenant;
+
+    // 2. Create user account in the tenant schema
+    const userResult = await createUser(data.email, data.password, schemaName);
+    if (userResult.error) {
+      // Rollback: delete the tenant record and schema we just created
+      try {
+        await sql.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
+        await sql.unsafe('DELETE FROM admin.tenants WHERE id = $1', [tenantId]);
+      } catch {
+        /* best-effort rollback */
+      }
+      return { ok: false, error: `Erro ao criar utilizador: ${userResult.error}` };
+    }
+
+    // 3. Set owner_email on the tenant row
+    await sql.unsafe('UPDATE admin.tenants SET owner_email = $1, status = $2 WHERE id = $3', [
+      data.email,
+      'active',
+      tenantId,
+    ]);
+
     revalidatePath('/dashboard/admin');
-    return { ok: true, slug: result.tenant.slug };
+    return { ok: true, slug };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Erro ao criar tenant' };
   }
