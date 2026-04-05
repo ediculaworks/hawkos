@@ -41,6 +41,10 @@ export async function handleAdminRoute(
   if (tenantStartMatch && method === 'POST') {
     const slug = tenantStartMatch[1]!;
     try {
+      // Apply all tenant migrations before starting services (idempotent via IF NOT EXISTS)
+      const { applyMigrationsForSchema } = await import('../../migrations.js');
+      await applyMigrationsForSchema(`tenant_${slug}`);
+
       const { tenantManager } = await import('../../tenant-manager.js');
       const ctx = await tenantManager.addTenant(slug);
       await startTenantServices(ctx);

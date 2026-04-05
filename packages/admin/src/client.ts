@@ -180,10 +180,38 @@ export class AdminClient {
       `ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT ALL ON SEQUENCES TO authenticated`,
     );
 
-    // Apply tenant migrations in the new schema
-    // Migrations are loaded from packages/db/supabase/migrations/ at deploy time
-    // For now, we mark the schema as ready — migrations are applied separately
-    console.log(`[admin] Created schema "${schemaName}" — apply migrations separately`);
+    // Create auth_users table — minimum required for web dashboard login
+    await sql.begin(async (tx) => {
+      await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      await tx.unsafe(`
+        CREATE TABLE IF NOT EXISTS auth_users (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'user',
+          created_at TIMESTAMPTZ DEFAULT now(),
+          updated_at TIMESTAMPTZ DEFAULT now()
+        )
+      `);
+      // updated_at trigger (requires update_updated_at() in public schema)
+      await tx.unsafe(`
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_trigger
+            WHERE tgname = 'auth_users_updated_at'
+              AND tgrelid = '"${schemaName}".auth_users'::regclass
+          ) THEN
+            CREATE TRIGGER auth_users_updated_at
+              BEFORE UPDATE ON auth_users
+              FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+          END IF;
+        END $$
+      `);
+    });
+
+    console.log(
+      `[admin] Created schema "${schemaName}" with auth_users — run db:migrate for full module tables`,
+    );
   }
 
   async updateTenant(id: string, data: Record<string, unknown>): Promise<Tenant> {

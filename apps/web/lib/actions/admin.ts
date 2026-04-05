@@ -191,6 +191,17 @@ export async function createTenantAction(data: {
       tenantId,
     ]);
 
+    // 4. Notify agent to apply full migrations + hot-load (best-effort)
+    const agentUrl = process.env.AGENT_INTERNAL_URL ?? 'http://localhost:3001';
+    const agentSecret = process.env.AGENT_API_SECRET;
+    fetch(`${agentUrl}/admin/tenants/${slug}/start`, {
+      method: 'POST',
+      headers: agentSecret ? { Authorization: `Bearer ${agentSecret}` } : {},
+      signal: AbortSignal.timeout(30_000),
+    }).catch(() => {
+      console.warn(`[admin] Agent notification skipped for ${slug}`);
+    });
+
     revalidatePath('/dashboard/admin');
     return { ok: true, slug };
   } catch (err) {
