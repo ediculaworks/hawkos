@@ -109,26 +109,33 @@ export async function handleOnboardingRoute(
       }
 
       try {
-        // Prefer Ollama (local, free). Pre-check if the model is available to avoid
-        // streaming errors that can't be caught mid-iteration.
-        const ollamaBase = process.env.OLLAMA_BASE_URL?.replace('/v1', '');
-        let ollamaReady = false;
-        if (ollamaBase) {
-          try {
-            const tagsRes = await fetch(`${ollamaBase}/api/tags`, {
-              signal: AbortSignal.timeout(2000),
-            });
-            if (tagsRes.ok) {
-              const tags = (await tagsRes.json()) as { models?: { name: string }[] };
-              ollamaReady = tags.models?.some((m) => m.name.startsWith('qwen3')) ?? false;
+        // Prefer OpenRouter for onboarding (interactive, needs low latency).
+        // Fall back to Ollama only when no OpenRouter key is configured.
+        // Note: qwen3:4b on CPU takes ~48s/response due to thinking mode —
+        // unsuitable for interactive chat even when locally available.
+        const hasOpenRouter = Boolean(process.env.OPENROUTER_API_KEY);
+        let useOllama = false;
+
+        if (!hasOpenRouter) {
+          // No OpenRouter key → check if Ollama can serve
+          const ollamaBase = process.env.OLLAMA_BASE_URL?.replace('/v1', '');
+          if (ollamaBase) {
+            try {
+              const tagsRes = await fetch(`${ollamaBase}/api/tags`, {
+                signal: AbortSignal.timeout(2000),
+              });
+              if (tagsRes.ok) {
+                const tags = (await tagsRes.json()) as { models?: { name: string }[] };
+                useOllama = tags.models?.some((m) => m.name.startsWith('qwen3')) ?? false;
+              }
+            } catch {
+              // Ollama unreachable
             }
-          } catch {
-            // Ollama unreachable — use OpenRouter
           }
         }
 
-        const client = ollamaReady ? getWorkerClient() : getChatClient();
-        const model = ollamaReady ? WORKER_MODEL : 'qwen/qwen3.6-plus:free';
+        const client = useOllama ? getWorkerClient() : getChatClient();
+        const model = useOllama ? WORKER_MODEL : 'qwen/qwen3.6-plus:free';
 
         const openaiStream = await client.chat.completions.create({
           model,
