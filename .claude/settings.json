@@ -133,7 +133,11 @@
       "Bash(bash /tmp/integration_audit.sh)",
       "Bash(bash /tmp/completeness_check.sh)",
       "Bash(grep -E \"^\\\\.\\\\\\\\\\\\\\\\apps\\\\\\\\\\\\\\\\agent\\\\\\\\\\\\\\\\src\\\\\\\\\\\\\\\\api\\\\\\\\\\\\\\\\routes|^\\\\.\\\\\\\\\\\\\\\\apps\\\\\\\\\\\\\\\\agent\\\\\\\\\\\\\\\\src\\\\\\\\\\\\\\\\event-sub|^\\\\.\\\\\\\\\\\\\\\\packages\\\\\\\\\\\\\\\\shared\\\\\\\\\\\\\\\\src\\\\\\\\\\\\\\\\config\")",
-      "Bash(grep -n \"^export\\\\|^async function handle\\\\|^export async function handle\\\\|Command$\\\\|const.*Command \" /c/Users/lucas/Documents/GitHub/hawkos/packages/modules/health/commands.ts)"
+      "Bash(grep -n \"^export\\\\|^async function handle\\\\|^export async function handle\\\\|Command$\\\\|const.*Command \" /c/Users/lucas/Documents/GitHub/hawkos/packages/modules/health/commands.ts)",
+      "Bash(ssh -o StrictHostKeyChecking=no hawk@168.231.89.31 \"sleep 4 && curl -s http://localhost:3001/health | python3 -m json.tool 2>/dev/null || curl -s http://localhost:3001/health\")",
+      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && git pull && docker compose build web && docker compose up -d web\")",
+      "Bash(ssh hawk@168.231.89.31 \"docker compose ps web && curl -s http://localhost:3000/api/health 2>/dev/null | head -c 200\")",
+      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker compose ps web\")"
     ],
     "deny": ["Read(./secrets/**)", "Bash(npm publish *)"],
     "ask": ["Bash(git push *)", "Bash(git commit *)", "Bash(rm *)", "Bash(bun db:migrate)"],

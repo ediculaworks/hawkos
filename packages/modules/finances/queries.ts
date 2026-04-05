@@ -1,2 +1,2 @@
-export * from './queries-crud.js';
-export * from './queries-analytics.js';
+export * from './queries-crud';
+export * from './queries-analytics';
