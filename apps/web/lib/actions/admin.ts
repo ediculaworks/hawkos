@@ -19,9 +19,9 @@ export async function fetchAdminOverview() {
 
   // Query today's metrics
   const metrics = await sql.unsafe(`
-    SELECT COALESCE(SUM(api_calls), 0) as total_messages,
+    SELECT COALESCE(SUM(messages_count), 0) as total_messages,
            COALESCE(SUM(tokens_used), 0) as total_tokens,
-           COALESCE(SUM(tokens_cost_usd), 0) as total_cost
+           COALESCE(SUM(cost_usd), 0) as total_cost
     FROM admin.tenant_metrics
     WHERE date = CURRENT_DATE
   `);
@@ -41,9 +41,9 @@ export async function fetchTenantList() {
 
   const rows = await sql.unsafe(`
     SELECT t.id, t.slug, t.label, t.status, t.schema_name, t.owner_email, t.created_at, t.updated_at,
-           COALESCE(m.api_calls, 0) as today_messages,
+           COALESCE(m.messages_count, 0) as today_messages,
            COALESCE(m.tokens_used, 0) as today_tokens,
-           COALESCE(m.tokens_cost_usd, 0) as today_cost
+           COALESCE(m.cost_usd, 0) as today_cost
     FROM admin.tenants t
     LEFT JOIN admin.tenant_metrics m ON m.tenant_id = t.id AND m.date = CURRENT_DATE
     ORDER BY t.slug

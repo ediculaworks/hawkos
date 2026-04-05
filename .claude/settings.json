@@ -137,7 +137,11 @@
       "Bash(ssh -o StrictHostKeyChecking=no hawk@168.231.89.31 \"sleep 4 && curl -s http://localhost:3001/health | python3 -m json.tool 2>/dev/null || curl -s http://localhost:3001/health\")",
       "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && git pull && docker compose build web && docker compose up -d web\")",
       "Bash(ssh hawk@168.231.89.31 \"docker compose ps web && curl -s http://localhost:3000/api/health 2>/dev/null | head -c 200\")",
-      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker compose ps web\")"
+      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker compose ps web\")",
+      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker logs hawkos-web-1 --tail 80 2>&1 | grep -A 5 'errorMissingColumn\\\\|column\\\\|ERROR'\")",
+      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker exec hawkos-postgres-1 psql -U postgres -d hawkos -c '\\\\d admin.tenant_metrics'\")",
+      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && docker exec hawkos-postgres-1 psql -U hawk -d hawkos -c '\\\\d admin.tenant_metrics'\")",
+      "Bash(ssh hawk@168.231.89.31 \"cd /docker/hawkos && cat .env | grep POSTGRES_USER\")"
     ],
     "deny": ["Read(./secrets/**)", "Bash(npm publish *)"],
     "ask": ["Bash(git push *)", "Bash(git commit *)", "Bash(rm *)", "Bash(bun db:migrate)"],
