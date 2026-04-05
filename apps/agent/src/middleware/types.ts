@@ -25,6 +25,8 @@ export interface HandlerContext {
   readonly isNewSession: boolean;
   readonly attachments?: Attachment[];
   readonly onChunk?: (chunk: string) => void;
+  /** Per-tenant OpenRouter API key — overrides global env key when set */
+  readonly tenantApiKey?: string;
 
   // ── Security (set by security middleware) ──────────────────
   sanitizedMessage: string;
@@ -98,6 +100,7 @@ export function createHandlerContext(params: {
   isNewSession: boolean;
   onChunk?: (chunk: string) => void;
   attachments?: Attachment[];
+  tenantApiKey?: string;
 }): HandlerContext {
   return {
     sessionId: params.sessionId,
@@ -107,6 +110,7 @@ export function createHandlerContext(params: {
     isNewSession: params.isNewSession,
     attachments: params.attachments,
     onChunk: params.onChunk,
+    tenantApiKey: params.tenantApiKey,
 
     sanitizedMessage: params.userMessage,
 

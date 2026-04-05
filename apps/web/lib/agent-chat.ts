@@ -1,6 +1,13 @@
 'use client';
 
 import { agentHeaders, getAgentApiUrl, getAgentWsUrl } from '@/lib/config';
+
+function getTenantSlug(): string | undefined {
+  if (typeof window !== 'undefined' && window.__HAWK_TENANT__) {
+    return window.__HAWK_TENANT__.slug;
+  }
+  return undefined;
+}
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface ChatMessage {
@@ -205,11 +212,11 @@ export function useChat() {
         sessionStorage.removeItem(DELEGATION_KEY);
         setActiveSession(pendingDelegation.sessionId);
         addTab(pendingDelegation.sessionId);
-        socket.send(JSON.stringify({ type: 'chat_join', sessionId: pendingDelegation.sessionId }));
+        socket.send(JSON.stringify({ type: 'chat_join', tenantSlug: getTenantSlug(), sessionId: pendingDelegation.sessionId }));
         // Send the first message once the join completes (handled in chat_joined handler)
         pendingMessageRef.current = pendingDelegation.message;
       } else if (storedSession) {
-        socket.send(JSON.stringify({ type: 'chat_join', sessionId: storedSession }));
+        socket.send(JSON.stringify({ type: 'chat_join', tenantSlug: getTenantSlug(), sessionId: storedSession }));
       }
 
       loadSessions();
@@ -411,7 +418,7 @@ export function useChat() {
       // Notify WebSocket about new session
       const socket = wsRef.current;
       if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'chat_join', sessionId: data.sessionId }));
+        socket.send(JSON.stringify({ type: 'chat_join', tenantSlug: getTenantSlug(), sessionId: data.sessionId }));
       }
 
       setActiveSession(data.sessionId);

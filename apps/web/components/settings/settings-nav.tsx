@@ -7,6 +7,7 @@ import {
   Database,
   type LucideIcon,
   Palette,
+  Plug,
   Settings,
   User,
 } from 'lucide-react';
@@ -17,7 +18,8 @@ export type SettingsSection =
   | 'agent'
   | 'appearance'
   | 'notifications'
-  | 'data';
+  | 'data'
+  | 'integrations';
 
 interface NavItem {
   id: SettingsSection;
@@ -28,9 +30,10 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'Geral', icon: Settings },
   { id: 'profile', label: 'Perfil', icon: User },
+  { id: 'integrations', label: 'Integrações', icon: Plug },
   { id: 'agent', label: 'Agente', icon: Bot },
-  { id: 'appearance', label: 'Aparencia', icon: Palette },
-  { id: 'notifications', label: 'Notificacoes', icon: Bell },
+  { id: 'appearance', label: 'Aparência', icon: Palette },
+  { id: 'notifications', label: 'Notificações', icon: Bell },
   { id: 'data', label: 'Dados', icon: Database },
 ];
 

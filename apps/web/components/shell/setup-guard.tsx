@@ -29,9 +29,7 @@ export function SetupGuard({ children }: { children: React.ReactNode }) {
 
         const isSetupPage = pathname === '/setup';
 
-        if (!data.onboardingComplete && !isSetupPage) {
-          router.replace('/setup');
-        } else if (data.onboardingComplete && isSetupPage) {
+        if (data.onboardingComplete && isSetupPage) {
           router.replace('/dashboard');
         } else {
           setChecked(true);

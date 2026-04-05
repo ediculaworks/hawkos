@@ -4,6 +4,7 @@ import { SectionAgent } from '@/components/settings/section-agent';
 import { SectionAppearance } from '@/components/settings/section-appearance';
 import { SectionData } from '@/components/settings/section-data';
 import { SectionGeneral } from '@/components/settings/section-general';
+import { SectionIntegrations } from '@/components/settings/section-integrations';
 import { SectionNotifications } from '@/components/settings/section-notifications';
 import { SectionProfile } from '@/components/settings/section-profile';
 import { SettingsNav, type SettingsSection } from '@/components/settings/settings-nav';
@@ -55,6 +56,7 @@ export default function SettingsPage() {
             {section === 'profile' && profile && (
               <SectionProfile profile={profile} onSaved={handleProfileSaved} />
             )}
+            {section === 'integrations' && <SectionIntegrations />}
             {section === 'agent' && <SectionAgent />}
             {section === 'appearance' && <SectionAppearance />}
             {section === 'notifications' && <SectionNotifications />}

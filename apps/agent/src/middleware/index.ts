@@ -57,6 +57,7 @@ export async function runPipeline(params: {
   isNewSession: boolean;
   onChunk?: (chunk: string) => void;
   attachments?: import('../handler.js').Attachment[];
+  tenantApiKey?: string;
 }): Promise<PipelineResult> {
   const ctx = createHandlerContext(params);
   await defaultPipeline(ctx);

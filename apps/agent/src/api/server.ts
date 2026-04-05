@@ -62,6 +62,8 @@ interface AgentState {
   sessions: Map<string, { channel: string; lastActivity: number; messageCount: number }>;
   wsClients: Set<BunWebSocket>;
   chatClients: Map<string, BunWebSocket>;
+  /** Maps sessionId → tenant slug for per-tenant schema context */
+  sessionTenants: Map<string, string>;
   pendingAutomation: string | null;
 }
 
@@ -71,6 +73,7 @@ const state: AgentState = {
   sessions: new Map(),
   wsClients: new Set(),
   chatClients: new Map(),
+  sessionTenants: new Map(),
   pendingAutomation: null,
 };
 
@@ -209,6 +212,9 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
   if (type === 'chat_join') {
     const sid = typeof sessionId === 'string' && sessionId ? sessionId : crypto.randomUUID();
     state.chatClients.set(sid, ws);
+    // Store tenant slug for this session so we can set schema context during chat
+    const tenantSlug = typeof data.tenantSlug === 'string' ? data.tenantSlug : undefined;
+    if (tenantSlug) state.sessionTenants.set(sid, tenantSlug);
     ws.send(JSON.stringify({ type: 'chat_joined', sessionId: sid }));
     return;
   }
@@ -310,14 +316,23 @@ async function handleChat(
   onChunk?: (chunk: string) => void,
 ): Promise<{ content: string; tokensUsed: number; model: string }> {
   const { handleWebMessage } = await import('../handler.js');
+  const { withSchema } = await import('@hawk/db');
+  const { tenantManager } = await import('../tenant-manager.js');
 
   // Only create session if it doesn't exist; don't reset existing sessions
   if (!state.sessions.has(sessionId)) {
     state.sessions.set(sessionId, { channel: 'web', lastActivity: Date.now(), messageCount: 0 });
   }
 
+  // Resolve tenant schema for this session
+  const tenantSlug = state.sessionTenants.get(sessionId);
+  const tenantCtx = tenantSlug ? tenantManager.getTenant(tenantSlug) : tenantManager.getAll()[0];
+  const schemaName = tenantCtx?.schemaName ?? `tenant_${tenantSlug ?? 'ten1'}`;
+
   try {
-    const result = await handleWebMessage(sessionId, message, onChunk);
+    const result = await withSchema(schemaName, () =>
+      handleWebMessage(sessionId, message, onChunk, tenantCtx?.openrouterConfig?.api_key),
+    );
     return {
       content: result.response,
       tokensUsed: result.totalTokens,
