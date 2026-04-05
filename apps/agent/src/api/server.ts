@@ -307,7 +307,6 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
     try {
       await withSchema(wsSchemaName, runWsChat);
     } catch (err) {
-      console.error('[ws-chat] Error processing message:', err instanceof Error ? err.message : err, { sid, wsSchemaName });
       ws.send(
         JSON.stringify({
           type: 'chat_error',
@@ -337,7 +336,6 @@ async function handleChat(
   const tenantSlug = state.sessionTenants.get(sessionId);
   const tenantCtx = tenantSlug ? tenantManager.getTenant(tenantSlug) : tenantManager.getAll()[0];
   const schemaName = tenantCtx?.schemaName ?? `tenant_${tenantSlug ?? 'ten1'}`;
-  console.log('[handleChat] session=%s tenant=%s schema=%s hasKey=%s', sessionId, tenantSlug, schemaName, !!tenantCtx?.credentials?.openrouterConfig?.api_key);
 
   try {
     const result = await withSchema(schemaName, () =>

@@ -227,15 +227,19 @@ async function callLLMOnce(
   }
 
   const useToolChoice = hasTools && supportsToolChoice(model);
-  const opts = {
+  const isOllamaModel = !model.includes('/') && !!process.env.OLLAMA_BASE_URL;
+  const opts: Record<string, unknown> = {
     model,
     max_tokens: ctx.agent.maxTokens,
     messages: msgs,
     tools: hasTools ? ctx.filteredTools : undefined,
     tool_choice: useToolChoice ? 'auto' : undefined,
+    // Disable qwen3 extended thinking mode — it causes 90s+ latency in chat
+    ...(isOllamaModel ? { think: false } : {}),
   };
 
-  const LLM_TIMEOUT_MS = 90_000; // 90s — generous for slow free models
+  // Ollama local inference is typically much faster than remote APIs
+  const LLM_TIMEOUT_MS = isOllamaModel ? 30_000 : 90_000;
 
   if (stream && ctx.onChunk) {
     const streamResponse = await getClientForModel(model, ctx.tenantApiKey).chat.completions.create(
