@@ -8,13 +8,13 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 // Static first message — no LLM needed, works without any API key
-const STATIC_GREETING = `Olá! Sou o **Hawk**, o teu assistente de IA pessoal. 🦅
+const STATIC_GREETING = `Olá! Sou o **Hawk**, seu assistente de IA pessoal. 🦅
 
 Para começarmos, preciso de uma chave da **OpenRouter** — é gratuita e dá acesso a modelos como Qwen, Llama e outros.
 
-Cria conta em [openrouter.ai](https://openrouter.ai) e copia a tua chave (começa com \`sk-or-\`).
+Crie sua conta em [openrouter.ai](https://openrouter.ai) e copie sua chave (começa com \`sk-or-\`).
 
-Se já tens, cola aqui. Se preferires configurar depois, escreve "pular".`;
+Se já tiver, cole aqui. Se preferir configurar depois, escreva "pular".`;
 
 // ── Types ─────────────────────────────────────────────────────────
 
