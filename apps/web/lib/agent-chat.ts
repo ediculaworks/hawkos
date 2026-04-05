@@ -217,6 +217,8 @@ export function useChat() {
         pendingMessageRef.current = pendingDelegation.message;
       } else if (storedSession) {
         socket.send(JSON.stringify({ type: 'chat_join', tenantSlug: getTenantSlug(), sessionId: storedSession }));
+        // Restore messages for the active session on page load
+        loadMessages(storedSession);
       }
 
       loadSessions();
