@@ -208,6 +208,7 @@ export function triggerAutomation(name: string) {
 
 async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>) {
   const { type, sessionId, content } = data;
+  console.log('[ws] received:', type, typeof sessionId === 'string' ? sessionId.slice(0, 8) : '?');
 
   if (type === 'chat_join') {
     const sid = typeof sessionId === 'string' && sessionId ? sessionId : crypto.randomUUID();
@@ -307,6 +308,7 @@ async function handleChatMessage(ws: BunWebSocket, data: Record<string, unknown>
     try {
       await withSchema(wsSchemaName, runWsChat);
     } catch (err) {
+      console.error('[ws-chat] error:', err instanceof Error ? err.message : err, 'schema:', wsSchemaName);
       ws.send(
         JSON.stringify({
           type: 'chat_error',
