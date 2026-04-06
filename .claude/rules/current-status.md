@@ -1,6 +1,63 @@
 # Current Status
 
-**Ultima atualizacao:** 2026-04-04
+**Ultima atualizacao:** 2026-04-06
+
+## LLM Strategy Unification + Bugfixes (2026-04-06)
+**Status: [✅ Completo — deployado na VPS]**
+
+Unificação da estratégia de LLM e correcção de bugs críticos de encriptação e estabilidade.
+
+### Estratégia de LLM Unificada
+
+| Antes | Depois |
+|-------|--------|
+| 5 modelos diferentes, 3 env vars de worker | 1 modelo local (gemma4:e2b) para ~80% das chamadas |
+| `qwen3:4b` (2.5GB, qualidade básica) | `gemma4:e2b` (7.2GB, MoE 12B/2.3B activos, 128K ctx) |
+| Workers usavam nemotron-nano-9b (OpenRouter) | Workers usam gemma4:e2b (local, grátis) |
+| Sub-agents hardcoded nemotron-120b | Sub-agents usam Ollama local |
+| DEDUP_WORKER_MODEL, MEMORY_WORKER_MODEL separados | Unificado via setWorkerLLM() |
+
+| Componente | Modelo | Onde |
+|---|---|---|
+| Chat simple + moderate | `gemma4:e2b` | Ollama local (grátis) |
+| Chat complex | `qwen/qwen3.6-plus:free` | OpenRouter |
+| Workers (memory, dedup, compression) | `gemma4:e2b` | Ollama local (grátis) |
+| Sub-agents | `gemma4:e2b` | Ollama local (grátis) |
+| Fallback chain | gemma4 → qwen3.6 → nemotron-120b → llama-3.3-70b | — |
+| Embeddings | `openai/text-embedding-3-small` | OpenRouter |
+
+### Bugfixes Críticos
+
+| Fix | Ficheiro | O que mudou |
+|-----|----------|------------|
+| Salt bug na encriptação | `packages/admin/src/client.ts` | `encrypt()` não passava `key_salt` do tenant → agent decriptava com salt, web encriptava sem salt → AES-GCM auth falha. Agora `_getTenantSalt()` lê o salt da DB antes de encriptar. |
+| Credential reload global | `apps/web/lib/actions/admin.ts` | `updateTenantCredentials` chamava `/admin/reload` (shutdown ALL tenants). Agora chama `/admin/tenants/:slug/start` (só o afectado). |
+| URL parsing crash | `apps/agent/src/api/server.ts` | `new URL(req.url)` crash com URLs relativas de health checks. Fallback com base URL. |
+| Credential error spam | `apps/agent/src/credential-manager.ts` | Stack trace por tenant por reload → 1 warning conciso listando todos os slugs. |
+
+### Admin Dashboard — Gestão de Credenciais
+
+| Feature | Ficheiro |
+|---------|----------|
+| Modal "Editar Credenciais" | `apps/web/components/admin/edit-credentials-modal.tsx` (novo) |
+| Server action updateTenantCredentials | `apps/web/lib/actions/admin.ts` |
+| Ícone KeyRound por tenant | `apps/web/components/admin/admin-dashboard.tsx` |
+
+### Observabilidade — Log Capture Persistente
+
+| Componente | Detalhes |
+|------------|----------|
+| Script | `scripts/log-capture.sh` — segue docker logs, grava em `/var/log/hawkos/<service>-YYYY-MM-DD.log` |
+| Systemd | `docker/hawkos-logs.service` — auto-start, re-attach em restarts |
+| Logrotate | 30 dias retidos, compressão automática |
+| Docker limits | agent/web: 50m×10 (era 10m×3) |
+
+### VPS Deploy (2026-04-06)
+- gemma4:e2b baixado e operacional (~7.2GB)
+- Ollama container limit: 10G (era 4G)
+- 6 tenants carregados (ten2, ten4, ten5, ten6, ten8, ten9)
+- ten1/ten3: credenciais originais do seed com master key diferente — precisam re-entrada manual
+- hawkos-logs.service activo, logs a gravar em /var/log/hawkos/
 
 ## Ollama Local Inference + Alpha Fixes (2026-04-04)
 **Status: [✅ Completo — deployado na VPS]**

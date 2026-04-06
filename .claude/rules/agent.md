@@ -2,13 +2,14 @@
 
 ## Handler (apps/agent/src/handler.ts)
 
-O handler processa mensagens em sequência:
-1. Salvar mensagem do usuário
-2. Carregar contexto (L0/L1/L2) + memórias + histórico + sessão anterior
-3. Montar system prompt
-4. Chamar LLM com tool routing dinâmico
-5. Executar tool calls
-6. Salvar resposta
+O handler usa um pipeline de 7 middlewares composáveis (`runPipeline()`):
+1. **security** — injection scanning + secret redaction
+2. **context** — L0/L1/L2, memories, previous session
+3. **history** — session history loading
+4. **routing** — module detection, tool filtering, model selection
+5. **message-builder** — messages array, compression, compaction
+6. **llm** — LLM call + fallback chain + tool loop (max 5 rounds)
+7. **persistence** — save messages, log activity
 
 ## Tool Routing Dinâmico
 
@@ -48,7 +49,17 @@ my_tool: {
 
 ## Memory System
 
-- O agente salva memórias via tool `save_memory` com `memory_type`
+- O agente salva memórias via tool `save_memory` com `memory_type` e `confidence` (0.0-1.0)
 - Session compactor extrai memórias automaticamente ao fim de sessões
-- Deduplicação em 2 estágios evita duplicatas
+- Deduplicação em 2 estágios: vector pre-filter + LLM decision (via worker model)
 - Hotness scoring prioriza memórias frequentemente acessadas
+- Hybrid search: RRF (Reciprocal Rank Fusion) com vector + keyword (pg_trgm)
+
+## LLM Strategy
+
+- **Primário:** `gemma4:e2b` via Ollama local (simple, moderate, workers) — gratuito
+- **Fallback:** OpenRouter free models (qwen3.6-plus, nemotron-120b, llama-3.3-70b)
+- **Complex:** `qwen/qwen3.6-plus:free` via OpenRouter
+- **Workers** (memory, dedup, compression, sub-agents): partilham o mesmo client via `setWorkerLLM()`
+- **Embeddings:** `openai/text-embedding-3-small` via OpenRouter (hardcoded)
+- Configuração: `model-router.ts` (tiers) + `llm-client.ts` (client factory)

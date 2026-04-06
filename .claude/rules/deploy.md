@@ -6,7 +6,7 @@
 ssh hawk@168.231.89.31
 ```
 
-- **VPS:** Hostinger KVM4 (~8GB RAM, CPU-only, Ubuntu)
+- **VPS:** Hostinger KVM4 (16GB RAM, 4 vCPUs AMD EPYC, CPU-only, Ubuntu)
 - **Usuário:** `hawk` (não root)
 - **Path do projecto:** `/docker/hawkos`
 - **Chave SSH:** já configurada na máquina de desenvolvimento
@@ -22,7 +22,7 @@ Todos geridos por `docker compose` em `/docker/hawkos`:
 | caddy | hawkos-caddy-1 | 80/443 | 128M | Reverse proxy + HTTPS automático |
 | web | hawkos-web-1 | 3000 (interno) | 1G | Next.js dashboard |
 | agent | hawkos-agent-1 | 3001 | 1G | Bot Discord + API admin |
-| ollama | hawkos-ollama-1 | 11434 (interno) | 4G | LLM local (qwen3:4b) |
+| ollama | hawkos-ollama-1 | 11434 (interno) | 10G | LLM local (gemma4:e2b) |
 
 ## Fluxo de Deploy Padrão
 
@@ -76,11 +76,12 @@ docker compose pull ollama && docker compose up -d ollama
 
 ## Ollama — Inferência Local
 
-O Ollama serve o tier `simple` do model router (greetings, CRUDs curtos).
+O Ollama serve como LLM primário para ~80% das chamadas (simple + moderate + todos os workers).
+OpenRouter é usado apenas para tier complex e como fallback.
 
 - **Endpoint interno:** `http://ollama:11434/v1` (só acessível dentro da rede Docker)
-- **Modelo padrão:** `qwen3:4b` (~2.5GB, baixa automaticamente na 1ª requisição)
-- **Modelo worker:** `qwen3:4b` (usado por automações, dedup, compactor)
+- **Modelo:** `gemma4:e2b` (Google Gemma 4, MoE 12B total / 2.3B activos, 128K ctx, ~7.2GB)
+- **Usado por:** chat simple, chat moderate, memory extraction, dedup, compression, sub-agents, heartbeat, gap-scanner
 - **Activado por:** `OLLAMA_BASE_URL=http://ollama:11434/v1` no `.env`
 
 Para testar manualmente:
@@ -92,32 +93,39 @@ docker exec -it hawkos-agent-1 curl -s http://ollama:11434/api/tags
 docker exec -it hawkos-ollama-1 ollama list
 
 # Pré-baixar modelo (opcional — baixa sozinho na 1ª chamada):
-docker exec -it hawkos-ollama-1 ollama pull qwen3:4b
+docker exec -it hawkos-ollama-1 ollama pull gemma4:e2b
 ```
 
-## Model Routing
+## Estratégia de LLM
 
-| Complexidade | Modelo | Onde |
+Princípio: **Ollama local (gemma4:e2b) como primário para tudo. OpenRouter só como fallback ou para complex.**
+
+| Componente | Modelo Primário | Fallback |
 |---|---|---|
-| `simple` | `qwen3:4b` | Ollama local (gratuito, ~1-3s) |
-| `moderate` | `qwen/qwen3.6-plus:free` | OpenRouter (gratuito) |
-| `complex` | `qwen/qwen3.6-plus:free` | OpenRouter (gratuito) |
+| Chat `simple` | `gemma4:e2b` (local, grátis) | OpenRouter free |
+| Chat `moderate` | `gemma4:e2b` (local, grátis) | `qwen/qwen3.6-plus:free` |
+| Chat `complex` | `qwen/qwen3.6-plus:free` | `nemotron-120b:free`, `llama-3.3-70b:free` |
+| Workers (memory, dedup, compression) | `gemma4:e2b` (local, grátis) | OpenRouter free |
+| Sub-agents | `gemma4:e2b` (local, grátis) | OpenRouter free |
+| Embeddings | `openai/text-embedding-3-small` (OpenRouter) | — |
 
 Override via env vars: `MODEL_TIER_SIMPLE`, `MODEL_TIER_DEFAULT`, `MODEL_TIER_COMPLEX`.
 
 ## Multi-Tenant
 
-- **6 tenants activos:** ten1 → ten6
-- Cada tenant tem schema Postgres isolado
+- **8 tenants** (ten1-ten6, ten8, ten9). Tenants dinâmicos — sem limite hardcoded.
+- Cada tenant tem schema Postgres isolado (`tenant_tenN`)
 - Agent carrega todos os tenants no startup automaticamente
-- Novos tenants são hot-loaded via onboarding (POST `/admin/tenants/:slug/start`)
+- Novos tenants criados via `/dashboard/admin` → botão "+ Novo Tenant"
+- Hot-loaded via POST `/admin/tenants/:slug/start`
 
 ### Credenciais por Tenant
 
-Cada tenant guarda as suas próprias credenciais (encriptadas AES-256-GCM):
-- **OpenRouter API key:** configurável via **Settings → Integrations** no dashboard web
-- **Discord token:** configurado no onboarding (Step 3)
+Cada tenant guarda as suas próprias credenciais (encriptadas AES-256-GCM com per-tenant `key_salt`):
+- **OpenRouter API key:** configurável via **Settings → Integrations** ou **Admin → ícone de chave**
+- **Discord token:** configurado na criação do tenant ou via Admin → ícone de chave
 - A key do `.env` (`OPENROUTER_API_KEY`) serve como fallback global
+- **Admin pode re-encriptar credenciais** de qualquer tenant via `/dashboard/admin` → ícone de chave (KeyRound)
 
 Membros da equipa podem adicionar a própria key em **Settings → Integrations → OpenRouter** sem acesso admin.
 
@@ -146,7 +154,18 @@ docker logs hawkos-agent-1 --tail 30
 ```bash
 docker logs hawkos-ollama-1 --tail 20
 # É normal demorar 10-30s no primeiro arranque
-# Se modelo não existe ainda, a 1ª request vai baixar (~2.5GB)
+# Se modelo não existe ainda, a 1ª request vai baixar (~7.2GB)
+# O modelo carrega na RAM na 1ª chamada (~8-9GB), demora ~10s
+```
+
+**Logs persistentes (captura contínua):**
+```bash
+# Logs gravados em /var/log/hawkos/<service>-YYYY-MM-DD.log
+# Serviço systemd: hawkos-logs.service (auto-start, re-attach em restarts)
+ls -lh /var/log/hawkos/
+grep -i error /var/log/hawkos/agent-$(date +%Y-%m-%d).log
+tail -f /var/log/hawkos/agent-$(date +%Y-%m-%d).log
+# Logrotate: 30 dias retidos, comprimidos automaticamente
 ```
 
 **Permissões git na VPS:**
