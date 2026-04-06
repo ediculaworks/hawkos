@@ -342,6 +342,60 @@ export async function resetTenantData(tenantId: string): Promise<{ ok: boolean; 
   }
 }
 
+export async function updateTenantCredentials(
+  tenantId: string,
+  data: {
+    discordConfig?: {
+      bot_token?: string;
+      client_id?: string;
+      guild_id?: string;
+      channel_id?: string;
+      authorized_user_id?: string;
+    };
+    openrouterConfig?: {
+      api_key?: string;
+    };
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+
+  try {
+    const admin = createAdminClientFromEnv();
+
+    if (data.discordConfig) {
+      await admin.updateTenantDiscordConfig(tenantId, data.discordConfig);
+    }
+
+    if (data.openrouterConfig) {
+      await admin.updateTenantOpenRouterConfig(tenantId, data.openrouterConfig);
+    }
+
+    // Notify agent to reload tenant credentials (best-effort)
+    const sql = getPool();
+    const rows = await sql.unsafe('SELECT slug FROM admin.tenants WHERE id = $1', [tenantId]);
+    const slug = rows[0]?.slug as string | undefined;
+    if (slug) {
+      const agentUrl = process.env.AGENT_INTERNAL_URL ?? 'http://localhost:3001';
+      const agentSecret = process.env.AGENT_API_SECRET;
+      fetch(`${agentUrl}/admin/reload`, {
+        method: 'POST',
+        headers: agentSecret ? { Authorization: `Bearer ${agentSecret}` } : {},
+        signal: AbortSignal.timeout(10_000),
+      }).catch(() => {
+        console.warn(`[admin] Agent reload notification skipped for ${slug}`);
+      });
+    }
+
+    revalidatePath('/dashboard/admin');
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erro ao actualizar credenciais',
+    };
+  }
+}
+
 export async function deleteTenant(tenantId: string) {
   await requireAdmin();
   const sql = getPool();

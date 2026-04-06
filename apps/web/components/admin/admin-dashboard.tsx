@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Coins,
   Cpu,
+  KeyRound,
   RefreshCw,
   Terminal,
   Trash2,
@@ -17,6 +18,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { deleteTenant, resetTenantData, updateTenantStatus } from '@/lib/actions/admin';
 
 import { CreateTenantModal } from './create-tenant-modal';
+import { EditCredentialsModal } from './edit-credentials-modal';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,6 +110,10 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
   const [confirmReset, setConfirmReset] = useState<string | null>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editCredentialsTenant, setEditCredentialsTenant] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
 
   const LOG_SERVICES = ['agent', 'web', 'postgres', 'caddy'] as const;
 
@@ -406,6 +412,17 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
                       >
                         Reset
                       </button>
+                      {/* Edit credentials button */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditCredentialsTenant({ id: t.id, label: t.label || t.slug })
+                        }
+                        className="rounded-[var(--radius-md)] p-1 text-[var(--color-text-muted)] hover:bg-blue-500/10 hover:text-blue-400 transition-colors"
+                        title="Editar credenciais (Discord / OpenRouter)"
+                      >
+                        <KeyRound className="h-3.5 w-3.5" />
+                      </button>
                       {/* Delete button */}
                       <button
                         type="button"
@@ -543,6 +560,13 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
       </div>
 
       {showCreateModal && <CreateTenantModal onClose={() => setShowCreateModal(false)} />}
+      {editCredentialsTenant && (
+        <EditCredentialsModal
+          tenantId={editCredentialsTenant.id}
+          tenantLabel={editCredentialsTenant.label}
+          onClose={() => setEditCredentialsTenant(null)}
+        />
+      )}
 
       {/* Agent Logs Viewer */}
       <div className="bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] rounded-[var(--radius-lg)] overflow-hidden">
