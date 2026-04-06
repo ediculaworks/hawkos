@@ -1,9 +1,42 @@
 # Current Status
 
-**Ultima atualizacao:** 2026-04-08
+**Ultima atualizacao:** 2026-04-09
+
+## Participatory Memory System (2026-04-09)
+**Status: [✅ Completo — deployado na VPS]**
+
+Sistema de memória participativo — o utilizador vê e controla o que o agente aprende em tempo real.
+
+### Features
+
+| Feature | Ficheiro(s) | Detalhe |
+|---------|------------|---------|
+| Memory confirmation chips | `apps/web/components/chat/memory-chips.tsx`, `apps/web/lib/agent-chat.ts` | Chips coloridos aparecem no chat quando agente salva memória (WS `memory:saved`). Auto-dismiss 15s, X manual, cor por tipo |
+| "Salvar sessão" button | `apps/web/components/chat/chat-header.tsx`, `apps/web/app/dashboard/chat/page.tsx` | Botão no header do chat — dispara `commitSession()` manualmente. Mostra Brain → Loader2 → Check com contagem |
+| WS memory:saved event | `apps/agent/src/api/server.ts`, `apps/agent/src/tool-executor.ts` | `sendMemoryEventToClient()` emite evento WS após `save_memory` tool call |
+| POST /chat/sessions/:id/commit | `apps/agent/src/api/routes/chat.ts` | Endpoint REST para commit manual — chamado pelo botão web |
+| /memorizar Discord | `packages/modules/memory/commands.ts` | Slash command: `/memorizar <conteudo> [tipo]` — salva memória diretamente |
+| /consolidar Discord | `packages/modules/memory/commands.ts` | Slash command: `/consolidar` — extrai memórias da sessão atual agora |
+| isNewSession fix | `apps/agent/src/handler.ts`, `apps/agent/src/api/server.ts` | Web channel detecta corretamente sessões novas → carrega previous session archive |
+
+### Bugs Corrigidos (incluídos neste deploy)
+
+| Bug | Severidade | O que mudou |
+|-----|-----------|------------|
+| LLM sem instrução para usar `save_memory` | 🔴 CRÍTICO | `MEMORY_INSTRUCTION` no system prompt |
+| `procedure` filtrado no compactor | 🔴 CRÍTICO | Adicionado ao filter + prompt de extração |
+| L0/L1 não gerado em saves via tool | 🔴 CRÍTICO | `generateMemoryLayers()` chamado async após save |
+| `findExpiredSessions` commitava sessões ativas | 🟠 ALTO | Duas queries + set difference |
+| Context mostrava label `[fact]` em vez de `[profile]` | 🟠 ALTO | `memory_type || category` |
+| `isNewSession` hardcoded false no web channel | 🟠 ALTO | Detetado via `!state.sessions.has(sessionId)` |
+
+### Testes
+- 24 ficheiros, 225 testes, 0 falhas
+
+---
 
 ## Memory System Hardening (2026-04-08)
-**Status: [✅ Completo — pendente deploy]**
+**Status: [✅ Completo — deployado na VPS]**
 
 Auditoria completa do sistema de memória. 6 bugs corrigidos que impediam o agente de aprender de forma confiável.
 
