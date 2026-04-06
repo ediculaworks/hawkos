@@ -370,19 +370,19 @@ export async function updateTenantCredentials(
       await admin.updateTenantOpenRouterConfig(tenantId, data.openrouterConfig);
     }
 
-    // Notify agent to reload tenant credentials (best-effort)
+    // Notify agent to restart only this tenant (not a global reload — avoids disrupting others)
     const sql = getPool();
     const rows = await sql.unsafe('SELECT slug FROM admin.tenants WHERE id = $1', [tenantId]);
     const slug = rows[0]?.slug as string | undefined;
     if (slug) {
       const agentUrl = process.env.AGENT_INTERNAL_URL ?? 'http://localhost:3001';
       const agentSecret = process.env.AGENT_API_SECRET;
-      fetch(`${agentUrl}/admin/reload`, {
+      fetch(`${agentUrl}/admin/tenants/${slug}/start`, {
         method: 'POST',
         headers: agentSecret ? { Authorization: `Bearer ${agentSecret}` } : {},
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(30_000),
       }).catch(() => {
-        console.warn(`[admin] Agent reload notification skipped for ${slug}`);
+        console.warn(`[admin] Agent per-tenant restart skipped for ${slug}`);
       });
     }
 
