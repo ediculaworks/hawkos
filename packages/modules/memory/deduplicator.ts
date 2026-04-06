@@ -256,7 +256,9 @@ export async function applyDedupResult(
     module: candidate.module,
     importance: candidate.importance,
     status: 'active' as const,
-    mergeable: ['profile', 'preference', 'entity', 'pattern'].includes(candidate.memory_type),
+    mergeable: ['profile', 'preference', 'entity', 'pattern', 'procedure'].includes(
+      candidate.memory_type,
+    ),
     origin_session_id: originSessionId ?? null,
     embedding: embedding ? `[${embedding.join(',')}]` : null,
   };
@@ -281,6 +283,7 @@ function mapMemoryTypeToCategory(memoryType: string): string {
     event: 'fact',
     case: 'correction',
     pattern: 'pattern',
+    procedure: 'correction',
   };
   return mapping[memoryType] ?? 'fact';
 }

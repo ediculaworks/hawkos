@@ -51,6 +51,7 @@ export async function handleWebMessage(
   userMessage: string,
   onChunk?: (chunk: string) => void,
   tenantApiKey?: string,
+  isNewSession = false,
 ): Promise<PipelineResult> {
   if (!checkRateLimit(`web:${sessionId}`) || !checkRateLimit('web:global')) {
     throw new HawkError(
@@ -65,7 +66,7 @@ export async function handleWebMessage(
     userMessage,
     channel: 'web',
     agent,
-    isNewSession: false,
+    isNewSession,
     onChunk,
     tenantApiKey,
   });

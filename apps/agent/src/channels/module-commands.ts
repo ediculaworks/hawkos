@@ -62,6 +62,12 @@ import {
   handleObrigacoes,
   obrigacoesCommand,
 } from '@hawk/module-legal';
+import {
+  consolidarCommand,
+  handleConsolidar,
+  handleMemorizar,
+  memorizarCommand,
+} from '@hawk/module-memory/commands';
 import { handleMeta, handleTarefa, metaCommand, tarefaCommand } from '@hawk/module-objectives';
 import {
   aniversariosCommand,
@@ -141,6 +147,9 @@ export const ALL_COMMANDS = [
   hobbyCommand,
   postCommand,
   reflexaoCommand,
+  // Memory
+  memorizarCommand,
+  consolidarCommand,
 ];
 
 // ── Slash command dispatch ─────────────────────────────────────────────────────
@@ -287,6 +296,13 @@ export async function handleSlashCommand(cmd: ChatInputCommandInteraction): Prom
       break;
     case 'reflexao':
       await handleReflexao(cmd);
+      break;
+    // Memory
+    case 'memorizar':
+      await handleMemorizar(cmd);
+      break;
+    case 'consolidar':
+      await handleConsolidar(cmd);
       break;
     default:
       await cmd.reply({ content: 'Comando desconhecido.', ephemeral: true });

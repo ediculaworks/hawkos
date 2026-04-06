@@ -126,6 +126,30 @@ export async function handleChatRoute(
     });
   }
 
+  // POST /chat/sessions/:id/commit — manually trigger session archival + memory extraction
+  if (path.startsWith('/chat/sessions/') && path.endsWith('/commit') && method === 'POST') {
+    const sessionId = path.split('/')[3] ?? '';
+    try {
+      const { commitSession } = await import('@hawk/module-memory/session-commit');
+      const result = await commitSession(sessionId);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          archived: result.archived,
+          memoriesCreated: result.memoriesCreated,
+          memoriesMerged: result.memoriesMerged,
+          memoriesSkipped: result.memoriesSkipped,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    } catch (err) {
+      return new Response(
+        JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+  }
+
   // DELETE /chat/sessions/:id/delete
   if (path.startsWith('/chat/sessions/') && path.endsWith('/delete') && method === 'DELETE') {
     const sessionId = path.split('/')[3] ?? '';

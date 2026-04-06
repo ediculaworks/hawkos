@@ -15,11 +15,13 @@
     "./session-commit": "./session-commit.ts",
     "./importance-scorer": "./importance-scorer.ts",
     "./rule-extractor": "./rule-extractor.ts",
-    "./adaptive": "./adaptive.ts"
+    "./adaptive": "./adaptive.ts",
+    "./commands": "./commands.ts"
   },
   "dependencies": {
     "@hawk/db": "workspace:*",
     "@hawk/shared": "workspace:*",
+    "discord.js": "^14.25.1",
     "openai": "^4.82.0"
   }
 }

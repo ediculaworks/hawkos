@@ -183,7 +183,7 @@ async function getHottestMemories(limit: number): Promise<AgentMemory[]> {
   const { data, error } = await db
     .from('agent_memories')
     .select(
-      'id, category, content, module, related_modules, source_message_id, importance, confidence, status, last_accessed, access_count, expires_at, tags, path, l0_abstract, l1_overview, created_at, updated_at',
+      'id, category, memory_type, content, module, related_modules, source_message_id, importance, confidence, status, last_accessed, access_count, expires_at, tags, path, l0_abstract, l1_overview, created_at, updated_at',
     )
     .eq('status', 'active')
     .order('access_count', { ascending: false })
@@ -201,7 +201,7 @@ async function getTopByImportance(limit: number): Promise<AgentMemory[]> {
   const { data, error } = await db
     .from('agent_memories')
     .select(
-      'id, category, content, module, related_modules, source_message_id, importance, confidence, status, last_accessed, access_count, expires_at, tags, path, l0_abstract, l1_overview, created_at, updated_at',
+      'id, category, memory_type, content, module, related_modules, source_message_id, importance, confidence, status, last_accessed, access_count, expires_at, tags, path, l0_abstract, l1_overview, created_at, updated_at',
     )
     .eq('status', 'active')
     .order('importance', { ascending: false })

@@ -294,6 +294,7 @@
       "dependencies": {
         "@hawk/db": "workspace:*",
         "@hawk/shared": "workspace:*",
+        "discord.js": "^14.25.1",
         "openai": "^4.82.0",
       },
     },

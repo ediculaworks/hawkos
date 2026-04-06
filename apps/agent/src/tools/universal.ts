@@ -253,7 +253,7 @@ export const universalTools: Record<string, ToolDefinition> = {
       const get = (i: number): number => {
         const r = checks[i];
         if (!r || r.status !== 'fulfilled') return 0;
-        return ((r.value as { count?: number | null }).count ?? 0);
+        return (r.value as { count?: number | null }).count ?? 0;
       };
 
       const txCount = get(0);

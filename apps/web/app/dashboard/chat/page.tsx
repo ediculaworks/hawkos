@@ -6,6 +6,7 @@ import { ChatHistoryPanel } from '@/components/chat/chat-history-panel';
 import { ChatInput } from '@/components/chat/chat-input';
 import { ChatMessageBubble, TypingIndicator } from '@/components/chat/chat-message';
 import { ChatTabs } from '@/components/chat/chat-tabs';
+import { MemoryChips } from '@/components/chat/memory-chips';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChatContext } from '@/lib/agent-chat';
@@ -24,6 +25,8 @@ function ChatPageInner() {
   const chat = useChatContext();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [committing, setCommitting] = useState(false);
+  const [commitResult, setCommitResult] = useState<string | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on message/typing changes
   useEffect(() => {
@@ -38,6 +41,20 @@ function ChatPageInner() {
   const handleSend = (content: string) => chat.sendMessage(content);
   const handleNewSession = () => chat.createSession();
   const handleSuggest = (text: string) => chat.sendMessage(text);
+
+  const handleCommit = async () => {
+    setCommitting(true);
+    setCommitResult(null);
+    const result = await chat.commitSession();
+    setCommitting(false);
+    if (result) {
+      const n = result.memoriesCreated;
+      setCommitResult(
+        n > 0 ? `${n} memória${n !== 1 ? 's' : ''} salva${n !== 1 ? 's' : ''}` : 'Sessão arquivada',
+      );
+      setTimeout(() => setCommitResult(null), 4000);
+    }
+  };
 
   return (
     <div className="flex flex-col h-[calc(100vh-var(--topbar-height)-var(--space-12))]">
@@ -55,7 +72,13 @@ function ChatPageInner() {
       {/* Main chat area */}
       <div className="flex-1 flex flex-col rounded-b-[var(--radius-lg)] border border-t-0 border-[var(--color-border)] bg-[var(--color-surface-1)] overflow-hidden">
         {/* Header */}
-        <ChatHeader agent={chat.selectedAgent} connected={chat.connected} />
+        <ChatHeader
+          agent={chat.selectedAgent}
+          connected={chat.connected}
+          onCommit={chat.activeSession && !chat.loading ? handleCommit : undefined}
+          committing={committing}
+          commitResult={commitResult}
+        />
 
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4">
@@ -118,6 +141,9 @@ function ChatPageInner() {
             </div>
           )}
         </div>
+
+        {/* Memory chips — shown when agent learns something during conversation */}
+        <MemoryChips memories={chat.pendingMemories} onDismiss={chat.dismissMemory} />
 
         {/* Input */}
         {isDiscordSession ? (

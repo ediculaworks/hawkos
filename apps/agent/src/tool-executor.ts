@@ -294,6 +294,7 @@ async function handleSaveMemory(
       event: 'fact',
       case: 'correction',
       pattern: 'pattern',
+      procedure: 'correction',
     };
 
     const memory = await createMemory({
@@ -320,7 +321,9 @@ async function handleSaveMemory(
       .update({
         memory_type: args.memory_type as MemoryType,
         origin_session_id: sessionId,
-        mergeable: ['profile', 'preference', 'entity', 'pattern'].includes(args.memory_type),
+        mergeable: ['profile', 'preference', 'entity', 'pattern', 'procedure'].includes(
+          args.memory_type,
+        ),
         ...(args.confidence !== undefined ? { confidence: args.confidence } : {}),
       } as Record<string, unknown>)
       .eq('id', memory.id);
@@ -329,6 +332,18 @@ async function handleSaveMemory(
     generateMemoryLayers(memory.id, args.content, args.memory_type, args.module ?? null).catch(
       (err) => console.error('[tool-executor] Failed to generate memory layers:', err),
     );
+
+    // Notify web chat client so it can show a confirmation chip (lazy import avoids Bun at test time)
+    import('./api/server.js')
+      .then(({ sendMemoryEventToClient }) => {
+        sendMemoryEventToClient(sessionId, {
+          id: memory.id,
+          content: args.content,
+          memory_type: args.memory_type,
+          module: args.module,
+        });
+      })
+      .catch(() => {});
 
     logActivity(
       'memory_created',

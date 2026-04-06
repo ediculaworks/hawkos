@@ -1,6 +1,7 @@
 'use client';
 
 import type { Agent } from '@/lib/agent-chat';
+import { Brain, Check, Loader2 } from 'lucide-react';
 
 const MODULE_LABELS: Record<string, string> = {
   finances: 'Finanças',
@@ -31,9 +32,18 @@ function getModelShortName(model?: string | null): string {
 interface ChatHeaderProps {
   agent: Agent | null;
   connected: boolean;
+  onCommit?: () => void;
+  committing?: boolean;
+  commitResult?: string | null;
 }
 
-export function ChatHeader({ agent, connected }: ChatHeaderProps) {
+export function ChatHeader({
+  agent,
+  connected,
+  onCommit,
+  committing,
+  commitResult,
+}: ChatHeaderProps) {
   if (!agent) {
     return <div className="border-b border-[var(--color-border-subtle)] h-[57px]" />;
   }
@@ -67,6 +77,26 @@ export function ChatHeader({ agent, connected }: ChatHeaderProps) {
             <p className="text-xs text-[var(--color-text-muted)] truncate">{agent.tagline}</p>
           )}
         </div>
+
+        {/* Commit button */}
+        {onCommit && (
+          <button
+            type="button"
+            onClick={onCommit}
+            disabled={committing}
+            title="Salvar conversa — extrai e arquiva memórias agora"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-sm)] text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-2)] border border-transparent hover:border-[var(--color-border)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          >
+            {committing ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : commitResult ? (
+              <Check className="h-3 w-3 text-[var(--color-success)]" />
+            ) : (
+              <Brain className="h-3 w-3" />
+            )}
+            <span>{commitResult ?? 'Salvar sessão'}</span>
+          </button>
+        )}
 
         {/* Connection status */}
         <div className="flex items-center gap-1.5 flex-shrink-0">

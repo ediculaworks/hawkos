@@ -88,6 +88,13 @@ function setStoredTabs(tabs: string[]): void {
   localStorage.setItem(OPEN_TABS_KEY, JSON.stringify(tabs));
 }
 
+export interface PendingMemory {
+  id: string;
+  content: string;
+  memory_type: string;
+  module: string | null;
+}
+
 export function useChat() {
   const [_ws, setWs] = useState<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
@@ -103,6 +110,7 @@ export function useChat() {
   const [initializing, setInitializing] = useState(true);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
+  const [pendingMemories, setPendingMemories] = useState<PendingMemory[]>([]);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const activeSessionRef = useRef<string | null>(activeSession);
@@ -361,6 +369,24 @@ export function useChat() {
           // Still refresh — session was created even if LLM failed
           loadSessions();
         }
+
+        if (data.type === 'memory:saved') {
+          const mem: PendingMemory = {
+            id: data.id,
+            content: data.content,
+            memory_type: data.memory_type,
+            module: data.module ?? null,
+          };
+          setPendingMemories((prev) => {
+            // Avoid duplicates
+            if (prev.some((m) => m.id === mem.id)) return prev;
+            return [...prev, mem];
+          });
+          // Auto-dismiss after 15s if user doesn't interact
+          setTimeout(() => {
+            setPendingMemories((prev) => prev.filter((m) => m.id !== mem.id));
+          }, 15_000);
+        }
       } catch (_err) {}
     };
 
@@ -567,6 +593,26 @@ export function useChat() {
 
   const clearError = () => setError(null);
 
+  const dismissMemory = (id: string) => {
+    setPendingMemories((prev) => prev.filter((m) => m.id !== id));
+  };
+
+  const commitSession = async (): Promise<{ memoriesCreated: number } | null> => {
+    const sid = activeSessionRef.current;
+    if (!sid) return null;
+    try {
+      const res = await fetch(`${getAgentApiUrl()}/chat/sessions/${sid}/commit`, {
+        method: 'POST',
+        headers: agentHeaders(),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return (await res.json()) as { memoriesCreated: number };
+    } catch (_err) {
+      setError('Erro ao salvar sessão');
+      return null;
+    }
+  };
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: connect manages its own deps
   useEffect(() => {
     connect();
@@ -592,6 +638,7 @@ export function useChat() {
     typing,
     error,
     selectedAgent, // always Hawk — read-only, loaded on connect
+    pendingMemories,
     sendMessage,
     createSession,
     selectSession,
@@ -600,6 +647,8 @@ export function useChat() {
     deleteSession,
     updateSessionTitle,
     clearError,
+    dismissMemory,
+    commitSession,
   };
 }
 

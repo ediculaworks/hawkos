@@ -114,6 +114,32 @@ export function sendToolCallToClient(
   }
 }
 
+/**
+ * Send a memory:saved event to the WebSocket client for a session.
+ * Called after save_memory tool executes so the web UI can show a confirmation chip.
+ */
+export function sendMemoryEventToClient(
+  sessionId: string,
+  memory: { id: string; content: string; memory_type: string; module?: string },
+): void {
+  const ws = state.chatClients.get(sessionId);
+  if (!ws) return;
+  try {
+    ws.send(
+      JSON.stringify({
+        type: 'memory:saved',
+        sessionId,
+        id: memory.id,
+        content: memory.content,
+        memory_type: memory.memory_type,
+        module: memory.module ?? null,
+      }),
+    );
+  } catch {
+    // client disconnected
+  }
+}
+
 // AUTOMATIONS constant imported from ./routes/automations.ts
 
 function broadcast(type: string, data: unknown) {
@@ -342,8 +368,11 @@ async function handleChat(
   const { withSchema } = await import('@hawk/db');
   const { tenantManager } = await import('../tenant-manager.js');
 
+  // Detect new session before registering it
+  const isNewSession = !state.sessions.has(sessionId);
+
   // Only create session if it doesn't exist; don't reset existing sessions
-  if (!state.sessions.has(sessionId)) {
+  if (isNewSession) {
     state.sessions.set(sessionId, { channel: 'web', lastActivity: Date.now(), messageCount: 0 });
   }
 
@@ -359,6 +388,7 @@ async function handleChat(
         message,
         onChunk,
         tenantCtx?.credentials?.openrouterConfig?.api_key,
+        isNewSession,
       ),
     );
     return {
