@@ -314,10 +314,43 @@ async function main() {
     trainPredictionModels(),
   ]).catch((err) => console.warn('[hawk] ML model initialization failed (non-critical):', err));
 
+  // Warm up Ollama model into RAM so the first user message isn't slow
+  warmupOllama().catch(() => {});
+
   const mode = multiTenant
     ? `multi-tenant (${tenantManager.size} tenants)`
     : 'single-tenant (legacy)';
   console.log(`[hawk] Agent started successfully — ${mode}`);
+}
+
+// ── Ollama warmup ────────────────────────────────────────────────────────────
+
+async function warmupOllama(): Promise<void> {
+  const ollamaUrl = process.env.OLLAMA_BASE_URL;
+  if (!ollamaUrl) return;
+  const model = process.env.MODEL_TIER_SIMPLE ?? 'gemma4:e2b';
+  console.log(`[hawk] Warming up Ollama model '${model}' into RAM...`);
+  try {
+    const res = await fetch(`${ollamaUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'hi' }],
+        max_tokens: 1,
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (res.ok) {
+      console.log(`[hawk] Ollama model '${model}' ready in RAM.`);
+    } else {
+      console.warn(`[hawk] Ollama warmup returned ${res.status} — model may still load on first use.`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[hawk] Ollama warmup failed (non-fatal): ${msg}`);
+  }
 }
 
 // ── Graceful shutdown ────────────────────────────────────────────────────────

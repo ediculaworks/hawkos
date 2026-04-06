@@ -8,7 +8,7 @@ function getTenantSlug(): string | undefined {
   }
   return undefined;
 }
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 export interface ChatMessage {
   id?: string;
@@ -110,6 +110,8 @@ export function useChat() {
   const streamFlushTimerRef = useRef<number | null>(null);
   // Pending message to auto-send after joining a session (used by agent delegation flow)
   const pendingMessageRef = useRef<string | null>(null);
+  // Poll interval ref — used to detect pending LLM response after reconnecting
+  const pendingPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Keep ref in sync with state
   activeSessionRef.current = activeSession;
@@ -326,6 +328,7 @@ export function useChat() {
           });
           setTyping(false);
           setLoading(false);
+          stopPendingPoll(); // response arrived via WS — no need to poll DB
           loadSessions();
         }
 
@@ -392,14 +395,56 @@ export function useChat() {
     }
   };
 
+  const stopPendingPoll = useCallback(() => {
+    if (pendingPollRef.current) {
+      clearInterval(pendingPollRef.current);
+      pendingPollRef.current = null;
+    }
+  }, []);
+
   const loadMessages = async (sessionId: string) => {
+    stopPendingPoll();
     setMessagesLoading(true);
     try {
       const res = await fetch(`${getAgentApiUrl()}/chat/sessions/${sessionId}/messages`, {
         headers: agentHeaders(),
       });
       const data = await res.json();
-      setMessages(data.messages ?? []);
+      const msgs: ChatMessage[] = data.messages ?? [];
+      setMessages(msgs);
+
+      // If the last message is from the user, the LLM may still be processing.
+      // Poll DB every 3s until the assistant reply appears (up to 120s).
+      const lastMsg = msgs[msgs.length - 1];
+      if (lastMsg?.role === 'user') {
+        setLoading(true);
+        let elapsed = 0;
+        const pollInterval = 3_000;
+        const maxWait = 120_000;
+        pendingPollRef.current = setInterval(async () => {
+          elapsed += pollInterval;
+          if (elapsed >= maxWait) {
+            stopPendingPoll();
+            setLoading(false);
+            return;
+          }
+          try {
+            const r = await fetch(`${getAgentApiUrl()}/chat/sessions/${sessionId}/messages`, {
+              headers: agentHeaders(),
+            });
+            const d = await r.json();
+            const fresh: ChatMessage[] = d.messages ?? [];
+            const freshLast = fresh[fresh.length - 1];
+            if (freshLast?.role === 'assistant') {
+              setMessages(fresh);
+              setLoading(false);
+              stopPendingPoll();
+            }
+          } catch {
+            // non-fatal — keep polling
+          }
+        }, pollInterval);
+      }
     } catch (_err) {
       setError('Erro ao carregar mensagens');
     } finally {
@@ -529,6 +574,7 @@ export function useChat() {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      stopPendingPoll();
       wsRef.current?.close();
     };
   }, []);
@@ -555,4 +601,15 @@ export function useChat() {
     updateSessionTitle,
     clearError,
   };
+}
+
+// ── Persistent chat context (lives in DashboardLayout, survives page navigation) ──
+
+export type ChatContextValue = ReturnType<typeof useChat>;
+
+export const ChatContext = createContext<ChatContextValue>(null!);
+
+/** Use inside any dashboard page — returns the shared chat state that persists across navigation. */
+export function useChatContext(): ChatContextValue {
+  return useContext(ChatContext);
 }

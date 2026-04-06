@@ -8,7 +8,7 @@ import { ChatMessageBubble, TypingIndicator } from '@/components/chat/chat-messa
 import { ChatTabs } from '@/components/chat/chat-tabs';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useChat } from '@/lib/agent-chat';
+import { useChatContext } from '@/lib/agent-chat';
 import { AlertCircle, Lock } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -21,7 +21,7 @@ export default function ChatPage() {
 }
 
 function ChatPageInner() {
-  const chat = useChat();
+  const chat = useChatContext();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
 

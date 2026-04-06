@@ -1,5 +1,6 @@
 'use client';
 
+import { ChatProvider } from '@/components/chat/chat-provider';
 import { CommandPalette } from '@/components/shell/command-palette';
 import { HydrationGate } from '@/components/shell/hydration-gate';
 import { SetupGuard } from '@/components/shell/setup-guard';
@@ -13,7 +14,9 @@ import { cn } from '@/lib/utils/cn';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <HydrationGate>
-      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      <ChatProvider>
+        <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      </ChatProvider>
     </HydrationGate>
   );
 }

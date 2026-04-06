@@ -45,7 +45,12 @@ export { predictImportance, learnImportanceWeights } from './importance-scorer';
 export { extractMemoriesByRules } from './rule-extractor';
 export { deduplicateMemory, applyDedupResult } from './deduplicator';
 export type { MemoryCandidate } from './deduplicator';
-export { commitSession, findExpiredSessions, getLastSessionArchive } from './session-commit';
+export {
+  commitSession,
+  findExpiredSessions,
+  getLastSessionArchive,
+  generateMemoryLayers,
+} from './session-commit';
 
 // Data gaps + onboarding questions
 export {

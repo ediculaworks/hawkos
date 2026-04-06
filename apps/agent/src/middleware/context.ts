@@ -39,7 +39,7 @@ export const contextMiddleware: Middleware = {
     // Load all context sources in parallel with fault isolation
     const [contextResult, memoriesResult, previousSessionResult] = await Promise.allSettled([
       assembleContext(ctx.sanitizedMessage),
-      retrieveMemories(ctx.sanitizedMessage, 5),
+      retrieveMemories(ctx.sanitizedMessage, 10),
       ctx.isNewSession ? getLastSessionArchive(ctx.channel) : Promise.resolve(null),
     ]);
 
@@ -100,7 +100,7 @@ export const contextMiddleware: Middleware = {
         ? `## Regras aprendidas (SEMPRE seguir)\n${proceduralMemories.map((m) => `- ${m.content}`).join('\n')}`
         : '',
       regularMemories.length > 0
-        ? `## Memórias sobre o usuário\n${regularMemories.map((m) => `- [${m.category}] ${m.content}`).join('\n')}`
+        ? `## Memórias sobre o usuário\n${regularMemories.map((m) => `- [${m.memory_type || m.category}] ${m.content}`).join('\n')}`
         : '',
       ctx.previousSession
         ? `## Sessão anterior\n${ctx.previousSession.abstract}\n\n### Detalhes\n${ctx.previousSession.overview}`

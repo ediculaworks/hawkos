@@ -1,6 +1,71 @@
 # Current Status
 
-**Ultima atualizacao:** 2026-04-06
+**Ultima atualizacao:** 2026-04-08
+
+## Memory System Hardening (2026-04-08)
+**Status: [✅ Completo — pendente deploy]**
+
+Auditoria completa do sistema de memória. 6 bugs corrigidos que impediam o agente de aprender de forma confiável.
+
+### Bugs Corrigidos
+
+| Bug | Severidade | Ficheiro | O que mudou |
+|-----|-----------|---------|------------|
+| LLM sem instrução para usar `save_memory` | 🔴 CRÍTICO | `apps/agent/src/agent-resolver.ts` | Adicionado `MEMORY_INSTRUCTION` ao `buildSystemPrompt()` — diz ao LLM quando/como chamar save_memory para cada tipo |
+| `procedure` filtrado silenciosamente no LLM extraction | 🔴 CRÍTICO | `packages/modules/memory/session-commit.ts` | Adicionado 'procedure' ao array de tipos permitidos no filter |
+| `procedure` ausente do prompt de extração LLM | 🔴 CRÍTICO | `packages/modules/memory/session-commit.ts` | Adicionado tipo procedure ao prompt de `extractMemories()` |
+| `save_memory` via tool não gerava layers L0/L1 | 🔴 CRÍTICO | `apps/agent/src/tool-executor.ts` | Agora chama `generateMemoryLayers()` async após criar memória. `generateMemoryLayers` exportada de `session-commit.ts` e re-exportada de `index.ts` |
+| `findExpiredSessions` incluía sessões ativas | 🟠 ALTO | `packages/modules/memory/session-commit.ts` | Fix da query: sessões ativas (com mensagens recentes) são excluídas antes do commit |
+| Context mostrava `category` (legacy) em vez de `memory_type` (V2) | 🟠 ALTO | `apps/agent/src/middleware/context.ts` | Corrigido para `m.memory_type \|\| m.category` |
+
+### Melhoria
+
+| Item | Ficheiro | O que mudou |
+|------|---------|------------|
+| Limite de memórias recuperadas por mensagem | `apps/agent/src/middleware/context.ts` | 5 → 10 memórias por chamada |
+
+### Testes
+- 92 pass, 1 fail pré-existente (SearXNG externo down)
+
+---
+
+## Sprint 1 — Quick Wins (2026-04-07)
+**Status: [✅ Completo — commit local, pendente deploy]**
+
+Implementação completa de S1 do SPRINT-ROADMAP.md: Prerequisite Guard, system_status tool, e Undo Actions.
+
+### S1.1 — Prerequisite Guard + Pending Intents
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Tipo ToolDefinition expandido | `apps/agent/src/tools/types.ts` | Novos campos `prerequisites[]` e `undoable` |
+| Registry de checkers | `apps/agent/src/prerequisite-registry.ts` | `registerPrerequisite(name, check)` + `checkPrerequisite(name)` |
+| Undo store | `apps/agent/src/undo-store.ts` | Map em memória com TTL 60s + `parseUndoTag()` |
+| Guard no executor | `apps/agent/src/tool-executor.ts` | Verifica prerequisites antes da execução; guarda `pending_intents` se falhar; após sucesso verifica intents satisfeitas |
+| Prerequisite em create_transaction | `apps/agent/src/tools/finances.ts` | Requires `finances.accounts.exists`; inclui undo |
+| Migration | `packages/db/supabase/migrations/20260422000000_s1_pending_intents_undo.sql` | Tabela `pending_intents` + `deleted_at` em finance_transactions, sleep_sessions, workout_sessions |
+
+### S1.2 — Diagnóstico Self-Service
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Tool `system_status` | `apps/agent/src/tools/universal.ts` | Universal (modules: []); mostra módulos, dados em falta, API status, próximas automações, pending intents |
+
+### S1.3 — Undo Actions
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Undo em log_sleep e log_workout | `apps/agent/src/tools/health.ts` | Soft-delete via `deleted_at` + `[UNDO:actionId]` no resultado |
+| Discord ActionRow + Button | `apps/agent/src/channels/discord.ts` | Botão "↩ Desfazer (60s)" após mutações; auto-desaparece ao expirar |
+| Button interaction handler | `apps/agent/src/channels/discord.ts` | `InteractionCreate` → `handleUndoButton()` → soft-delete dentro de `withSchema()` |
+
+### Deploy necessário
+```bash
+bun db:migrate  # aplicar migration pending_intents + deleted_at (por schema)
+# depois push + deploy agent na VPS
+```
+
+---
 
 ## Tenant Isolation Hardening (2026-04-06)
 **Status: [✅ Completo — deployado na VPS]**

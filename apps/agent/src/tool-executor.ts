@@ -6,6 +6,7 @@
 import { db } from '@hawk/db';
 import { embedMemory } from '@hawk/module-memory/embeddings';
 import { createMemory } from '@hawk/module-memory/queries';
+import { generateMemoryLayers } from '@hawk/module-memory/session-commit';
 import type { MemoryType } from '@hawk/module-memory/types';
 import { getFeatureFlag } from '@hawk/shared';
 import type OpenAI from 'openai';
@@ -323,6 +324,11 @@ async function handleSaveMemory(
         ...(args.confidence !== undefined ? { confidence: args.confidence } : {}),
       } as Record<string, unknown>)
       .eq('id', memory.id);
+
+    // Generate L0/L1 layers async — makes this memory discoverable in semantic retrieval
+    generateMemoryLayers(memory.id, args.content, args.memory_type, args.module ?? null).catch(
+      (err) => console.error('[tool-executor] Failed to generate memory layers:', err),
+    );
 
     logActivity(
       'memory_created',

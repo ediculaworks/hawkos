@@ -126,6 +126,21 @@ export async function resolveAgent(sessionId: string, _channel: string): Promise
   };
 }
 
+const MEMORY_INSTRUCTION = `## Memória — quando salvar
+Usa \`save_memory\` proativamente durante a conversa quando o utilizador revelar informação relevante. Não esperas o fim da conversa — salvas no momento em que aprendes.
+
+Tipos e quando usar:
+- **profile**: nome, idade, profissão, localização, condição médica, situação familiar
+- **preference**: preferências explícitas (comida, horário, formato de resposta, estilo de comunicação)
+- **entity**: pessoas importantes, projetos ou locais mencionados com contexto (quem são, relação)
+- **event**: decisões importantes, marcos de vida, mudanças significativas
+- **case**: quando cometeste um erro — o que aconteceu e como devias ter agido
+- **pattern**: processo ou método que o utilizador prefere usar de forma consistente
+- **procedure**: regra explícita dada pelo utilizador ("não faças X", "sempre que Y, faz Z", "prefiro que...")
+
+Prioridade máxima: salva **procedure** IMEDIATAMENTE quando o utilizador te corrigir ou der uma regra.
+Confiança: usa 1.0 para afirmações diretas, 0.7 para inferências, 0.4 para suposições.`;
+
 /**
  * Build system prompt from agent template fields + context layers.
  * Priority: system_prompt (full override) > identity + personality + knowledge + philosophy
@@ -165,7 +180,10 @@ export function buildSystemPrompt(agent: ResolvedAgent, contextSection: string):
     }
   }
 
-  // 6. Context section (L0/L1/L2 + memories + previous session)
+  // 6. Memory instruction — always present so LLM knows when/how to save memories
+  parts.push(MEMORY_INSTRUCTION);
+
+  // 7. Context section (L0/L1/L2 + memories + previous session)
   if (contextSection) {
     parts.push(contextSection);
   }

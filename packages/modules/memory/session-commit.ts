@@ -70,36 +70,46 @@ type CommitResult = {
 export async function findExpiredSessions(ttlMs = 30 * 60 * 1000): Promise<string[]> {
   const cutoff = new Date(Date.now() - ttlMs).toISOString();
 
-  // Find sessions with messages, where the latest message is older than cutoff,
-  // and the session hasn't been archived yet
-  const { data, error } = await db
+  // Find sessions with any recent (active) message — these must not be committed yet
+  const { data: activeData } = await db
     .from('conversation_messages')
     .select('session_id')
     .eq('archived', false)
-    .lt('created_at', cutoff)
-    .order('created_at', { ascending: false });
+    .gte('created_at', cutoff);
+
+  const activeIds = new Set<string>(
+    (activeData ?? []).map((m: { session_id: string }) => m.session_id),
+  );
+
+  // Find sessions with messages older than cutoff
+  const { data: oldData, error } = await db
+    .from('conversation_messages')
+    .select('session_id')
+    .eq('archived', false)
+    .lt('created_at', cutoff);
 
   if (error) {
     logger.error({ error: error.message }, 'Failed to find expired sessions');
     throw new HawkError(`Failed to find expired sessions: ${error.message}`, 'DB_QUERY_FAILED');
   }
 
-  // Deduplicate session IDs
-  const sessionIds = new Set<string>((data ?? []).map((m: { session_id: string }) => m.session_id));
+  // Sessions that have old messages but NO recent messages (truly expired)
+  const expiredIds = [
+    ...new Set<string>((oldData ?? []).map((m: { session_id: string }) => m.session_id)),
+  ].filter((id) => !activeIds.has(id));
+
+  if (expiredIds.length === 0) return [];
 
   // Filter out sessions that already have archives (batch query instead of N+1)
-  const sessionIdArray = Array.from(sessionIds);
-  if (sessionIdArray.length === 0) return [];
-
   const { data: existingArchives } = await db
     .from('session_archives')
     .select('session_id')
-    .in('session_id', sessionIdArray);
+    .in('session_id', expiredIds);
 
   const archivedIds = new Set(
     (existingArchives ?? []).map((a: { session_id: string }) => a.session_id),
   );
-  return sessionIdArray.filter((id) => !archivedIds.has(id));
+  return expiredIds.filter((id) => !archivedIds.has(id));
 }
 
 /**
@@ -352,6 +362,7 @@ Categorize cada memória em um dos 6 tipos:
 - "event": Decisões, marcos, ou acontecimentos importantes (começou medicação, mudou de emprego)
 - "case": Correções ou aprendizados sobre como o assistente deve agir (quando errou e como deveria ter feito)
 - "pattern": Processos ou padrões reutilizáveis (como o usuário prefere registrar gastos)
+- "procedure": Regras explícitas ou comportamentos aprendidos dados pelo utilizador ("não faças X", "sempre que Y, faz Z", "da próxima vez...")
 
 Para cada memória, indique:
 - "content": O conteúdo da memória em uma frase clara e concisa
@@ -380,7 +391,9 @@ Se não houver memórias úteis, retorne {"memories": []}.`,
       (m) =>
         m.content &&
         m.memory_type &&
-        ['profile', 'preference', 'entity', 'event', 'case', 'pattern'].includes(m.memory_type),
+        ['profile', 'preference', 'entity', 'event', 'case', 'pattern', 'procedure'].includes(
+          m.memory_type,
+        ),
     );
   } catch {
     return [];
@@ -391,7 +404,7 @@ Se não houver memórias úteis, retorne {"memories": []}.`,
  * Generate L0 (abstract) and L1 (overview) layers for a memory.
  * Updates the memory in-place with path, l0_abstract, l1_overview.
  */
-async function generateMemoryLayers(
+export async function generateMemoryLayers(
   memoryId: string,
   content: string,
   memoryType: string,

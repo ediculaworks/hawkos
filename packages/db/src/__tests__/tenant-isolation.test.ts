@@ -9,12 +9,13 @@ describe('tenant isolation', () => {
   describe('schema context', () => {
     it('defaults to TENANT_SCHEMA env or public', () => {
       const original = process.env.TENANT_SCHEMA;
-      process.env.TENANT_SCHEMA = undefined;
+      // biome-ignore lint/performance/noDelete: must unset env var (= undefined sets the string "undefined")
+      delete process.env.TENANT_SCHEMA;
 
       // Outside of any schema context, should default to 'public'
       expect(getCurrentSchema()).toBe('public');
 
-      process.env.TENANT_SCHEMA = original;
+      if (original !== undefined) process.env.TENANT_SCHEMA = original;
     });
 
     it('respects TENANT_SCHEMA env var', () => {
@@ -50,10 +51,13 @@ describe('tenant isolation', () => {
       });
 
       // After the run, should be back to default
+      // Note: process.env.X = undefined sets the string "undefined", not removes the key.
+      // Use delete to actually unset the env var.
       const original = process.env.TENANT_SCHEMA;
-      process.env.TENANT_SCHEMA = undefined;
+      // biome-ignore lint/performance/noDelete: must unset env var (= undefined sets the string "undefined")
+      delete process.env.TENANT_SCHEMA;
       expect(getCurrentSchema()).toBe('public');
-      process.env.TENANT_SCHEMA = original;
+      if (original !== undefined) process.env.TENANT_SCHEMA = original;
     });
 
     it('nested schema contexts use innermost value', async () => {
