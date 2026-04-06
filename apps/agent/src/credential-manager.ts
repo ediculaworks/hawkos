@@ -113,26 +113,38 @@ function parseTenantRow(tenant: Record<string, unknown>, masterKey: string): Ten
   const slug = tenant.slug as string;
   const schemaName = (tenant.schema_name as string) || `tenant_${slug}`;
 
-  // Decrypt Discord config
+  // Decrypt Discord config — non-fatal, tenant works without it (API-only mode)
   let discordConfig: TenantCredentials['discordConfig'];
   if (tenant.discord_config_encrypted && tenant.discord_config_iv) {
-    discordConfig = decryptJson(
-      tenant.discord_config_encrypted as string,
-      tenant.discord_config_iv as string,
-      masterKey,
-      salt,
-    );
+    try {
+      discordConfig = decryptJson(
+        tenant.discord_config_encrypted as string,
+        tenant.discord_config_iv as string,
+        masterKey,
+        salt,
+      );
+    } catch {
+      console.warn(
+        `[credential-manager] [${slug}] Discord config decrypt failed (key mismatch) — running without Discord`,
+      );
+    }
   }
 
-  // Decrypt OpenRouter config
+  // Decrypt OpenRouter config — non-fatal, falls back to Ollama local or global env key
   let openrouterConfig: TenantCredentials['openrouterConfig'];
   if (tenant.openrouter_config_encrypted && tenant.openrouter_config_iv) {
-    openrouterConfig = decryptJson(
-      tenant.openrouter_config_encrypted as string,
-      tenant.openrouter_config_iv as string,
-      masterKey,
-      salt,
-    );
+    try {
+      openrouterConfig = decryptJson(
+        tenant.openrouter_config_encrypted as string,
+        tenant.openrouter_config_iv as string,
+        masterKey,
+        salt,
+      );
+    } catch {
+      console.warn(
+        `[credential-manager] [${slug}] OpenRouter config decrypt failed (key mismatch) — using Ollama local / global fallback`,
+      );
+    }
   }
 
   return {
