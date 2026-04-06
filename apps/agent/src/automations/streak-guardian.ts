@@ -6,11 +6,11 @@ import { getHabitsAtRisk, getWeeklyRoutineScore } from '@hawk/module-routine';
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
 import { isAutomationEnabled, markAutomationRun } from './config.js';
+import { resolveChannel } from './resolve-channel.js';
 
-const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
-
-export async function runStreakGuardian(): Promise<void> {
-  if (!CHANNEL_ID) return;
+export async function runStreakGuardian(slug?: string): Promise<void> {
+  const channelId = resolveChannel(slug);
+  if (!channelId) return;
 
   // Check web UI toggle (automation_configs)
   if (!(await isAutomationEnabled('streak-guardian'))) return;
@@ -34,7 +34,7 @@ export async function runStreakGuardian(): Promise<void> {
 
   lines.push('', '_Complete antes da meia-noite para não perder o streak!_');
 
-  await sendToChannel(CHANNEL_ID, lines.join('\n'));
+  await sendToChannel(channelId, lines.join('\n'), slug);
 }
 
 export function startStreakGuardianCron(): void {

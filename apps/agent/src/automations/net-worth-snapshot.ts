@@ -6,10 +6,9 @@ import { getTotalAssetValue } from '@hawk/module-assets';
 import { getAccounts, getNetWorthHistory, snapshotNetWorth } from '@hawk/module-finances';
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
+import { resolveChannel } from './resolve-channel.js';
 
-const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
-
-export async function runNetWorthSnapshot(): Promise<void> {
+export async function runNetWorthSnapshot(slug?: string): Promise<void> {
   const [accounts, totalAssets] = await Promise.all([getAccounts(), getTotalAssetValue()]);
 
   // Saldo total das contas (caixa + investimentos)
@@ -26,7 +25,8 @@ export async function runNetWorthSnapshot(): Promise<void> {
     physical_assets: totalPhysicalAssets,
   });
 
-  if (!CHANNEL_ID) return;
+  const channelId = resolveChannel(slug);
+  if (!channelId) return;
 
   // Comparar com snapshot anterior
   const history = await getNetWorthHistory(2);
@@ -41,7 +41,7 @@ export async function runNetWorthSnapshot(): Promise<void> {
   }
 
   await sendToChannel(
-    CHANNEL_ID,
+    channelId,
     [
       '📊 **Snapshot mensal de patrimônio**',
       '',
@@ -50,6 +50,7 @@ export async function runNetWorthSnapshot(): Promise<void> {
       `  • Bens físicos: R$ ${totalPhysicalAssets.toFixed(2)}`,
       `  • Passivos: R$ ${totalLiabilities.toFixed(2)}`,
     ].join('\n'),
+    slug,
   );
 }
 

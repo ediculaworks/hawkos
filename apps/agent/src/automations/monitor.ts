@@ -2,12 +2,11 @@
 // Checks agent health, Supabase connectivity, and Discord status every 5 minutes.
 // Sends alerts to Discord if any check fails.
 
-import { db } from '@hawk/db';
+import { db, getCurrentSchema } from '@hawk/db';
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
+import { resolveChannel } from './resolve-channel.js';
 
-const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
-const TENANT_SLUG = process.env.AGENT_SLOT ?? 'local';
 const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_ALERTS;
 
 const startTime = Date.now();
@@ -81,8 +80,14 @@ async function sendWebhookAlert(message: string): Promise<void> {
   }
 }
 
-export async function runHealthCheck(): Promise<HealthCheck[]> {
+export async function runHealthCheck(slug?: string): Promise<HealthCheck[]> {
   const checks = await Promise.all([checkMemory(), checkSupabase(), checkUptime()]);
+
+  // Resolve tenant at runtime
+  const schema = getCurrentSchema();
+  const tenantSlug = schema.startsWith('tenant_')
+    ? schema.replace('tenant_', '')
+    : (process.env.AGENT_SLOT ?? 'local');
 
   // Update agent_status in database
   try {
@@ -95,7 +100,7 @@ export async function runHealthCheck(): Promise<HealthCheck[]> {
           checks: Object.fromEntries(
             checks.map((c) => [c.name, { status: c.status, detail: c.detail }]),
           ),
-          tenant: TENANT_SLUG,
+          tenant: tenantSlug,
         },
       },
       { onConflict: 'id' },
@@ -109,10 +114,11 @@ export async function runHealthCheck(): Promise<HealthCheck[]> {
   if (errors.length > 0 && Date.now() - lastAlertAt > ALERT_COOLDOWN_MS) {
     lastAlertAt = Date.now();
     const errorLines = errors.map((e) => `- ${e.name}: ${e.detail}`).join('\n');
-    const alertMsg = `⚠️ [${TENANT_SLUG}] Health check failed:\n${errorLines}`;
+    const alertMsg = `⚠️ [${tenantSlug}] Health check failed:\n${errorLines}`;
 
-    if (CHANNEL_ID) {
-      await sendToChannel(CHANNEL_ID, alertMsg).catch(() => {});
+    const channelId = resolveChannel(slug);
+    if (channelId) {
+      await sendToChannel(channelId, alertMsg, slug).catch(() => {});
     }
     await sendWebhookAlert(alertMsg);
   }

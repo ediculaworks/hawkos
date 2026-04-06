@@ -1,5 +1,6 @@
+import { getSafeSchemaFromCookie } from '@/lib/auth/safe-schema';
 import { verifyToken } from '@hawk/auth';
-import { getPool } from '@hawk/db';
+import { scopedTransaction } from '@hawk/db';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
@@ -62,7 +63,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const schemaName = `tenant_${tenantSlug}`;
+    const tenantInfo = await getSafeSchemaFromCookie();
+    if (!tenantInfo) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+    }
+    const schemaName = tenantInfo.schemaName;
 
     // ── Validate body ────────────────────────────────────────
     const body: SetupRequestBody = await request.json();
@@ -113,11 +118,7 @@ export async function POST(request: Request) {
     };
 
     // ── Execute in transaction ───────────────────────────────
-    const sql = getPool();
-
-    await sql.begin(async (tx) => {
-      await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
-
+    await scopedTransaction(schemaName, async (tx) => {
       // 1. Upsert profile — handles both first-time setup and re-onboarding after data reset
       await tx.unsafe(
         `INSERT INTO profile (id, name, birth_date, metadata, onboarding_complete, created_at, updated_at)

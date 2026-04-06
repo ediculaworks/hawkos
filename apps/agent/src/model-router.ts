@@ -202,13 +202,13 @@ export function classifyComplexity(message: string, moduleCount: number): Comple
  */
 const _tenantBudgetCache = new Map<string, { value: number; expiresAt: number }>();
 
-async function getTenantBudgetLimit(): Promise<number> {
+async function getTenantBudgetLimit(slug?: string): Promise<number> {
   const globalLimit = Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
-  const slot = process.env.AGENT_SLOT;
-  if (!slot) return globalLimit;
+  const tenantKey = slug ?? getTenantKey();
+  if (tenantKey === '_global') return globalLimit;
 
   // Cache per-tenant for 5 minutes to avoid DB hits on every message
-  const cached = _tenantBudgetCache.get(slot);
+  const cached = _tenantBudgetCache.get(tenantKey);
   if (cached && Date.now() < cached.expiresAt) {
     return cached.value;
   }
@@ -220,13 +220,16 @@ async function getTenantBudgetLimit(): Promise<number> {
       return tx.unsafe(
         `SELECT feature_flags->>'daily_budget_usd' AS budget
          FROM tenants WHERE slug = $1 LIMIT 1`,
-        [slot],
+        [tenantKey],
       );
     });
     const row = rows[0] as { budget: string | null } | undefined;
     const tenantBudget = row?.budget ? Number(row.budget) : 0;
     const effectiveLimit = tenantBudget > 0 ? tenantBudget : globalLimit;
-    _tenantBudgetCache.set(slot, { value: effectiveLimit, expiresAt: Date.now() + 5 * 60_000 });
+    _tenantBudgetCache.set(tenantKey, {
+      value: effectiveLimit,
+      expiresAt: Date.now() + 5 * 60_000,
+    });
     return effectiveLimit;
   } catch {
     return globalLimit;
@@ -234,9 +237,9 @@ async function getTenantBudgetLimit(): Promise<number> {
 }
 
 export function selectModel(complexity: ComplexityLevel, _agentModel: string): string {
-  const budget = getBudget();
-  const slot = process.env.AGENT_SLOT ?? '';
-  const cachedBudget = slot ? _tenantBudgetCache.get(slot) : undefined;
+  const tenantKey = getTenantKey();
+  const budget = getBudget(tenantKey);
+  const cachedBudget = _tenantBudgetCache.get(tenantKey);
   const limit = cachedBudget?.value ?? Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
   const budgetUsedPct = limit > 0 ? (budget.cost / limit) * 100 : 0;
 
@@ -273,7 +276,7 @@ export function selectModel(complexity: ComplexityLevel, _agentModel: string): s
 
 // ── Daily budget guard ─────────────────────────────────────────────────────
 
-import { getPool } from '@hawk/db';
+import { getCurrentSchema, getPool } from '@hawk/db';
 
 interface BudgetState {
   date: string; // YYYY-MM-DD
@@ -283,20 +286,30 @@ interface BudgetState {
   loaded: boolean; // true after hydrating from DB
 }
 
-let _budget: BudgetState | null = null;
+// Per-tenant budget state — keyed by tenant slug (e.g. "ten1", "ten2")
+const _budgets = new Map<string, BudgetState>();
 
 function todayDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function getBudget(): BudgetState {
+/** Derive tenant key from current schema context or AGENT_SLOT env var. */
+function getTenantKey(): string {
+  const schema = getCurrentSchema();
+  if (schema.startsWith('tenant_')) return schema.replace('tenant_', '');
+  return process.env.AGENT_SLOT ?? '_global';
+}
+
+function getBudget(tenantKey?: string): BudgetState {
+  const key = tenantKey ?? getTenantKey();
   const today = todayDate();
-  if (!_budget || _budget.date !== today) {
-    _budget = { date: today, tokens: 0, cost: 0, llmCalls: 0, loaded: false };
-    // Clear tenant budget cache on day change so it re-fetches
-    _tenantBudgetCache.clear();
+  let budget = _budgets.get(key);
+  if (!budget || budget.date !== today) {
+    budget = { date: today, tokens: 0, cost: 0, llmCalls: 0, loaded: false };
+    _budgets.set(key, budget);
+    _tenantBudgetCache.delete(key);
   }
-  return _budget;
+  return budget;
 }
 
 /**
@@ -304,15 +317,14 @@ function getBudget(): BudgetState {
  * Checks per-tenant budget from feature_flags, falls back to MODEL_DAILY_BUDGET_USD.
  */
 export function trackUsage(tokens: number, costUsd: number): { overBudget: boolean } {
-  const budget = getBudget();
+  const tenantKey = getTenantKey();
+  const budget = getBudget(tenantKey);
   budget.tokens += tokens;
   budget.cost += costUsd;
   if (tokens > 0) budget.llmCalls++;
 
-  // Use cached tenant budget if available, otherwise fall back to env var
-  const trackSlot = process.env.AGENT_SLOT ?? '';
-  const trackCached = trackSlot ? _tenantBudgetCache.get(trackSlot) : undefined;
-  const limit = trackCached?.value ?? Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
+  const cachedBudget = _tenantBudgetCache.get(tenantKey);
+  const limit = cachedBudget?.value ?? Number(process.env.MODEL_DAILY_BUDGET_USD ?? '0');
   const overBudget = limit > 0 && budget.cost >= limit;
 
   return { overBudget };
@@ -345,10 +357,11 @@ export function getDailyUsage(): { tokens: number; cost: number } {
 /**
  * Load today's usage from admin.tenant_metrics on startup.
  * Prevents losing accumulated cost data when the agent restarts.
+ * In multi-tenant mode, call once per tenant with the slug.
  */
-export async function loadDailyUsageFromDb(): Promise<void> {
-  const slot = process.env.AGENT_SLOT;
-  if (!slot) return;
+export async function loadDailyUsageFromDb(slug?: string): Promise<void> {
+  const tenantKey = slug ?? process.env.AGENT_SLOT;
+  if (!tenantKey) return;
 
   try {
     const sql = getPool();
@@ -360,26 +373,26 @@ export async function loadDailyUsageFromDb(): Promise<void> {
          WHERE tenant_id = (SELECT id FROM tenants WHERE slug = $1)
            AND date = CURRENT_DATE
          LIMIT 1`,
-        [slot],
+        [tenantKey],
       );
     });
 
     const row = rows[0] as Record<string, unknown> | undefined;
     if (row) {
-      const budget = getBudget();
+      const budget = getBudget(tenantKey);
       budget.tokens = Number(row.tokens_used ?? 0);
       budget.cost = Number(row.tokens_cost_usd ?? 0);
       budget.llmCalls = Number(row.api_calls ?? 0);
       budget.loaded = true;
       console.log(
-        `[model-router] Loaded daily usage from DB: ${budget.tokens} tokens, $${budget.cost.toFixed(4)}`,
+        `[model-router] [${tenantKey}] Loaded daily usage: ${budget.tokens} tokens, $${budget.cost.toFixed(4)}`,
       );
     }
 
     // Pre-load tenant budget limit into cache so sync selectModel() works
-    await getTenantBudgetLimit();
+    await getTenantBudgetLimit(tenantKey);
   } catch (err) {
-    console.warn('[model-router] Could not load daily usage from DB:', err);
+    console.warn(`[model-router] [${tenantKey}] Could not load daily usage from DB:`, err);
   }
 }
 
@@ -402,10 +415,10 @@ export function debouncedPersistUsage(): void {
  * Prefer debouncedPersistUsage() for hot paths.
  */
 export async function persistUsage(): Promise<void> {
-  const slot = process.env.AGENT_SLOT;
-  if (!slot) return;
+  const tenantKey = getTenantKey();
+  if (tenantKey === '_global') return;
 
-  const budget = getBudget();
+  const budget = getBudget(tenantKey);
   if (budget.tokens === 0) return;
 
   try {
@@ -421,10 +434,10 @@ export async function persistUsage(): Promise<void> {
            tokens_cost_usd = $3,
            api_calls = $4,
            updated_at = now()`,
-        [slot, budget.tokens, budget.cost, budget.llmCalls],
+        [tenantKey, budget.tokens, budget.cost, budget.llmCalls],
       );
     });
   } catch (err) {
-    console.warn('[model-router] Failed to persist usage:', err);
+    console.warn(`[model-router] [${tenantKey}] Failed to persist usage:`, err);
   }
 }

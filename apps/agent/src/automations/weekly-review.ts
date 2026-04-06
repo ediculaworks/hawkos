@@ -8,8 +8,7 @@ import { type HabitWeekSummary, getWeekSummary } from '@hawk/module-routine';
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
 import { isAutomationEnabled, markAutomationRun } from './config.js';
-
-const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
+import { resolveChannel } from './resolve-channel.js';
 
 interface WeeklyReviewSettings {
   weekly_review_enabled: boolean;
@@ -31,8 +30,9 @@ async function getWeeklyReviewSettings(): Promise<WeeklyReviewSettings> {
   }
 }
 
-export async function sendWeeklyReview(): Promise<void> {
-  if (!CHANNEL_ID) {
+export async function sendWeeklyReview(slug?: string): Promise<void> {
+  const channelId = resolveChannel(slug);
+  if (!channelId) {
     return;
   }
 
@@ -142,7 +142,7 @@ export async function sendWeeklyReview(): Promise<void> {
   }
 
   const message = sections.join('\n\n');
-  await sendToChannel(CHANNEL_ID, message);
+  await sendToChannel(channelId, message, slug);
 }
 
 let _weeklyRunning = false;

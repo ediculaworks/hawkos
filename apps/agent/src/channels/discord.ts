@@ -1,11 +1,13 @@
 import { withSchema } from '@hawk/db';
 import { AuthorizationError } from '@hawk/shared';
 import {
+  ChannelType,
   type ChatInputCommandInteraction,
   Client,
   Events,
   GatewayIntentBits,
   type Message,
+  Partials,
 } from 'discord.js';
 import { handleStreamingMessage } from '../handler.js';
 import type { TenantContext } from '../tenant-manager.js';
@@ -122,6 +124,7 @@ export async function startDiscordBotForTenant(ctx: TenantContext): Promise<Clie
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.DirectMessages,
     ],
+    partials: [Partials.Channel],
   });
 
   const channelAgentMap = parseChannelMap(discord.channel_map);
@@ -154,7 +157,8 @@ export async function startDiscordBotForTenant(ctx: TenantContext): Promise<Clie
   client.on(Events.MessageCreate, async (message: Message) => {
     if (message.author.bot) return;
     if (message.author.id !== meta.authorizedUserId) return;
-    if (!meta.allowedChannels.has(message.channelId)) return;
+    const isDM = message.channel.type === ChannelType.DM;
+    if (!isDM && !meta.allowedChannels.has(message.channelId)) return;
 
     // Run within tenant schema context
     await withSchema(ctx.schemaName, async () => {
@@ -297,9 +301,11 @@ export async function sendToChannel(
         break;
       }
     }
-    // Fallback: use first client
-    if (!client && tenantClients.size > 0) {
-      client = tenantClients.values().next().value;
+    // No fallback in multi-tenant — never send to a random tenant's client
+    if (!client && tenantClients.size > 1) {
+      console.warn(
+        `[discord] sendToChannel without slug in multi-tenant mode (channelId=${channelId})`,
+      );
     }
   }
 

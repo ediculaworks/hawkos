@@ -13,8 +13,7 @@ import { getDueForReview, getPendingItems, getSecuritySummary } from '@hawk/modu
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
 import { isAutomationEnabled, markAutomationRun } from './config.js';
-
-const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
+import { resolveChannel } from './resolve-channel.js';
 
 interface AlertSettings {
   alerts_enabled: boolean;
@@ -45,8 +44,9 @@ async function getAlertSettings(): Promise<AlertSettings> {
 /**
  * Verificar e enviar todos os alertas do dia
  */
-export async function runDailyAlerts(): Promise<void> {
-  if (!CHANNEL_ID) return;
+export async function runDailyAlerts(slug?: string): Promise<void> {
+  const channelId = resolveChannel(slug);
+  if (!channelId) return;
 
   // Check web UI toggle (automation_configs) + agent_settings
   if (!(await isAutomationEnabled('alerts-daily'))) return;
@@ -122,11 +122,12 @@ export async function runDailyAlerts(): Promise<void> {
   if (alerts.length === 0) return;
 
   const message = `⚡ **Alertas do dia:**\n\n${alerts.join('\n')}`;
-  await sendToChannel(CHANNEL_ID, message);
+  await sendToChannel(channelId, message, slug);
 }
 
-async function runMonthlySecurityReview(): Promise<void> {
-  if (!CHANNEL_ID) return;
+async function runMonthlySecurityReview(slug?: string): Promise<void> {
+  const channelId = resolveChannel(slug);
+  if (!channelId) return;
 
   const [summary, _pending, due] = await Promise.all([
     getSecuritySummary(),
@@ -149,7 +150,7 @@ async function runMonthlySecurityReview(): Promise<void> {
   }
 
   lines.push('', 'Use `/seguranca list` para ver todos os itens.');
-  await sendToChannel(CHANNEL_ID, lines.join('\n'));
+  await sendToChannel(channelId, lines.join('\n'), slug);
 }
 
 let _alertsRunning = false;

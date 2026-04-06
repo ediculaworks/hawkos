@@ -3,6 +3,7 @@
  * Lightweight alternative to full alertmanager for a VPS deployment.
  */
 
+import { getCurrentSchema } from '@hawk/db';
 import { eventBus } from '@hawk/shared';
 import { getConfig } from '@hawk/shared';
 import { logActivity } from './activity-logger.js';
@@ -18,18 +19,20 @@ interface AlertRule {
   severity: 'warning' | 'critical';
 }
 
-// ── Cooldown tracking ─────────────────────────────────────────────────────────
+// ── Cooldown tracking (scoped per-tenant) ────────────────────────────────────
 
 const _lastFired = new Map<string, number>();
 
 function isInCooldown(ruleName: string, cooldownMs: number): boolean {
-  const last = _lastFired.get(ruleName);
+  const key = `${getCurrentSchema()}:${ruleName}`;
+  const last = _lastFired.get(key);
   if (!last) return false;
   return Date.now() - last < cooldownMs;
 }
 
 function markFired(ruleName: string): void {
-  _lastFired.set(ruleName, Date.now());
+  const key = `${getCurrentSchema()}:${ruleName}`;
+  _lastFired.set(key, Date.now());
 }
 
 // ── Alert Rules ───────────────────────────────────────────────────────────────

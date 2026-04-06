@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { getTenantBySlug } from '@/lib/tenants/cache';
 import { deleteUser, listUsers, signIn } from '@hawk/auth';
-import { getPool } from '@hawk/db';
+import { scopedTransaction } from '@hawk/db';
 import { NextResponse } from 'next/server';
 
 interface ResetAccountRequest {
@@ -54,11 +54,9 @@ export async function POST(request: Request) {
     const userId = existingUser.id;
 
     // 3. Delete profile data (CASCADE handles related tables)
-    const sql = getPool();
-    await sql.begin(async (tx) => {
-      await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
-      await tx.unsafe('DELETE FROM profile WHERE id = $1', [userId]);
-    });
+    await scopedTransaction(schemaName, (tx) =>
+      tx.unsafe('DELETE FROM profile WHERE id = $1', [userId]),
+    );
 
     // 4. Delete auth user
     const { error: deleteError } = await deleteUser(userId, schemaName);

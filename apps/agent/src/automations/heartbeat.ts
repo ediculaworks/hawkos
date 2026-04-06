@@ -183,10 +183,12 @@ export function startHeartbeatCron(): ScheduledTask | null {
         .then((report) => {
           if (report) {
             console.log('[heartbeat] Report:', report.slice(0, 200));
-            import('../channels/discord-adapter.js').then(({ discordChannel }) => {
-              const channelId = process.env.DISCORD_CHANNEL_GERAL;
-              if (channelId && discordChannel.isConnected()) {
-                discordChannel.send(channelId, report).catch(console.error);
+            import('./resolve-channel.js').then(({ resolveChannel }) => {
+              const channelId = resolveChannel();
+              if (channelId) {
+                import('../channels/discord.js').then(({ sendToChannel }) => {
+                  sendToChannel(channelId, report).catch(console.error);
+                });
               }
             });
           }

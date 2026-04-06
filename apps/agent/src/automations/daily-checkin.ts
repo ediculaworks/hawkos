@@ -12,10 +12,9 @@ import cron from 'node-cron';
 import { logActivity } from '../activity-logger.js';
 import { sendToChannel } from '../channels/discord.js';
 import { isAutomationEnabled, markAutomationRun } from './config.js';
+import { resolveChannel } from './resolve-channel.js';
 
 const logger = createLogger('daily-checkin');
-
-const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
 
 interface AgentSettings {
   checkin_morning_enabled: boolean;
@@ -127,8 +126,9 @@ async function shouldSuppressEveningCheckin(): Promise<boolean> {
  * Check-in matinal
  * Pergunta humor, energia e top 3 do dia
  */
-export async function sendMorningCheckin(): Promise<void> {
-  if (!CHANNEL_ID) {
+export async function sendMorningCheckin(slug?: string): Promise<void> {
+  const channelId = resolveChannel(slug);
+  if (!channelId) {
     return;
   }
 
@@ -187,15 +187,16 @@ export async function sendMorningCheckin(): Promise<void> {
     questionLine,
   ].join('\n');
 
-  await sendToChannel(CHANNEL_ID, message);
+  await sendToChannel(channelId, message, slug);
 }
 
 /**
  * Check-out noturno
  * Mostra hábitos do dia e pede reflexão
  */
-export async function sendEveningCheckin(): Promise<void> {
-  if (!CHANNEL_ID) {
+export async function sendEveningCheckin(slug?: string): Promise<void> {
+  const channelId = resolveChannel(slug);
+  if (!channelId) {
     return;
   }
 
@@ -236,7 +237,7 @@ export async function sendEveningCheckin(): Promise<void> {
     'Qual foi o **destaque do dia**? Use `/diario add` para registrar.',
   ].join('\n');
 
-  await sendToChannel(CHANNEL_ID, message);
+  await sendToChannel(channelId, message, slug);
 }
 
 /**

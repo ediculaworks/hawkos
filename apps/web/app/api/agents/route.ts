@@ -1,5 +1,5 @@
 import { getTenantPrivateBySlug } from '@/lib/tenants/cache-server';
-import { db, getPool, withTenantSchema } from '@hawk/db';
+import { db, scopedTransaction, withTenantSchema } from '@hawk/db';
 import { cookies } from 'next/headers';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -19,11 +19,9 @@ export async function GET() {
   const schemaName = await getTenantSchema();
 
   try {
-    const sql = getPool();
-    const agents = await sql.begin(async (tx) => {
-      await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
-      return tx.unsafe('SELECT * FROM agent_templates ORDER BY created_at ASC');
-    });
+    const agents = await scopedTransaction(schemaName, (tx) =>
+      tx.unsafe('SELECT * FROM agent_templates ORDER BY created_at ASC'),
+    );
 
     const formattedAgents = (agents ?? []).map((agent: Record<string, unknown>) => ({
       id: agent.id,

@@ -6,12 +6,11 @@
 import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { db } from '@hawk/db';
+import { db, getCurrentSchema } from '@hawk/db';
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
+import { resolveChannel } from './resolve-channel.js';
 
-const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
-const TENANT_SLUG = process.env.AGENT_SLOT ?? 'local';
 const BACKUP_DIR = process.env.BACKUP_DIR || '/data/backups';
 
 // Retention
@@ -64,7 +63,13 @@ function cleanupLocal(dir: string, maxFiles: number): number {
   return deleted;
 }
 
-export async function runBackup(): Promise<string> {
+export async function runBackup(_slug?: string): Promise<string> {
+  // Resolve tenant slug at runtime
+  const schema = getCurrentSchema();
+  const tenantSlug = schema.startsWith('tenant_')
+    ? schema.replace('tenant_', '')
+    : (process.env.AGENT_SLOT ?? 'local');
+
   const backup: Record<string, unknown[]> = {};
   let totalRows = 0;
 
@@ -93,7 +98,7 @@ export async function runBackup(): Promise<string> {
   const fileName = `${dateStr}.json.gz`;
 
   // Always save locally
-  const localPath = join(BACKUP_DIR, TENANT_SLUG, prefix, fileName);
+  const localPath = join(BACKUP_DIR, tenantSlug, prefix, fileName);
   await saveLocal(localPath, compressed);
 
   // Optionally upload to R2 if configured
@@ -101,15 +106,15 @@ export async function runBackup(): Promise<string> {
     process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY;
   if (hasR2) {
     try {
-      await saveToR2(`backups/${TENANT_SLUG}/${prefix}/${fileName}`, compressed);
+      await saveToR2(`backups/${tenantSlug}/${prefix}/${fileName}`, compressed);
     } catch (err) {
       console.warn(`[backup] R2 upload failed (local backup saved): ${err}`);
     }
   }
 
   // Cleanup old local backups
-  cleanupLocal(join(BACKUP_DIR, TENANT_SLUG, 'daily'), DAILY_RETENTION);
-  cleanupLocal(join(BACKUP_DIR, TENANT_SLUG, 'weekly'), WEEKLY_RETENTION);
+  cleanupLocal(join(BACKUP_DIR, tenantSlug, 'daily'), DAILY_RETENTION);
+  cleanupLocal(join(BACKUP_DIR, tenantSlug, 'weekly'), WEEKLY_RETENTION);
 
   const tables = Object.keys(backup).length;
   const sizeKB = (compressed.length / 1024).toFixed(1);
@@ -133,8 +138,9 @@ export function startBackupCron(): void {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[backup] Failed: ${msg}`);
 
-      if (CHANNEL_ID) {
-        await sendToChannel(CHANNEL_ID, `⚠️ Backup falhou: ${msg}`).catch(() => {});
+      const channelId = resolveChannel();
+      if (channelId) {
+        await sendToChannel(channelId, `⚠️ Backup falhou: ${msg}`).catch(() => {});
       }
     }
   });

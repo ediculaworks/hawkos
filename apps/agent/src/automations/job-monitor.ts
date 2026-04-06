@@ -4,18 +4,28 @@
  * Roda diariamente às 08:30 BRT
  */
 
+import { getCurrentSchema } from '@hawk/db';
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
 import { hookRegistry } from '../hooks/index.js';
-
-const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
+import { resolveChannel } from './resolve-channel.js';
 
 // Job search config via env
 const JOB_KEYWORDS = process.env.JOB_MONITOR_KEYWORDS ?? '';
 const JOB_LOCATION = process.env.JOB_MONITOR_LOCATION ?? '';
 
-// Track seen job URLs to avoid duplicates (in-memory, resets on restart)
-const seenJobs = new Set<string>();
+// Track seen job URLs per-tenant to avoid duplicates (in-memory, resets on restart)
+const _seenJobsByTenant = new Map<string, Set<string>>();
+
+function getSeenJobs(): Set<string> {
+  const key = getCurrentSchema();
+  let set = _seenJobsByTenant.get(key);
+  if (!set) {
+    set = new Set();
+    _seenJobsByTenant.set(key, set);
+  }
+  return set;
+}
 
 interface JobResult {
   title: string;
@@ -66,7 +76,7 @@ async function searchJobs(): Promise<JobResult[]> {
           const title = titleMatch[1].replace(/<[^>]+>/g, '').trim();
           const snippet = snippetMatch?.[1]?.replace(/<[^>]+>/g, '').trim() ?? '';
 
-          if (title && url.startsWith('http') && !seenJobs.has(url)) {
+          if (title && url.startsWith('http') && !getSeenJobs().has(url)) {
             allResults.push({ title, url, snippet });
           }
         }
@@ -79,22 +89,22 @@ async function searchJobs(): Promise<JobResult[]> {
   return allResults;
 }
 
-export async function runJobMonitor(): Promise<void> {
-  if (!CHANNEL_ID || !JOB_KEYWORDS) {
-    console.log(
-      '[job-monitor] Skipped: no DISCORD_CHANNEL_GERAL or JOB_MONITOR_KEYWORDS configured',
-    );
+export async function runJobMonitor(slug?: string): Promise<void> {
+  const channelId = resolveChannel(slug);
+  if (!channelId || !JOB_KEYWORDS) {
+    console.log('[job-monitor] Skipped: no channel or JOB_MONITOR_KEYWORDS configured');
     return;
   }
 
   await hookRegistry.emit('automation:before', { automationName: 'job-monitor' }).catch(() => {});
 
   const results = await searchJobs();
-  const newResults = results.filter((r) => !seenJobs.has(r.url));
+  const seen = getSeenJobs();
+  const newResults = results.filter((r) => !seen.has(r.url));
 
   // Mark as seen
   for (const r of newResults) {
-    seenJobs.add(r.url);
+    seen.add(r.url);
   }
 
   if (newResults.length === 0) {
@@ -117,7 +127,7 @@ export async function runJobMonitor(): Promise<void> {
     .filter(Boolean)
     .join('\n');
 
-  await sendToChannel(CHANNEL_ID, message);
+  await sendToChannel(channelId, message, slug);
   await hookRegistry.emit('automation:after', { automationName: 'job-monitor' }).catch(() => {});
 }
 

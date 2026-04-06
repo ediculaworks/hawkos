@@ -1,7 +1,7 @@
 import { requireAdminAuth } from '@/lib/admin-auth';
 import { createAdminClientFromEnv } from '@hawk/admin';
 import { createUser, listUsers, updateUser } from '@hawk/auth';
-import { getPool } from '@hawk/db';
+import { scopedTransaction } from '@hawk/db';
 import { NextResponse } from 'next/server';
 
 interface RepairRequest {
@@ -166,18 +166,16 @@ async function handleFixProfile(
   }
 
   // Create or update profile
-  const sql = getPool();
-  await sql.begin(async (tx) => {
-    await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
-    await tx.unsafe(
+  await scopedTransaction(schemaName, (tx) =>
+    tx.unsafe(
       `INSERT INTO profile (id, name, onboarding_complete)
        VALUES ($1, $2, true)
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
          onboarding_complete = true`,
       [user.id, (name ?? email.split('@')[0]) as string],
-    );
-  });
+    ),
+  );
 
   return NextResponse.json({
     success: true,

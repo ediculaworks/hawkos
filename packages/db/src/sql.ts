@@ -84,6 +84,23 @@ export async function rawQuery(
   return [...result] as Record<string, unknown>[];
 }
 
+/**
+ * Execute a transaction scoped to a specific tenant schema.
+ * Validates the schema name before use to prevent SQL injection.
+ * Use this instead of manual `tx.unsafe('SET LOCAL search_path ...')`.
+ */
+export async function scopedTransaction<T>(
+  schema: string,
+  fn: (tx: postgres.TransactionSql) => Promise<T>,
+): Promise<T> {
+  validateSchemaName(schema);
+  const sql = getPool();
+  return sql.begin(async (tx) => {
+    await tx.unsafe(`SET LOCAL search_path TO "${schema}", public`);
+    return fn(tx);
+  });
+}
+
 // Re-export postgres for raw SQL usage in modules
 export { postgres };
 export type { Sql } from 'postgres';

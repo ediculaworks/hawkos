@@ -1,5 +1,6 @@
+import { getSafeSchemaFromCookie } from '@/lib/auth/safe-schema';
 import { verifyToken } from '@hawk/auth';
-import { getPool } from '@hawk/db';
+import { scopedTransaction } from '@hawk/db';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
@@ -7,9 +8,8 @@ export async function GET() {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('hawk_session')?.value;
-    const tenantSlug = cookieStore.get('hawk_tenant')?.value;
 
-    if (!token || !tenantSlug) {
+    if (!token) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
@@ -18,14 +18,14 @@ export async function GET() {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Get onboarding status from profile table in tenant schema
-    const sql = getPool();
-    const schemaName = `tenant_${tenantSlug}`;
+    const tenantInfo = await getSafeSchemaFromCookie();
+    if (!tenantInfo) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
 
-    const rows = await sql.begin(async (tx) => {
-      await tx.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
-      return tx.unsafe('SELECT name, onboarding_complete FROM profile LIMIT 1');
-    });
+    const rows = await scopedTransaction(tenantInfo.schemaName, (tx) =>
+      tx.unsafe('SELECT name, onboarding_complete FROM profile LIMIT 1'),
+    );
 
     const profile = rows[0] as { name: string; onboarding_complete: boolean } | undefined;
 

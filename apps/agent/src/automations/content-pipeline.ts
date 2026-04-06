@@ -8,14 +8,14 @@ import { searchNotes } from '@hawk/module-knowledge/queries';
 import { listPosts } from '@hawk/module-social/queries';
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
-
-const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
+import { resolveChannel } from './resolve-channel.js';
 
 /**
  * Analisa pipeline de conteúdo e sugere criações
  */
-export async function runContentPipeline(): Promise<void> {
-  if (!CHANNEL_ID) return;
+export async function runContentPipeline(slug?: string): Promise<void> {
+  const channelId = resolveChannel(slug);
+  if (!channelId) return;
 
   const suggestions: string[] = [];
 
@@ -72,7 +72,7 @@ export async function runContentPipeline(): Promise<void> {
   suggestions.push(`📊 **Estatísticas:** ${published}/${total} posts publicados`);
 
   const message = `📱 **Pipeline de Conteúdo:**\n\n${suggestions.join('\n\n')}`;
-  await sendToChannel(CHANNEL_ID, message);
+  await sendToChannel(channelId, message, slug);
 }
 
 /**

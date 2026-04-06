@@ -14,14 +14,14 @@ import { getJournalStats, listRecentEntries } from '@hawk/module-journal/queries
 import { getCombinedMoodAverage } from '@hawk/module-spirituality/queries';
 import cron from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
-
-const CHANNEL_ID = process.env.DISCORD_CHANNEL_GERAL ?? '';
+import { resolveChannel } from './resolve-channel.js';
 
 /**
  * Analisa correlações de saúde e envia insights
  */
-export async function runHealthInsights(): Promise<void> {
-  if (!CHANNEL_ID) return;
+export async function runHealthInsights(slug?: string): Promise<void> {
+  const channelId = resolveChannel(slug);
+  if (!channelId) return;
 
   const insights: string[] = [];
 
@@ -103,7 +103,7 @@ export async function runHealthInsights(): Promise<void> {
   if (insights.length === 0) return;
 
   const message = `💊 **Insights de Saúde:**\n\n${insights.join('\n\n')}`;
-  await sendToChannel(CHANNEL_ID, message);
+  await sendToChannel(channelId, message, slug);
 }
 
 /**
