@@ -750,7 +750,7 @@ export class QueryBuilder<T = any> {
     }
 
     for (const cf of this._containsFilters) {
-      conditions.push(`${ident(cf.column)} @> ${this._paramValue(cf.value)}::jsonb`);
+      conditions.push(`${ident(cf.column)} @> ${this._paramValue(cf.value)}`);
     }
 
     for (const orF of this._orFilters) {
@@ -799,7 +799,16 @@ export class QueryBuilder<T = any> {
     if (typeof val === 'number') return String(val);
     if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
     if (val instanceof Date) return escapeValue(val.toISOString());
-    if (Array.isArray(val)) return `'${JSON.stringify(val)}'::jsonb`;
+    if (Array.isArray(val)) {
+      // Primitive arrays (string/number/boolean) → Postgres ARRAY literal (compatible with text[], int[], etc.)
+      // Object arrays → JSONB
+      const hasObjects = val.some((v) => v !== null && typeof v === 'object');
+      if (!hasObjects) {
+        const elements = val.map((v) => escapeValue(v)).join(', ');
+        return `ARRAY[${elements}]`;
+      }
+      return `'${JSON.stringify(val).replace(/'/g, "''")}'::jsonb`;
+    }
     if (typeof val === 'object') return `'${JSON.stringify(val).replace(/'/g, "''")}'::jsonb`;
     return escapeValue(val);
   }
