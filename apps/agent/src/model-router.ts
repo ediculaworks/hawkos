@@ -41,6 +41,9 @@ const MODEL_CONTEXT_LIMITS: Record<string, number> = {
   'google/gemma-3-12b-it:free': 131_072,
   'google/gemma-3-4b-it:free': 131_072,
   'google/gemma-3n-e4b-it:free': 131_072,
+  // Gemma 4 (local Ollama)
+  'gemma4:e2b': 131_072,
+  'gemma4:e4b': 131_072,
   // Mistral
   'mistralai/mistral-small-3.2-24b-instruct:free': 131_072,
   'mistralai/mistral-7b-instruct:free': 32_768,
@@ -249,7 +252,7 @@ export function selectModel(complexity: ComplexityLevel, _agentModel: string): s
   // Override via MODEL_TIER_SIMPLE / MODEL_TIER_DEFAULT / MODEL_TIER_COMPLEX in .env
   // When OLLAMA_BASE_URL is set, simple tier uses local qwen2.5:3b (free, fast, multilingual).
   const FREE_DEFAULTS: Record<ComplexityLevel, string> = {
-    simple: process.env.OLLAMA_BASE_URL ? 'qwen3:4b' : 'nvidia/nemotron-3-nano-30b-a3b:free',
+    simple: process.env.OLLAMA_BASE_URL ? 'gemma4:e2b' : 'nvidia/nemotron-3-nano-30b-a3b:free',
     moderate: 'qwen/qwen3.6-plus:free',
     complex: 'qwen/qwen3.6-plus:free',
   };

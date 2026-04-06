@@ -124,8 +124,8 @@ services:
         max-file: "10"
 
   # ── Ollama (local LLM inference — simple tier) ─────────────────────────────
-  # Serves qwen3:4b for simple queries (greetings, CRUD) — zero OpenRouter cost.
-  # Model downloaded automatically on first request (~2.5GB, stored in volume).
+  # Serves gemma4:e2b for simple queries (greetings, CRUD) — zero OpenRouter cost.
+  # Model downloaded automatically on first request (~7.2GB, stored in volume).
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
@@ -136,7 +136,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: 10G
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:11434/api/tags']
       interval: 30s
