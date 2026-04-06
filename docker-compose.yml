@@ -120,8 +120,8 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "50m"
+        max-file: "10"
 
   # ── Ollama (local LLM inference — simple tier) ─────────────────────────────
   # Serves qwen3:4b for simple queries (greetings, CRUD) — zero OpenRouter cost.
@@ -182,8 +182,8 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "50m"
+        max-file: "10"
 
 volumes:
   pgdata:

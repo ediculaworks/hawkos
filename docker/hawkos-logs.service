@@ -1,0 +1,19 @@
+[Unit]
+Description=Hawk OS — Continuous Log Capture
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=hawk
+Group=hawk
+WorkingDirectory=/docker/hawkos
+ExecStart=/docker/hawkos/scripts/log-capture.sh
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hawkos-logs
+
+[Install]
+WantedBy=multi-user.target
