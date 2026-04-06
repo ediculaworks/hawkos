@@ -98,7 +98,7 @@ export async function scopedTransaction<T>(
   return sql.begin(async (tx) => {
     await tx.unsafe(`SET LOCAL search_path TO "${schema}", public`);
     return fn(tx);
-  });
+  }) as Promise<T>;
 }
 
 // Re-export postgres for raw SQL usage in modules
