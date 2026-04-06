@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { db } from '@hawk/db';
 import {
   createTransaction,
   deleteTransaction,
@@ -11,12 +13,28 @@ import {
 import { eventBus } from '@hawk/shared';
 import { z } from 'zod';
 
+import { registerPrerequisite } from '../prerequisite-registry.js';
+import { registerUndoAction } from '../undo-store.js';
 import type { ToolDefinition } from './types.js';
+
+// ── Prerequisite: finances module needs at least one account ────────────────
+registerPrerequisite('finances.accounts.exists', async () => {
+  const accounts = await getAccounts();
+  return accounts.length > 0;
+});
 
 export const financeTools: Record<string, ToolDefinition> = {
   create_transaction: {
     name: 'create_transaction',
     modules: ['finances'],
+    undoable: true,
+    prerequisites: [
+      {
+        name: 'finances.accounts.exists',
+        message:
+          'Precisas de pelo menos uma conta bancária para registar transações. Cria uma conta primeiro (ex: "cria uma conta Nubank").',
+      },
+    ],
     description: 'Registra uma transação financeira (gasto ou receita)',
     parameters: {
       type: 'object',
@@ -61,7 +79,7 @@ export const financeTools: Record<string, ToolDefinition> = {
 
       if (!category) return `Erro: Categoria "${args.category}" não encontrada para ${args.type}.`;
 
-      await createTransaction({
+      const transaction = await createTransaction({
         account_id: account.id,
         category_id: category.id,
         amount: args.amount,
@@ -78,7 +96,17 @@ export const financeTools: Record<string, ToolDefinition> = {
         })
         .catch(() => {});
 
-      return `Transação registrada: ${args.type === 'expense' ? 'Gasto' : 'Receita'} de R$ ${args.amount} em ${category.name}.`;
+      // Register undo action (soft-delete within 60s)
+      const actionId = randomUUID();
+      const label = `${args.type === 'expense' ? 'Gasto' : 'Receita'} de R$ ${args.amount} em ${category.name}`;
+      registerUndoAction(actionId, label, async () => {
+        await db
+          .from('finance_transactions')
+          .update({ deleted_at: new Date().toISOString() } as Record<string, unknown>)
+          .eq('id', transaction.id);
+      });
+
+      return `Transação registrada: ${label}. [UNDO:${actionId}]`;
     },
   },
 

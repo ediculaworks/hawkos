@@ -1,6 +1,10 @@
 import { withSchema } from '@hawk/db';
 import { AuthorizationError } from '@hawk/shared';
 import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  type ButtonInteraction,
+  ButtonStyle,
   ChannelType,
   type ChatInputCommandInteraction,
   Client,
@@ -11,6 +15,7 @@ import {
 } from 'discord.js';
 import { handleStreamingMessage } from '../handler.js';
 import type { TenantContext } from '../tenant-manager.js';
+import { UNDO_TTL_MS, getUndoAction, parseUndoTag, removeUndoAction } from '../undo-store.js';
 import { ALL_COMMANDS, handleSlashCommand } from './module-commands.js';
 
 // ── Per-tenant Discord clients ───────────────────────────────────────────────
@@ -101,6 +106,45 @@ async function transcribeAudio(url: string): Promise<string | null> {
   } catch (err) {
     console.error('[discord] Transcription error:', err);
     return null;
+  }
+}
+
+// ── S1.3 — Undo Button helpers ───────────────────────────────────────────────
+
+function buildUndoActionRow(actionId: string, _label: string): ActionRowBuilder<ButtonBuilder> {
+  const ttlSecs = Math.round(UNDO_TTL_MS / 1000);
+  const button = new ButtonBuilder()
+    .setCustomId(`undo:${actionId}`)
+    .setLabel(`↩ Desfazer (${ttlSecs}s)`)
+    .setStyle(ButtonStyle.Secondary);
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+}
+
+async function handleUndoButton(interaction: ButtonInteraction, meta: ClientMeta): Promise<void> {
+  const actionId = interaction.customId.slice(5); // strip "undo:"
+  const action = getUndoAction(actionId);
+
+  if (!action) {
+    await interaction.reply({
+      content: '⏱️ O tempo limite expirou. Não foi possível desfazer.',
+      ephemeral: true,
+    });
+    return;
+  }
+
+  try {
+    await withSchema(meta.ctx.schemaName, () => action.perform());
+    removeUndoAction(actionId);
+    await interaction.update({
+      content: `↩ **Desfeito:** ${action.description}`,
+      components: [],
+    });
+  } catch (err) {
+    console.error('[discord] Undo failed:', err);
+    await interaction.reply({
+      content: `❌ Não foi possível desfazer: ${err instanceof Error ? err.message : err}`,
+      ephemeral: true,
+    });
   }
 }
 
@@ -226,7 +270,10 @@ export async function startDiscordBotForTenant(ctx: TenantContext): Promise<Clie
           attachments,
         );
 
-        const finalResponse = wasTranscribed ? `*"${textContent}"*\n\n${response}` : response;
+        // ── S1.3 — Parse undo tag from response ──────────────────────────
+        const { clean: displayResponse, actionId } = parseUndoTag(response);
+        const prefix = wasTranscribed ? `*"${textContent}"*\n\n` : '';
+        const finalResponse = prefix + displayResponse;
 
         if (finalResponse.length <= 2000) {
           await streamMsg.edit(finalResponse);
@@ -241,6 +288,26 @@ export async function startDiscordBotForTenant(ctx: TenantContext): Promise<Clie
             }
           }
         }
+
+        // Send undo button as a follow-up message (expires in 60s)
+        if (actionId) {
+          const undoAction = getUndoAction(actionId);
+          if (undoAction) {
+            const channel = message.channel;
+            if (channel && 'send' in channel && typeof channel.send === 'function') {
+              const row = buildUndoActionRow(actionId, undoAction.description);
+              const btnMsg = await channel.send({ content: '', components: [row] });
+              // Auto-disable the button after TTL
+              setTimeout(async () => {
+                try {
+                  await btnMsg.edit({ content: '', components: [] });
+                } catch {
+                  // Message may have been deleted — ignore
+                }
+              }, UNDO_TTL_MS + 500);
+            }
+          }
+        }
       } catch (err) {
         if (err instanceof AuthorizationError) return;
         await message.reply('Erro interno. Tente novamente.');
@@ -248,8 +315,16 @@ export async function startDiscordBotForTenant(ctx: TenantContext): Promise<Clie
     });
   });
 
-  // ── Slash command interactions ──
+  // ── Interactions (slash commands + buttons) ──────────────────────────────
   client.on(Events.InteractionCreate, async (interaction) => {
+    // ── S1.3 — Button interactions (undo) ───────────────────────────────
+    if (interaction.isButton()) {
+      if (interaction.customId.startsWith('undo:')) {
+        await handleUndoButton(interaction as ButtonInteraction, meta);
+      }
+      return;
+    }
+
     if (!interaction.isCommand()) return;
     if (interaction.user.id !== meta.authorizedUserId) {
       await interaction.reply({ content: 'Não autorizado.', ephemeral: true });

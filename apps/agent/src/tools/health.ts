@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { db } from '@hawk/db';
 import {
   addWorkoutSet,
   deleteWorkout,
@@ -9,12 +11,14 @@ import {
 } from '@hawk/module-health/queries';
 import { z } from 'zod';
 
+import { registerUndoAction } from '../undo-store.js';
 import type { ToolDefinition } from './types.js';
 
 export const healthTools: Record<string, ToolDefinition> = {
   log_sleep: {
     name: 'log_sleep',
     modules: ['health'],
+    undoable: true,
     description: 'Registra horas de sono',
     parameters: {
       type: 'object',
@@ -39,13 +43,23 @@ export const healthTools: Record<string, ToolDefinition> = {
         quality: args.quality,
         date: args.date,
       });
-      return `Sono registrado: ${sleep.duration_h}h`;
+
+      const actionId = randomUUID();
+      registerUndoAction(actionId, `Sono de ${sleep.duration_h}h`, async () => {
+        await db
+          .from('sleep_sessions')
+          .update({ deleted_at: new Date().toISOString() } as Record<string, unknown>)
+          .eq('id', sleep.id);
+      });
+
+      return `Sono registrado: ${sleep.duration_h}h [UNDO:${actionId}]`;
     },
   },
 
   log_workout: {
     name: 'log_workout',
     modules: ['health'],
+    undoable: true,
     description: 'Registra um treino',
     parameters: {
       type: 'object',
@@ -86,7 +100,16 @@ export const healthTools: Record<string, ToolDefinition> = {
         notes: args.notes,
         date: args.date,
       });
-      return `Treino registrado: ${workout.type}`;
+
+      const actionId = randomUUID();
+      registerUndoAction(actionId, `Treino de ${workout.type}`, async () => {
+        await db
+          .from('workout_sessions')
+          .update({ deleted_at: new Date().toISOString() } as Record<string, unknown>)
+          .eq('id', workout.id);
+      });
+
+      return `Treino registrado: ${workout.type} [UNDO:${actionId}]`;
     },
   },
 

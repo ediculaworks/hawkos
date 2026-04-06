@@ -12,6 +12,7 @@ import type OpenAI from 'openai';
 import { logActivity } from './activity-logger.js';
 import { hookRegistry } from './hooks/index.js';
 import { metrics } from './metrics.js';
+import { checkPrerequisite } from './prerequisite-registry.js';
 import { TOOLS } from './tools/index.js';
 
 // ── Tool Approval System ─────────────────────────────────────────────────
@@ -68,6 +69,67 @@ setInterval(() => {
 // Schemas are now colocated in each tool definition file.
 // tool-executor validates via toolDef.schema when present.
 
+// ── Pending Intents ─────────────────────────────────────────────────────────
+
+async function savePendingIntent(
+  toolName: string,
+  args: Record<string, unknown>,
+  prerequisite: string,
+  prerequisiteMessage: string,
+): Promise<void> {
+  const description = buildIntentDescription(toolName, args);
+  try {
+    await db.from('pending_intents').insert([
+      {
+        intent_json: { tool: toolName, args },
+        prerequisite,
+        prerequisite_message: prerequisiteMessage,
+        description,
+      },
+    ]);
+  } catch {
+    // Non-fatal — don't block the response if this fails
+  }
+}
+
+function buildIntentDescription(tool: string, args: Record<string, unknown>): string {
+  switch (tool) {
+    case 'create_transaction': {
+      const a = args as { amount?: number; type?: string; category?: string };
+      return `Registar ${a.type === 'income' ? 'receita' : 'gasto'} de R$ ${a.amount ?? '?'} em ${a.category ?? '?'}`;
+    }
+    default:
+      return tool.replace(/_/g, ' ');
+  }
+}
+
+/** Check pending intents and surface ones whose prerequisites are now satisfied. */
+async function checkSatisfiedPendingIntents(): Promise<string | null> {
+  try {
+    const { data } = await db
+      .from('pending_intents')
+      .select('id, intent_json, prerequisite, description')
+      .eq('status', 'pending')
+      .limit(10);
+
+    if (!data || data.length === 0) return null;
+
+    for (const intent of data) {
+      const satisfied = await checkPrerequisite(intent.prerequisite as string);
+      if (satisfied) {
+        const desc =
+          (intent.description as string) ||
+          (intent.intent_json as { tool?: string }).tool ||
+          'acção pendente';
+        return `\n\n💡 **Acção pendente desbloqueada:** "${desc}". Diz "executar pendente" para continuar (ou ignora para descartar).`;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function executeToolCall(
   toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
   toolMap: Map<string, (typeof TOOLS)[string]>,
@@ -113,6 +175,26 @@ export async function executeToolCall(
   const toolDef = toolMap.get(name);
   if (!toolDef) {
     return `Erro: Ferramenta "${name}" não encontrada no contexto atual.`;
+  }
+
+  // ── S1.1 Prerequisite Guard ─────────────────────────────────────────────
+  if (toolDef.prerequisites?.length) {
+    for (const prereq of toolDef.prerequisites) {
+      const satisfied = await checkPrerequisite(prereq.name);
+      if (!satisfied) {
+        // Save the intent so it can be offered when the prerequisite is met
+        await savePendingIntent(name, args, prereq.name, prereq.message);
+
+        logActivity(
+          'assistance_failure',
+          `Prerequisite not met for ${name}: ${prereq.name}`,
+          toolDef.modules[0],
+          { tool: name, prerequisite: prereq.name },
+        ).catch(() => {});
+
+        return `⚠️ **Não é possível executar esta acção ainda.**\n\n${prereq.message}\n\n✅ A tua intenção foi guardada e será oferecida automaticamente quando o pré-requisito for satisfeito.`;
+      }
+    }
   }
 
   // ── Tool approval gate for dangerous tools ──────────────────────────────
@@ -177,7 +259,9 @@ export async function executeToolCall(
       args,
     }).catch(() => {});
 
-    return result;
+    // ── S1.1 Surface satisfied pending intents after successful mutations ──
+    const pendingHint = await checkSatisfiedPendingIntents();
+    return pendingHint ? result + pendingHint : result;
   } catch (err) {
     metrics.incCounter('hawk_tool_calls_total', {
       tool: name,

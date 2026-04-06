@@ -1,3 +1,4 @@
+import { db } from '@hawk/db';
 import { getNextQuestion, markQuestionAnswered, markQuestionAsked } from '@hawk/module-memory';
 import { getLinkedMemories } from '@hawk/module-memory/queries';
 import { z } from 'zod';
@@ -211,6 +212,123 @@ export const universalTools: Record<string, ToolDefinition> = {
           `[hop ${hop}, ${relation}, força ${(strength * 100).toFixed(0)}%] ${memory.content.slice(0, 120)}`,
       );
       return `**Memórias conectadas (${linked.length}):**\n${lines.join('\n')}`;
+    },
+  },
+
+  // ── S1.2 — Diagnóstico Self-Service ────────────────────────────────────────
+  system_status: {
+    name: 'system_status',
+    modules: [],
+    description:
+      'Mostra o status do sistema: módulos configurados, dados em falta, próximas automações e acções pendentes',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    schema: z.object({}),
+    handler: async () => {
+      const icon = (ok: boolean) => (ok ? '✅' : '⚠️');
+
+      // ── Module data checks ────────────────────────────────────────────────
+      const checks = await Promise.allSettled([
+        db.from('finance_transactions').select('id', { count: 'exact', head: true }),
+        db.from('finance_accounts').select('id', { count: 'exact', head: true }),
+        db.from('sleep_sessions').select('id', { count: 'exact', head: true }),
+        db.from('workout_sessions').select('id', { count: 'exact', head: true }),
+        db.from('people').select('id', { count: 'exact', head: true }),
+        db.from('objectives').select('id', { count: 'exact', head: true }),
+        db.from('events').select('id', { count: 'exact', head: true }),
+        db
+          .from('pending_intents')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending'),
+        db
+          .from('activity_log')
+          .select('created_at')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      const get = (i: number): number => {
+        const r = checks[i];
+        if (!r || r.status !== 'fulfilled') return 0;
+        return ((r.value as { count?: number | null }).count ?? 0);
+      };
+
+      const txCount = get(0);
+      const accountCount = get(1);
+      const sleepCount = get(2);
+      const workoutCount = get(3);
+      const peopleCount = get(4);
+      const objectivesCount = get(5);
+      const eventsCount = get(6);
+      const pendingCount = get(7);
+
+      const lastActivityRaw = checks[8];
+      let lastActivity = 'Sem dados';
+      if (lastActivityRaw.status === 'fulfilled') {
+        const row = (lastActivityRaw.value as { data?: { created_at?: string } | null }).data;
+        if (row?.created_at) {
+          const d = new Date(row.created_at);
+          lastActivity = `${d.toLocaleDateString('pt-BR')} ${d.toISOString().slice(11, 16)}`;
+        }
+      }
+
+      // ── API key status ────────────────────────────────────────────────────
+      const hasOllamaEnv = !!process.env.OLLAMA_BASE_URL;
+      const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
+      const apiStatus = hasOllamaEnv
+        ? '✅ Ollama local (grátis)'
+        : hasOpenRouter
+          ? '✅ OpenRouter'
+          : '⚠️ Sem API configurada';
+
+      // ── Scheduled automations ────────────────────────────────────────────
+      const now = new Date();
+      const h = now.getHours();
+      const nextAuto =
+        h < 8
+          ? 'Alertas às 08:00'
+          : h < 9
+            ? 'Check-in matinal às 09:00'
+            : h < 22
+              ? 'Check-in noturno às 22:00'
+              : 'Alertas amanhã às 08:00';
+
+      // ── Build report ────────────────────────────────────────────────────
+      const lines = [
+        '**🔍 Status do Sistema Hawk OS**',
+        '',
+        '**Módulos:**',
+        `${icon(accountCount > 0)} Finanças — ${accountCount} conta(s), ${txCount} transação(ões)`,
+        `${icon(sleepCount > 0)} Saúde — ${sleepCount} noite(s) de sono, ${workoutCount} treino(s)`,
+        `${icon(peopleCount > 0)} Pessoas — ${peopleCount} contato(s)`,
+        `${icon(objectivesCount > 0)} Objectivos — ${objectivesCount} objectivo(s)`,
+        `${icon(eventsCount > 0)} Calendário — ${eventsCount} evento(s)`,
+        '',
+        '**Sistema:**',
+        `${apiStatus}`,
+        `📅 Última actividade: ${lastActivity}`,
+        `⏰ Próxima automação: ${nextAuto}`,
+        '',
+        pendingCount > 0
+          ? `💡 **${pendingCount} acção(ões) pendente(s)** — diz "pendentes" para ver`
+          : '✅ Sem acções pendentes',
+      ];
+
+      // ── Missing data nudges ─────────────────────────────────────────────
+      const missing: string[] = [];
+      if (accountCount === 0) missing.push('• Finanças: cria uma conta bancária');
+      if (sleepCount === 0) missing.push('• Saúde: regista o teu sono');
+      if (peopleCount === 0) missing.push('• Pessoas: adiciona os teus contactos importantes');
+      if (objectivesCount === 0) missing.push('• Objectivos: define um objectivo');
+
+      if (missing.length > 0) {
+        lines.push('', '**Dados em falta:**', ...missing);
+      }
+
+      return lines.join('\n');
     },
   },
 
