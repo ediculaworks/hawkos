@@ -2,6 +2,52 @@
 
 **Ultima atualizacao:** 2026-04-06
 
+## Tenant Isolation Hardening (2026-04-06)
+**Status: [✅ Completo — deployado na VPS]**
+
+Auditoria completa de isolamento multi-tenant nas 3 camadas (DB, Agent, Web). 9 vulnerabilidades corrigidas + credential resilience + per-tenant automation crons.
+
+### Vulnerabilidades Corrigidas
+
+| Severidade | Fix | Ficheiro(s) |
+|---|---|---|
+| 🔴 CRITICO | SQL injection via cookie — `tenant_${cookie}` direto em `tx.unsafe()` | `packages/db/src/sql.ts` (novo `scopedTransaction()`), `apps/web/lib/auth/safe-schema.ts` (novo), 5 rotas API |
+| 🔴 CRITICO | Budget global partilhado entre tenants — `_budget` singleton | `apps/agent/src/model-router.ts` → `Map<slug, BudgetState>` via `getCurrentSchema()` |
+| 🔴 CRITICO | Discord `sendToChannel` fallback para tenant aleatorio | `apps/agent/src/channels/discord.ts` → removido fallback, log warning |
+| 🟠 ALTO | Activity logger hardcoded `process.env.AGENT_SLOT` no module level | `apps/agent/src/activity-logger.ts` → resolve via `getCurrentSchema()` em runtime |
+| 🟠 ALTO | Session/rate-limit state global (channelId sem prefix tenant) | `apps/agent/src/session-manager.ts` → keys prefixadas com `${schema}:` |
+| 🟠 ALTO | Alert cooldowns e job dedup globais | `apps/agent/src/alerts.ts`, `automations/job-monitor.ts` → scoped per-tenant |
+| 🟠 ALTO | `/api/tenants` retornava todos os slugs sem auth | `apps/web/app/api/tenants/route.ts` → requer JWT |
+| 🟠 ALTO | 11 automacoes liam `process.env.DISCORD_CHANNEL_GERAL` no module level | Todas refatoradas para aceitar `slug?`, resolver canal via `resolveChannel(slug)` |
+| 🟠 ALTO | Automation crons registados globalmente sem tenant context | `startXxxCron()` aceita `CronTenantCtx`, envolve em `withSchema()`, registados per-tenant em `startTenantCrons()` |
+
+### Credential Manager Resilience
+
+| Fix | Ficheiro | O que mudou |
+|-----|----------|------------|
+| Decrypt failure non-fatal | `apps/agent/src/credential-manager.ts` | `parseTenantRow()` fazia throw se decrypt falhasse → tenant inteiro descartado. Agora catch individual por config (Discord, OpenRouter) com warning. Tenant carrega com Ollama local + fallbacks. |
+| ten1/ten3 activos | — | Eram descartados por key_salt mismatch. Agora correm em API-only mode com gemma4 local. |
+
+### Novos Ficheiros
+
+| Ficheiro | Descricao |
+|----------|-----------|
+| `packages/db/src/sql.ts` → `scopedTransaction()` | Wrapper seguro: `validateSchemaName()` + `SET LOCAL search_path` em transacao |
+| `apps/web/lib/auth/safe-schema.ts` | Resolve tenant via DB lookup parametrizado (nunca constroi do cookie) |
+| `apps/agent/src/automations/resolve-channel.ts` | `resolveChannel(slug?)`, `CronTenantCtx`, `scopedCron()` — utilities partilhadas pelas automacoes |
+
+### Teste Fix
+
+| Fix | Ficheiro | O que mudou |
+|-----|----------|------------|
+| model-router env var bug | `apps/agent/src/__tests__/model-router.test.ts` | `process.env.X = undefined` cria string "undefined". Corrigido para `delete` + expectations actualizadas para FREE_DEFAULTS. |
+
+### VPS Deploy (2026-04-06)
+- 8 tenants activos (ten1-ten6, ten8, ten9) — era 6 antes
+- ten1/ten3 em API-only mode (sem Discord, gemma4 local)
+- Automacoes per-tenant com `withSchema()` isolation
+- 92 testes passing (1 falha externa: SearXNG instances down)
+
 ## LLM Strategy Unification + Bugfixes (2026-04-06)
 **Status: [✅ Completo — deployado na VPS]**
 
