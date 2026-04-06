@@ -5,10 +5,10 @@ import { db } from '@hawk/db';
 import { type JournalEntry, getJournalStats, listEntriesByPeriod } from '@hawk/module-journal';
 import { type Objective, listObjectivesByTimeframe } from '@hawk/module-objectives';
 import { type HabitWeekSummary, getWeekSummary } from '@hawk/module-routine';
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
 import { isAutomationEnabled, markAutomationRun } from './config.js';
-import { resolveChannel } from './resolve-channel.js';
+import { type CronTenantCtx, resolveChannel, scopedCron } from './resolve-channel.js';
 
 interface WeeklyReviewSettings {
   weekly_review_enabled: boolean;
@@ -162,30 +162,34 @@ function getLocalTime(timezone: string): { hours: number; minutes: number; dayOf
   return { hours: get('hour'), minutes: get('minute'), dayOfWeek: dayMap[weekday] ?? 0 };
 }
 
-export function startWeeklyReviewCron(): void {
-  cron.schedule('0 * * * *', async () => {
-    if (_weeklyRunning) return;
-    _weeklyRunning = true;
-    try {
-      const settings = await getWeeklyReviewSettings();
-      if (!settings.weekly_review_enabled) return;
+export function startWeeklyReviewCron(ctx?: CronTenantCtx): ScheduledTask {
+  const slug = ctx?.slug;
+  return cron.schedule(
+    '0 * * * *',
+    scopedCron(ctx, async () => {
+      if (_weeklyRunning) return;
+      _weeklyRunning = true;
+      try {
+        const settings = await getWeeklyReviewSettings();
+        if (!settings.weekly_review_enabled) return;
 
-      const timezone =
-        ((settings as unknown as Record<string, unknown>).timezone as string) ??
-        'America/Sao_Paulo';
-      const now = getLocalTime(timezone);
-      const [hours, minutes] = settings.weekly_review_time.split(':').map(Number);
+        const timezone =
+          ((settings as unknown as Record<string, unknown>).timezone as string) ??
+          'America/Sao_Paulo';
+        const now = getLocalTime(timezone);
+        const [hours, minutes] = settings.weekly_review_time.split(':').map(Number);
 
-      if (now.dayOfWeek === 0 && now.hours === hours && now.minutes === minutes) {
-        await sendWeeklyReview()
-          .then(() => markAutomationRun('weekly-review', 'success'))
-          .catch((err) => {
-            console.error('[weekly-review] Failed:', err);
-            markAutomationRun('weekly-review', 'failure', String(err));
-          });
+        if (now.dayOfWeek === 0 && now.hours === hours && now.minutes === minutes) {
+          await sendWeeklyReview(slug)
+            .then(() => markAutomationRun('weekly-review', 'success'))
+            .catch((err: unknown) => {
+              console.error('[weekly-review] Failed:', err);
+              markAutomationRun('weekly-review', 'failure', String(err));
+            });
+        }
+      } finally {
+        _weeklyRunning = false;
       }
-    } finally {
-      _weeklyRunning = false;
-    }
-  });
+    }),
+  );
 }

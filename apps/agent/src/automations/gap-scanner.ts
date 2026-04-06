@@ -14,8 +14,9 @@ import {
   insertDynamicQuestion,
   persistDataGaps,
 } from '@hawk/module-memory';
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { WORKER_MODEL, getWorkerClient } from '../llm-client.js';
+import { type CronTenantCtx, scopedCron } from './resolve-channel.js';
 
 /**
  * Gera uma pergunta natural em português para um gap detectado.
@@ -100,8 +101,11 @@ export async function runGapScan(): Promise<{ gaps: number; questions: number }>
 /**
  * Inicializa cron do gap scanner — toda segunda às 08:00
  */
-export function startGapScannerCron(): void {
-  cron.schedule('0 8 * * 1', () => {
-    runGapScan().catch((err) => console.error('[gap-scanner] Failed:', err));
-  });
+export function startGapScannerCron(ctx?: CronTenantCtx): ScheduledTask {
+  return cron.schedule(
+    '0 8 * * 1',
+    scopedCron(ctx, async () => {
+      await runGapScan();
+    }),
+  );
 }

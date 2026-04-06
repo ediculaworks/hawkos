@@ -3,9 +3,9 @@
 // Sends alerts to Discord if any check fails.
 
 import { db, getCurrentSchema } from '@hawk/db';
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
-import { resolveChannel } from './resolve-channel.js';
+import { type CronTenantCtx, resolveChannel, scopedCron } from './resolve-channel.js';
 
 const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_ALERTS;
 
@@ -126,15 +126,17 @@ export async function runHealthCheck(slug?: string): Promise<HealthCheck[]> {
   return checks;
 }
 
-export function startMonitorCron(): void {
-  // Run every 5 minutes
-  cron.schedule('*/5 * * * *', async () => {
-    try {
-      await runHealthCheck();
-    } catch (err) {
-      console.error('[monitor] Health check error:', err);
-    }
-  });
-
+export function startMonitorCron(ctx?: CronTenantCtx): ScheduledTask {
+  const task = cron.schedule(
+    '*/5 * * * *',
+    scopedCron(ctx, async () => {
+      try {
+        await runHealthCheck(ctx?.slug);
+      } catch (err) {
+        console.error('[monitor] Health check error:', err);
+      }
+    }),
+  );
   console.log('[monitor] Cron scheduled: */5 * * * *');
+  return task;
 }

@@ -2,18 +2,22 @@
 // Periodically syncs all connected extensions based on their sync_interval_minutes.
 // Runs every 15 minutes, checks which extensions are due for sync.
 
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
+import { type CronTenantCtx, scopedCron } from './resolve-channel.js';
 
-export function startExtensionSyncCron(): void {
-  // Every 15 minutes
-  cron.schedule('*/15 * * * *', async () => {
-    try {
-      await runExtensionSync();
-    } catch (e) {
-      console.error('[extension-sync] Cron error:', e);
-    }
-  });
+export function startExtensionSyncCron(ctx?: CronTenantCtx): ScheduledTask {
+  const task = cron.schedule(
+    '*/15 * * * *',
+    scopedCron(ctx, async () => {
+      try {
+        await runExtensionSync();
+      } catch (e) {
+        console.error('[extension-sync] Cron error:', e);
+      }
+    }),
+  );
   console.log('[extension-sync] Cron registered: every 15 min');
+  return task;
 }
 
 export async function runExtensionSync(): Promise<void> {

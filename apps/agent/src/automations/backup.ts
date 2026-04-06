@@ -7,9 +7,9 @@ import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { db, getCurrentSchema } from '@hawk/db';
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
-import { resolveChannel } from './resolve-channel.js';
+import { type CronTenantCtx, resolveChannel, scopedCron } from './resolve-channel.js';
 
 const BACKUP_DIR = process.env.BACKUP_DIR || '/data/backups';
 
@@ -122,28 +122,30 @@ export async function runBackup(_slug?: string): Promise<string> {
   return `${tables} tables, ${totalRows} rows, ${sizeKB}KB (${dest})`;
 }
 
-export function startBackupCron(): void {
-  cron.schedule('0 3 * * *', async () => {
-    try {
-      const result = await runBackup();
-      console.log(`[backup] Success: ${result}`);
+export function startBackupCron(ctx?: CronTenantCtx): ScheduledTask {
+  const slug = ctx?.slug;
+  return cron.schedule(
+    '0 3 * * *',
+    scopedCron(ctx, async () => {
+      try {
+        const result = await runBackup(slug);
+        console.log(`[backup] Success: ${result}`);
 
-      await db.from('activity_log').insert({
-        event_type: 'automation',
-        summary: `Backup completed: ${result}`,
-        module: null,
-        metadata: { automation: 'backup' },
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[backup] Failed: ${msg}`);
+        await db.from('activity_log').insert({
+          event_type: 'automation',
+          summary: `Backup completed: ${result}`,
+          module: null,
+          metadata: { automation: 'backup' },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[backup] Failed: ${msg}`);
 
-      const channelId = resolveChannel();
-      if (channelId) {
-        await sendToChannel(channelId, `⚠️ Backup falhou: ${msg}`).catch(() => {});
+        const channelId = resolveChannel(slug);
+        if (channelId) {
+          await sendToChannel(channelId, `⚠️ Backup falhou: ${msg}`, slug).catch(() => {});
+        }
       }
-    }
-  });
-
-  console.log('[backup] Cron scheduled: 0 3 * * *');
+    }),
+  );
 }

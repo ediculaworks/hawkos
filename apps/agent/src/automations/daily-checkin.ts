@@ -8,11 +8,11 @@ import { getNextQuestion, markQuestionAsked } from '@hawk/module-memory';
 import type { HabitWithLog } from '@hawk/module-routine';
 import { listHabitsWithTodayStatus } from '@hawk/module-routine';
 import { createLogger, fetchHolidays } from '@hawk/shared';
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { logActivity } from '../activity-logger.js';
 import { sendToChannel } from '../channels/discord.js';
 import { isAutomationEnabled, markAutomationRun } from './config.js';
-import { resolveChannel } from './resolve-channel.js';
+import { type CronTenantCtx, resolveChannel, scopedCron } from './resolve-channel.js';
 
 const logger = createLogger('daily-checkin');
 
@@ -258,35 +258,39 @@ function getLocalHour(timezone: string): { hours: number; minutes: number } {
   return { hours: get('hour'), minutes: get('minute') };
 }
 
-export function startCheckinCrons(): void {
-  cron.schedule('0 * * * *', async () => {
-    if (_checkinRunning) return;
-    _checkinRunning = true;
-    try {
-      const settings = await getAgentSettings();
-      const now = getLocalHour(settings.timezone);
-      const [mHours, mMinutes] = settings.checkin_morning_time.split(':').map(Number);
-      const [eHours, eMinutes] = settings.checkin_evening_time.split(':').map(Number);
+export function startCheckinCrons(ctx?: CronTenantCtx): ScheduledTask {
+  const slug = ctx?.slug;
+  return cron.schedule(
+    '0 * * * *',
+    scopedCron(ctx, async () => {
+      if (_checkinRunning) return;
+      _checkinRunning = true;
+      try {
+        const settings = await getAgentSettings();
+        const now = getLocalHour(settings.timezone);
+        const [mHours, mMinutes] = settings.checkin_morning_time.split(':').map(Number);
+        const [eHours, eMinutes] = settings.checkin_evening_time.split(':').map(Number);
 
-      if (settings.checkin_morning_enabled && now.hours === mHours && now.minutes === mMinutes) {
-        await sendMorningCheckin()
-          .then(() => markAutomationRun('daily-checkin-morning', 'success'))
-          .catch((err) => {
-            console.error('[daily-checkin] Morning failed:', err);
-            markAutomationRun('daily-checkin-morning', 'failure', String(err));
-          });
-      }
+        if (settings.checkin_morning_enabled && now.hours === mHours && now.minutes === mMinutes) {
+          await sendMorningCheckin(slug)
+            .then(() => markAutomationRun('daily-checkin-morning', 'success'))
+            .catch((err: unknown) => {
+              console.error('[daily-checkin] Morning failed:', err);
+              markAutomationRun('daily-checkin-morning', 'failure', String(err));
+            });
+        }
 
-      if (settings.checkin_evening_enabled && now.hours === eHours && now.minutes === eMinutes) {
-        await sendEveningCheckin()
-          .then(() => markAutomationRun('daily-checkin-evening', 'success'))
-          .catch((err) => {
-            console.error('[daily-checkin] Evening failed:', err);
-            markAutomationRun('daily-checkin-evening', 'failure', String(err));
-          });
+        if (settings.checkin_evening_enabled && now.hours === eHours && now.minutes === eMinutes) {
+          await sendEveningCheckin(slug)
+            .then(() => markAutomationRun('daily-checkin-evening', 'success'))
+            .catch((err: unknown) => {
+              console.error('[daily-checkin] Evening failed:', err);
+              markAutomationRun('daily-checkin-evening', 'failure', String(err));
+            });
+        }
+      } finally {
+        _checkinRunning = false;
       }
-    } finally {
-      _checkinRunning = false;
-    }
-  });
+    }),
+  );
 }

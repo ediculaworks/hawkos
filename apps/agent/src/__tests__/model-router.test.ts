@@ -59,12 +59,19 @@ describe('Model Router', () => {
       }
     });
 
-    it('should return agent model when no tier env vars set', () => {
-      process.env.MODEL_TIER_SIMPLE = undefined;
-      process.env.MODEL_TIER_COMPLEX = undefined;
-      expect(selectModel('simple', 'openrouter/auto')).toBe('openrouter/auto');
-      expect(selectModel('moderate', 'openrouter/auto')).toBe('openrouter/auto');
-      expect(selectModel('complex', 'openrouter/auto')).toBe('openrouter/auto');
+    it('should return free defaults when no tier env vars set', () => {
+      // biome-ignore lint/performance/noDelete: process.env needs real delete (= undefined creates string "undefined")
+      delete process.env.MODEL_TIER_SIMPLE;
+      // biome-ignore lint/performance/noDelete: see above
+      delete process.env.MODEL_TIER_DEFAULT;
+      // biome-ignore lint/performance/noDelete: see above
+      delete process.env.MODEL_TIER_COMPLEX;
+      // biome-ignore lint/performance/noDelete: see above
+      delete process.env.OLLAMA_BASE_URL;
+      // Without Ollama, FREE_DEFAULTS use OpenRouter free models
+      expect(selectModel('simple', 'openrouter/auto')).toBe('nvidia/nemotron-3-nano-30b-a3b:free');
+      expect(selectModel('moderate', 'openrouter/auto')).toBe('qwen/qwen3.6-plus:free');
+      expect(selectModel('complex', 'openrouter/auto')).toBe('qwen/qwen3.6-plus:free');
     });
 
     it('should use MODEL_TIER_SIMPLE when set', () => {

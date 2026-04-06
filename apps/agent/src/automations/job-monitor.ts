@@ -5,10 +5,10 @@
  */
 
 import { getCurrentSchema } from '@hawk/db';
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
 import { hookRegistry } from '../hooks/index.js';
-import { resolveChannel } from './resolve-channel.js';
+import { type CronTenantCtx, resolveChannel, scopedCron } from './resolve-channel.js';
 
 // Job search config via env
 const JOB_KEYWORDS = process.env.JOB_MONITOR_KEYWORDS ?? '';
@@ -131,19 +131,20 @@ export async function runJobMonitor(slug?: string): Promise<void> {
   await hookRegistry.emit('automation:after', { automationName: 'job-monitor' }).catch(() => {});
 }
 
-export function startJobMonitorCron(): void {
+export function startJobMonitorCron(ctx?: CronTenantCtx): ScheduledTask | null {
   if (!JOB_KEYWORDS) {
     console.log('[hawk] Job monitor disabled (no JOB_MONITOR_KEYWORDS)');
-    return;
+    return null;
   }
 
-  cron.schedule(
+  const task = cron.schedule(
     '30 8 * * *',
-    () => {
-      runJobMonitor().catch((err) => console.error('[job-monitor] Failed:', err));
-    },
+    scopedCron(ctx, async () => {
+      await runJobMonitor(ctx?.slug);
+    }),
     { timezone: 'America/Sao_Paulo' },
   );
 
   console.log(`[hawk] Job monitor started (daily 08:30, keywords: ${JOB_KEYWORDS})`);
+  return task;
 }

@@ -10,9 +10,10 @@
 
 import { db } from '@hawk/db';
 import { HawkError, createLogger } from '@hawk/shared';
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { logActivity } from '../activity-logger.js';
 import { isAutomationEnabled, markAutomationRun } from './config.js';
+import { type CronTenantCtx, scopedCron } from './resolve-channel.js';
 
 const logger = createLogger('memory-forgetter');
 
@@ -94,10 +95,11 @@ export async function runMemoryForgetter(): Promise<void> {
   }
 }
 
-export function startMemoryForgetterCron(): void {
-  cron.schedule('0 4 * * 0', () => {
-    runMemoryForgetter().catch((err) => {
-      console.error('[memory-forgetter] Failed:', err);
-    });
-  });
+export function startMemoryForgetterCron(ctx?: CronTenantCtx): ScheduledTask {
+  return cron.schedule(
+    '0 4 * * 0',
+    scopedCron(ctx, async () => {
+      await runMemoryForgetter();
+    }),
+  );
 }

@@ -12,9 +12,9 @@ import {
 } from '@hawk/module-health/queries';
 import { getJournalStats, listRecentEntries } from '@hawk/module-journal/queries';
 import { getCombinedMoodAverage } from '@hawk/module-spirituality/queries';
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
-import { resolveChannel } from './resolve-channel.js';
+import { type CronTenantCtx, resolveChannel, scopedCron } from './resolve-channel.js';
 
 /**
  * Analisa correlações de saúde e envia insights
@@ -109,8 +109,11 @@ export async function runHealthInsights(slug?: string): Promise<void> {
 /**
  * Inicializar cron de insights de saúde (09:00 daily)
  */
-export function startHealthInsightsCron(): void {
-  cron.schedule('0 9 * * *', () => {
-    runHealthInsights().catch((err) => console.error('[health-insights] Failed:', err));
-  });
+export function startHealthInsightsCron(ctx?: CronTenantCtx): ScheduledTask {
+  return cron.schedule(
+    '0 9 * * *',
+    scopedCron(ctx, async () => {
+      await runHealthInsights(ctx?.slug);
+    }),
+  );
 }

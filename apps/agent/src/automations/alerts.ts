@@ -10,10 +10,10 @@ import { getExpiringContracts, getUrgentObligations } from '@hawk/module-legal';
 import type { Person } from '@hawk/module-people';
 import { listOverdueContacts, listUpcomingBirthdays } from '@hawk/module-people';
 import { getDueForReview, getPendingItems, getSecuritySummary } from '@hawk/module-security';
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
 import { isAutomationEnabled, markAutomationRun } from './config.js';
-import { resolveChannel } from './resolve-channel.js';
+import { type CronTenantCtx, resolveChannel, scopedCron } from './resolve-channel.js';
 
 interface AlertSettings {
   alerts_enabled: boolean;
@@ -168,42 +168,46 @@ function getLocalHour(timezone: string): { hours: number; minutes: number; date:
   return { hours: get('hour'), minutes: get('minute'), date: get('day') };
 }
 
-export function startAlertsCron(): void {
-  cron.schedule('0 * * * *', async () => {
-    if (_alertsRunning) return;
-    _alertsRunning = true;
-    try {
-      const settings = await getAlertSettings();
-      const timezone =
-        ((settings as unknown as Record<string, unknown>).timezone as string) ??
-        'America/Sao_Paulo';
-      const now = getLocalHour(timezone);
-      const [aHours, aMinutes] = settings.alerts_time.split(':').map(Number);
-      const [sHours, sMinutes] = settings.security_review_time.split(':').map(Number);
+export function startAlertsCron(ctx?: CronTenantCtx): ScheduledTask {
+  const slug = ctx?.slug;
+  return cron.schedule(
+    '0 * * * *',
+    scopedCron(ctx, async () => {
+      if (_alertsRunning) return;
+      _alertsRunning = true;
+      try {
+        const settings = await getAlertSettings();
+        const timezone =
+          ((settings as unknown as Record<string, unknown>).timezone as string) ??
+          'America/Sao_Paulo';
+        const now = getLocalHour(timezone);
+        const [aHours, aMinutes] = settings.alerts_time.split(':').map(Number);
+        const [sHours, sMinutes] = settings.security_review_time.split(':').map(Number);
 
-      if (settings.alerts_enabled && now.hours === aHours && now.minutes === aMinutes) {
-        await runDailyAlerts()
-          .then(() => markAutomationRun('alerts-daily', 'success'))
-          .catch((err) => {
-            console.error('[alerts] Daily alerts failed:', err);
-            markAutomationRun('alerts-daily', 'failure', String(err));
-          });
-      }
+        if (settings.alerts_enabled && now.hours === aHours && now.minutes === aMinutes) {
+          await runDailyAlerts(slug)
+            .then(() => markAutomationRun('alerts-daily', 'success'))
+            .catch((err: unknown) => {
+              console.error('[alerts] Daily alerts failed:', err);
+              markAutomationRun('alerts-daily', 'failure', String(err));
+            });
+        }
 
-      if (
-        now.date === settings.security_review_day &&
-        now.hours === sHours &&
-        now.minutes === sMinutes
-      ) {
-        await runMonthlySecurityReview()
-          .then(() => markAutomationRun('alerts-monthly', 'success'))
-          .catch((err) => {
-            console.error('[alerts] Security review failed:', err);
-            markAutomationRun('alerts-monthly', 'failure', String(err));
-          });
+        if (
+          now.date === settings.security_review_day &&
+          now.hours === sHours &&
+          now.minutes === sMinutes
+        ) {
+          await runMonthlySecurityReview(slug)
+            .then(() => markAutomationRun('alerts-monthly', 'success'))
+            .catch((err: unknown) => {
+              console.error('[alerts] Security review failed:', err);
+              markAutomationRun('alerts-monthly', 'failure', String(err));
+            });
+        }
+      } finally {
+        _alertsRunning = false;
       }
-    } finally {
-      _alertsRunning = false;
-    }
-  });
+    }),
+  );
 }

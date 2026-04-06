@@ -3,10 +3,10 @@
 // Permite que o usuário complete os hábitos antes da meia-noite
 
 import { getHabitsAtRisk, getWeeklyRoutineScore } from '@hawk/module-routine';
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
 import { isAutomationEnabled, markAutomationRun } from './config.js';
-import { resolveChannel } from './resolve-channel.js';
+import { type CronTenantCtx, resolveChannel, scopedCron } from './resolve-channel.js';
 
 export async function runStreakGuardian(slug?: string): Promise<void> {
   const channelId = resolveChannel(slug);
@@ -37,14 +37,16 @@ export async function runStreakGuardian(slug?: string): Promise<void> {
   await sendToChannel(channelId, lines.join('\n'), slug);
 }
 
-export function startStreakGuardianCron(): void {
-  // Todos os dias às 20:00
-  cron.schedule('0 20 * * *', () => {
-    runStreakGuardian()
-      .then(() => markAutomationRun('streak-guardian', 'success'))
-      .catch((err) => {
-        console.error('[streak-guardian] Failed:', err);
-        markAutomationRun('streak-guardian', 'failure', String(err));
-      });
-  });
+export function startStreakGuardianCron(ctx?: CronTenantCtx): ScheduledTask {
+  return cron.schedule(
+    '0 20 * * *',
+    scopedCron(ctx, async () => {
+      await runStreakGuardian(ctx?.slug)
+        .then(() => markAutomationRun('streak-guardian', 'success'))
+        .catch((err: unknown) => {
+          console.error('[streak-guardian] Failed:', err);
+          markAutomationRun('streak-guardian', 'failure', String(err));
+        });
+    }),
+  );
 }

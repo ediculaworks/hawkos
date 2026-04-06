@@ -4,9 +4,9 @@
 
 import { getTotalAssetValue } from '@hawk/module-assets';
 import { getAccounts, getNetWorthHistory, snapshotNetWorth } from '@hawk/module-finances';
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
-import { resolveChannel } from './resolve-channel.js';
+import { type CronTenantCtx, resolveChannel, scopedCron } from './resolve-channel.js';
 
 export async function runNetWorthSnapshot(slug?: string): Promise<void> {
   const [accounts, totalAssets] = await Promise.all([getAccounts(), getTotalAssetValue()]);
@@ -54,9 +54,11 @@ export async function runNetWorthSnapshot(slug?: string): Promise<void> {
   );
 }
 
-export function startNetWorthSnapshotCron(): void {
-  // Dia 1 de cada mês às 09:30
-  cron.schedule('30 9 1 * *', () => {
-    runNetWorthSnapshot().catch(console.error);
-  });
+export function startNetWorthSnapshotCron(ctx?: CronTenantCtx): ScheduledTask {
+  return cron.schedule(
+    '30 9 1 * *',
+    scopedCron(ctx, async () => {
+      await runNetWorthSnapshot(ctx?.slug);
+    }),
+  );
 }

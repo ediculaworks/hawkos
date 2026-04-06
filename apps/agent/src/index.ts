@@ -131,10 +131,20 @@ function startTenantCrons(ctx: TenantContext): void {
   );
   ctx.cronTasks.push(mlTrainTask);
 
-  // Note: The automations below still read CHANNEL_ID from process.env at module level.
-  // They work correctly in single-tenant and in multi-tenant for the first tenant.
-  // Full per-tenant automation refactor is tracked separately.
-  // For now, DB queries are correctly scoped via withSchema in the cron wrappers above.
+  // Per-tenant automations — each scoped with withSchema + slug for channel resolution
+  const tenantCtx = { slug, schemaName };
+  ctx.cronTasks.push(startAlertsCron(tenantCtx));
+  ctx.cronTasks.push(startCheckinCrons(tenantCtx));
+  ctx.cronTasks.push(startWeeklyReviewCron(tenantCtx));
+  ctx.cronTasks.push(startBackupCron(tenantCtx));
+  ctx.cronTasks.push(startMonitorCron(tenantCtx));
+  ctx.cronTasks.push(startNetWorthSnapshotCron(tenantCtx));
+  ctx.cronTasks.push(startStreakGuardianCron(tenantCtx));
+  ctx.cronTasks.push(startMemoryForgetterCron(tenantCtx));
+  ctx.cronTasks.push(startGapScannerCron(tenantCtx));
+  ctx.cronTasks.push(startExtensionSyncCron(tenantCtx));
+  const jobTask = startJobMonitorCron(tenantCtx);
+  if (jobTask) ctx.cronTasks.push(jobTask);
 }
 
 // ── Legacy single-tenant mode ────────────────────────────────────────────────
@@ -261,23 +271,10 @@ async function main() {
     hookRegistry.register(toolLoggerHook);
     registerTriggers();
 
-    // Start services for each tenant
+    // Start services + per-tenant crons for each tenant
     for (const ctx of tenantManager.getAll()) {
       await startTenantServices(ctx);
     }
-
-    // Start shared infrastructure crons (not tenant-specific)
-    startNetWorthSnapshotCron();
-    startExtensionSyncCron();
-    startBackupCron();
-    startMonitorCron();
-    startJobMonitorCron();
-    startGapScannerCron();
-    startCheckinCrons();
-    startWeeklyReviewCron();
-    startAlertsCron();
-    startStreakGuardianCron();
-    startMemoryForgetterCron();
 
     // Wire demand executor with WebSocket broadcast
     const { broadcast: wsBroadcast } = await import('./api/server.js');

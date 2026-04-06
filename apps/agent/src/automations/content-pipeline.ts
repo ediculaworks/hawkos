@@ -6,9 +6,9 @@
 
 import { searchNotes } from '@hawk/module-knowledge/queries';
 import { listPosts } from '@hawk/module-social/queries';
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
-import { resolveChannel } from './resolve-channel.js';
+import { type CronTenantCtx, resolveChannel, scopedCron } from './resolve-channel.js';
 
 /**
  * Analisa pipeline de conteúdo e sugere criações
@@ -78,8 +78,11 @@ export async function runContentPipeline(slug?: string): Promise<void> {
 /**
  * Inicializar cron de pipeline de conteúdo (sexta-feira 17:00)
  */
-export function startContentPipelineCron(): void {
-  cron.schedule('0 17 * * 5', () => {
-    runContentPipeline().catch((err) => console.error('[content-pipeline] Failed:', err));
-  });
+export function startContentPipelineCron(ctx?: CronTenantCtx): ScheduledTask {
+  return cron.schedule(
+    '0 17 * * 5',
+    scopedCron(ctx, async () => {
+      await runContentPipeline(ctx?.slug);
+    }),
+  );
 }
