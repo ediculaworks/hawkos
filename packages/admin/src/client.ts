@@ -117,10 +117,11 @@ export class AdminClient {
     const agentSecret = generateAgentSecret();
 
     // Encrypt Discord and OpenRouter configs if provided
+    // New tenants: key_salt = NULL → uses LEGACY_SALT (consistent with agent decryption)
     let discordEncrypted: string | null = null;
     let discordIv: string | null = null;
     if (data.discordConfig) {
-      const enc = encrypt(JSON.stringify(data.discordConfig), this.masterKey);
+      const enc = encrypt(JSON.stringify(data.discordConfig), this.masterKey, null);
       discordEncrypted = enc.encrypted;
       discordIv = enc.iv;
     }
@@ -128,7 +129,7 @@ export class AdminClient {
     let openrouterEncrypted: string | null = null;
     let openrouterIv: string | null = null;
     if (data.openrouterConfig) {
-      const enc = encrypt(JSON.stringify(data.openrouterConfig), this.masterKey);
+      const enc = encrypt(JSON.stringify(data.openrouterConfig), this.masterKey, null);
       openrouterEncrypted = enc.encrypted;
       openrouterIv = enc.iv;
     }
@@ -299,7 +300,8 @@ export class AdminClient {
     config: Record<string, unknown>,
     enabled: boolean,
   ): Promise<TenantIntegration> {
-    const { encrypted, iv } = encrypt(JSON.stringify(config), this.masterKey);
+    const salt = await this._getTenantSalt(tenantId);
+    const { encrypted, iv } = encrypt(JSON.stringify(config), this.masterKey, salt);
 
     const rows = await this.adminQuery<TenantIntegration>(
       `INSERT INTO tenant_integrations (tenant_id, provider, config_encrypted, config_iv, enabled)
@@ -325,11 +327,12 @@ export class AdminClient {
 
   getDecryptedIntegrationConfig<P extends IntegrationProvider>(
     integration: TenantIntegration,
+    salt?: string | null,
   ): IntegrationConfigMap[P] {
     if (!integration.config_encrypted || !integration.config_iv) {
       return {} as IntegrationConfigMap[P];
     }
-    const json = decrypt(integration.config_encrypted, integration.config_iv, this.masterKey);
+    const json = decrypt(integration.config_encrypted, integration.config_iv, this.masterKey, salt);
     return JSON.parse(json) as IntegrationConfigMap[P];
   }
 
@@ -337,13 +340,17 @@ export class AdminClient {
     tenantId: string,
   ): Promise<Map<IntegrationProvider, { config: Record<string, unknown>; enabled: boolean }>> {
     const integrations = await this.listTenantIntegrations(tenantId);
+    const salt = await this._getTenantSalt(tenantId);
     const result = new Map<
       IntegrationProvider,
       { config: Record<string, unknown>; enabled: boolean }
     >();
 
     for (const integration of integrations) {
-      const config = this.getDecryptedIntegrationConfig(integration) as Record<string, unknown>;
+      const config = this.getDecryptedIntegrationConfig(integration, salt) as Record<
+        string,
+        unknown
+      >;
       result.set(integration.provider, { config, enabled: integration.enabled });
     }
 
@@ -351,7 +358,8 @@ export class AdminClient {
   }
 
   async updateTenantDiscordConfig(tenantId: string, config: DiscordConfig): Promise<void> {
-    const { encrypted, iv } = encrypt(JSON.stringify(config), this.masterKey);
+    const salt = await this._getTenantSalt(tenantId);
+    const { encrypted, iv } = encrypt(JSON.stringify(config), this.masterKey, salt);
     await this.adminQuery(
       `UPDATE tenants SET discord_config_encrypted = $1, discord_config_iv = $2, updated_at = now()
        WHERE id = $3`,
@@ -360,12 +368,22 @@ export class AdminClient {
   }
 
   async updateTenantOpenRouterConfig(tenantId: string, config: OpenRouterConfig): Promise<void> {
-    const { encrypted, iv } = encrypt(JSON.stringify(config), this.masterKey);
+    const salt = await this._getTenantSalt(tenantId);
+    const { encrypted, iv } = encrypt(JSON.stringify(config), this.masterKey, salt);
     await this.adminQuery(
       `UPDATE tenants SET openrouter_config_encrypted = $1, openrouter_config_iv = $2, updated_at = now()
        WHERE id = $3`,
       [encrypted, iv, tenantId],
     );
+  }
+
+  /** Read the per-tenant key_salt so encryption matches decryption. */
+  private async _getTenantSalt(tenantId: string): Promise<string | null> {
+    const rows = await this.adminQuery<{ key_salt: string | null }>(
+      'SELECT key_salt FROM tenants WHERE id = $1 LIMIT 1',
+      [tenantId],
+    );
+    return rows[0]?.key_salt ?? null;
   }
 
   // ── Audit & Metrics ────────────────────────────────────────────────
