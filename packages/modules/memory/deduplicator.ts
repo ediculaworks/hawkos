@@ -4,19 +4,14 @@ import type OpenAI from 'openai';
 
 const logger = createLogger('memory');
 import { generateEmbedding, semanticSearchMemories } from './embeddings';
-import { setWorkerLLM } from './session-commit';
+import { getWorkerClientFn, getWorkerModel, setWorkerLLM } from './session-commit';
 
 // Re-export setWorkerLLM so agent can inject the worker client once
 export { setWorkerLLM };
 
-// Use the same worker client from session-commit (injected by agent)
-let _localClient: (() => OpenAI) | null = null;
-export function setDedupClient(clientFn: () => OpenAI): void {
-  _localClient = clientFn;
-}
-
 function getClient(): OpenAI {
-  if (_localClient) return _localClient();
+  const clientFn = getWorkerClientFn();
+  if (clientFn) return clientFn();
   const OpenAIModule = require('openai') as {
     default: new (opts: Record<string, unknown>) => OpenAI;
   };
@@ -54,8 +49,7 @@ function logDedupDecision(
     );
 }
 
-// Worker model: free model for deduplication decisions
-const MODEL = process.env.DEDUP_WORKER_MODEL ?? 'nvidia/nemotron-nano-9b-v2:free';
+// Worker model: uses the same model injected into session-commit (Ollama local or OpenRouter)
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -185,7 +179,7 @@ Respond in JSON format:
 {"decision": "SKIP|MERGE|CREATE", "merged_content": "only if MERGE, the combined text in Portuguese"}`;
 
   const response = await getClient().chat.completions.create({
-    model: MODEL,
+    model: getWorkerModel(),
     max_tokens: 512,
     messages: [{ role: 'user', content: prompt }],
     response_format: { type: 'json_object' },

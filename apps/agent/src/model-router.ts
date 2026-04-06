@@ -250,10 +250,11 @@ export function selectModel(complexity: ComplexityLevel, _agentModel: string): s
 
   // Free-model defaults — used when env vars not configured.
   // Override via MODEL_TIER_SIMPLE / MODEL_TIER_DEFAULT / MODEL_TIER_COMPLEX in .env
-  // When OLLAMA_BASE_URL is set, simple tier uses local qwen2.5:3b (free, fast, multilingual).
+  // Strategy: Ollama local (gemma4:e2b) for simple+moderate, OpenRouter for complex only.
+  const ollamaAvailable = !!process.env.OLLAMA_BASE_URL;
   const FREE_DEFAULTS: Record<ComplexityLevel, string> = {
-    simple: process.env.OLLAMA_BASE_URL ? 'gemma4:e2b' : 'nvidia/nemotron-3-nano-30b-a3b:free',
-    moderate: 'qwen/qwen3.6-plus:free',
+    simple: ollamaAvailable ? 'gemma4:e2b' : 'nvidia/nemotron-3-nano-30b-a3b:free',
+    moderate: ollamaAvailable ? 'gemma4:e2b' : 'qwen/qwen3.6-plus:free',
     complex: 'qwen/qwen3.6-plus:free',
   };
 

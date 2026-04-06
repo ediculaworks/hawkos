@@ -44,7 +44,9 @@ function getClientForModel(model: string, tenantApiKey?: string): OpenAI {
   return getChatClient(); // points to OpenRouter (global key)
 }
 
+// Fallback chain: Ollama local first (free), then OpenRouter free models.
 const FALLBACK_MODELS_WITH_TOOL_CHOICE = [
+  ...(process.env.OLLAMA_BASE_URL ? ['gemma4:e2b'] : []),
   'qwen/qwen3.6-plus:free',
   'nvidia/nemotron-3-super-120b-a12b:free',
   'meta-llama/llama-3.3-70b-instruct:free',

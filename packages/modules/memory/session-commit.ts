@@ -10,11 +10,21 @@ const logger = createLogger('memory');
 
 // Worker client + model injected from agent (Ollama local or OpenRouter)
 let _workerClient: (() => OpenAI) | null = null;
-let _workerModel = process.env.MEMORY_WORKER_MODEL ?? 'nvidia/nemotron-nano-9b-v2:free';
+let _workerModel = 'gemma4:e2b';
 
 export function setWorkerLLM(clientFn: () => OpenAI, model: string): void {
   _workerClient = clientFn;
   _workerModel = model;
+}
+
+/** Expose worker model for sibling modules (deduplicator, etc.) */
+export function getWorkerModel(): string {
+  return _workerModel;
+}
+
+/** Expose worker client factory for sibling modules */
+export function getWorkerClientFn(): (() => OpenAI) | null {
+  return _workerClient;
 }
 
 function getClient(): OpenAI {

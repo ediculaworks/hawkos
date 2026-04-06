@@ -1,11 +1,16 @@
 import { db } from '@hawk/db';
 import OpenAI from 'openai';
 
-const DEFAULT_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free';
+const DEFAULT_MODEL = process.env.OLLAMA_BASE_URL ? 'gemma4:e2b' : 'qwen/qwen3.6-plus:free';
 
 let _client: OpenAI | null = null;
 function getClient(): OpenAI {
-  if (!_client) {
+  if (_client) return _client;
+  // Prefer Ollama local when available, else OpenRouter
+  const ollamaUrl = process.env.OLLAMA_BASE_URL;
+  if (ollamaUrl) {
+    _client = new OpenAI({ baseURL: ollamaUrl, apiKey: 'ollama' });
+  } else {
     _client = new OpenAI({
       baseURL: 'https://openrouter.ai/api/v1',
       apiKey: process.env.OPENROUTER_API_KEY || 'not-set',
