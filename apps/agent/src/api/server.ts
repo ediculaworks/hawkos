@@ -413,7 +413,13 @@ const agentServer = Bun.serve({
     },
   },
   async fetch(req, _server) {
-    const url = new URL(req.url);
+    let url: URL;
+    try {
+      url = new URL(req.url);
+    } catch {
+      // Relative URLs from health checks or reverse proxies — treat as root
+      url = new URL(req.url, `http://localhost:${PORT}`);
+    }
     const path = url.pathname;
     const method = req.method;
 

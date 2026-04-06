@@ -89,12 +89,18 @@ export async function loadAllActiveTenants(): Promise<TenantCredentials[]> {
   });
 
   const results: TenantCredentials[] = [];
+  const failed: string[] = [];
   for (const row of rows as Record<string, unknown>[]) {
     try {
       results.push(parseTenantRow(row, masterKey));
-    } catch (err) {
-      console.error(`[credential-manager] Failed to parse tenant '${row.slug}':`, err);
+    } catch {
+      failed.push(row.slug as string);
     }
+  }
+  if (failed.length > 0) {
+    console.warn(
+      `[credential-manager] Could not decrypt credentials for ${failed.length} tenant(s): ${failed.join(', ')} — ADMIN_MASTER_KEY mismatch. Use /dashboard/admin → key icon to re-enter credentials.`,
+    );
   }
 
   return results;
