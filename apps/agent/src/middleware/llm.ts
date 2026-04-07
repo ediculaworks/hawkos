@@ -10,7 +10,7 @@ import {
   trackLLMCall,
   trackToolCall,
 } from '../cost-tracker.js';
-import { getChatClient, getWorkerClient } from '../llm-client.js';
+import { getChatClient, getClientForChainEntry, getWorkerClient } from '../llm-client.js';
 import { metrics } from '../metrics.js';
 import {
   estimateTokenCount,
@@ -19,20 +19,19 @@ import {
   supportsToolChoice,
   trackUsage,
 } from '../model-router.js';
+import { type ChainEntry, getDefaultChain, getProvider } from '../providers.js';
 import { executeToolCall } from '../tool-executor.js';
 import type { HandlerContext, Middleware } from './types.js';
 
 const logger = createLogger('middleware:llm');
 
 /**
- * Return the right OpenAI client for the given model.
- * Ollama models have no '/' (e.g. 'qwen2.5:3b').
- * OpenRouter models always have '/' (e.g. 'qwen/qwen3.6-plus:free').
- * When a per-tenant API key is provided, it takes precedence over the global key.
+ * Return the right OpenAI client for a chain entry.
+ * Falls back to legacy getClientForModel() if no chain entry provided.
  */
 function getClientForModel(model: string, tenantApiKey?: string): OpenAI {
   if (!model.includes('/') && process.env.OLLAMA_BASE_URL) {
-    return getWorkerClient(); // points to local Ollama
+    return getWorkerClient();
   }
   if (tenantApiKey && tenantApiKey !== process.env.OPENROUTER_API_KEY) {
     return new OpenAI({
@@ -41,25 +40,79 @@ function getClientForModel(model: string, tenantApiKey?: string): OpenAI {
       defaultHeaders: { 'HTTP-Referer': 'https://github.com/hawk-os', 'X-Title': 'Hawk OS' },
     });
   }
-  return getChatClient(); // points to OpenRouter (global key)
+  return getChatClient();
 }
-
-// Fallback chain: Ollama local first (free), then OpenRouter free models.
-// Nemotron/Llama before Qwen — Alibaba rate limits are more aggressive on free tier.
-const FALLBACK_MODELS_WITH_TOOL_CHOICE = [
-  ...(process.env.OLLAMA_BASE_URL ? ['gemma4:e2b'] : []),
-  'nvidia/nemotron-3-super-120b-a12b:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'qwen/qwen3.6-plus:free',
-];
-const FALLBACK_MODELS_NO_TOOL_CHOICE = ['stepfun/step-3.5-flash:free', 'openrouter/free'];
 
 const MAX_TOOL_ROUNDS = 5;
 
-// In-flight counter for Ollama — used to skip Ollama when at capacity and route
-// directly to OpenRouter instead of waiting + timing out.
-let ollamaInflight = 0;
-const MAX_OLLAMA_CONCURRENT = 2; // align with OLLAMA_NUM_PARALLEL in docker-compose
+// ── Per-provider in-flight counters ─────────────────────────────────────────
+// Used to skip providers at capacity and route to next in chain immediately.
+const providerInflight = new Map<string, number>();
+const MAX_LOCAL_CONCURRENT = 2; // Ollama CPU can handle 2 parallel (OLLAMA_NUM_PARALLEL)
+const MAX_REMOTE_CONCURRENT = 10; // Remote APIs handle much more
+
+function getInflight(providerId: string): number {
+  return providerInflight.get(providerId) ?? 0;
+}
+
+function incInflight(providerId: string): void {
+  providerInflight.set(providerId, getInflight(providerId) + 1);
+}
+
+function decInflight(providerId: string): void {
+  const val = getInflight(providerId);
+  if (val > 0) providerInflight.set(providerId, val - 1);
+}
+
+function isProviderAtCapacity(providerId: string): boolean {
+  const provider = getProvider(providerId);
+  const max = provider?.isLocal ? MAX_LOCAL_CONCURRENT : MAX_REMOTE_CONCURRENT;
+  return getInflight(providerId) >= max;
+}
+
+/**
+ * Build the ordered list of (model, client, providerId) to try for this request.
+ * Uses tenant's custom chain if configured, otherwise the global default.
+ */
+function buildModelsToTry(
+  ctx: HandlerContext,
+  complexity: string,
+  _hasTools: boolean,
+): { model: string; client: OpenAI; providerId: string }[] {
+  const chain: ChainEntry[] = ctx.tenantLLMChain ?? getDefaultChain();
+  const tenantKeys = ctx.tenantProviderKeys;
+  const result: { model: string; client: OpenAI; providerId: string }[] = [];
+
+  for (const entry of chain) {
+    if (!entry.enabled) continue;
+    if (entry.tier !== 'all' && entry.tier !== complexity) continue;
+    if (isProviderAtCapacity(entry.providerId)) {
+      logger.warn(
+        { provider: entry.providerId, inflight: getInflight(entry.providerId) },
+        'Provider at capacity — skipping',
+      );
+      continue;
+    }
+
+    // Resolve client (needs API key)
+    const client = getClientForChainEntry(entry, tenantKeys);
+    if (!client) continue; // No API key available for this provider
+
+    result.push({ model: entry.modelId, client, providerId: entry.providerId });
+  }
+
+  // If tenant chain produced nothing usable (no keys, all at capacity), fall back to legacy
+  if (result.length === 0) {
+    const legacyClient = getClientForModel(ctx.selectedModel, ctx.tenantApiKey);
+    result.push({
+      model: ctx.selectedModel,
+      client: legacyClient,
+      providerId: ctx.selectedModel.includes('/') ? 'openrouter' : 'ollama',
+    });
+  }
+
+  return result;
+}
 
 export const llmMiddleware: Middleware = {
   name: 'llm',
@@ -85,44 +138,34 @@ export const llmMiddleware: Middleware = {
       return;
     }
 
-    // Build fallback model list — skip Ollama if already at capacity
-    const fallbacks = hasTools
-      ? FALLBACK_MODELS_WITH_TOOL_CHOICE
-      : [...FALLBACK_MODELS_WITH_TOOL_CHOICE, ...FALLBACK_MODELS_NO_TOOL_CHOICE];
-    const allModels = [ctx.selectedModel, ...fallbacks.filter((m) => m !== ctx.selectedModel)];
-    const ollamaAtCapacity = ollamaInflight >= MAX_OLLAMA_CONCURRENT;
-    const modelsToTry = ollamaAtCapacity
-      ? allModels.filter((m) => m.includes('/')) // skip local Ollama models (no '/')
-      : allModels;
-    if (ollamaAtCapacity) {
-      logger.warn(
-        { inflightCount: ollamaInflight, max: MAX_OLLAMA_CONCURRENT },
-        'Ollama at capacity — routing directly to OpenRouter',
-      );
-    }
+    // Build provider chain — uses tenant config or global default
+    const complexity = ctx.complexity ?? 'moderate';
+    const candidates = buildModelsToTry(ctx, complexity, hasTools);
 
-    // LLM call with fallback
+    // LLM call with fallback through the chain
     async function callLLM(msgs: OpenAI.ChatCompletionMessageParam[], stream: boolean) {
-      for (let i = 0; i < modelsToTry.length; i++) {
-        const model = modelsToTry[i]!;
+      for (let i = 0; i < candidates.length; i++) {
+        const { model, client, providerId } = candidates[i]!;
         const llmStart = performance.now();
         try {
-          const res = await callLLMOnce(msgs, stream, model, hasTools, ctx);
+          const res = await callLLMOnce(msgs, stream, model, hasTools, ctx, client, providerId);
           metrics.observeHistogram(
             'hawk_llm_latency_seconds',
             (performance.now() - llmStart) / 1000,
-            { model, tier: ctx.selectedModel === model ? 'primary' : 'fallback' },
+            { model, provider: providerId, tier: i === 0 ? 'primary' : 'fallback' },
           );
           metrics.incCounter('hawk_llm_calls_total', {
             model,
-            tier: ctx.selectedModel === model ? 'primary' : 'fallback',
+            provider: providerId,
+            tier: i === 0 ? 'primary' : 'fallback',
             status: 'success',
           });
           return res;
         } catch (err) {
           metrics.incCounter('hawk_llm_calls_total', {
             model,
-            tier: ctx.selectedModel === model ? 'primary' : 'fallback',
+            provider: providerId,
+            tier: i === 0 ? 'primary' : 'fallback',
             status: 'error',
           });
           const status = (err as { status?: number }).status;
@@ -137,12 +180,12 @@ export const llmMiddleware: Middleware = {
                 err.message.toLowerCase().includes('econnreset')));
           if (isRetriable) {
             const reason = status ?? (err instanceof Error ? err.message : 'unknown');
-            console.warn(`[middleware:llm] Model ${model} failed (${reason}), trying fallback...`);
-            if (i < modelsToTry.length - 1) {
-              const nextModel = modelsToTry[i + 1]!;
+            logger.warn({ model, provider: providerId, reason }, 'Model failed, trying fallback');
+            if (i < candidates.length - 1) {
+              const next = candidates[i + 1]!;
               metrics.incCounter('hawk_fallbacks_total', {
                 from_model: model,
-                to_model: nextModel,
+                to_model: next.model,
               });
               await new Promise((r) => setTimeout(r, 1000));
               continue;
@@ -255,6 +298,8 @@ async function callLLMOnce(
   model: string,
   hasTools: boolean,
   ctx: HandlerContext,
+  client?: OpenAI,
+  providerId?: string,
 ): Promise<{
   content: string | null;
   toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[];
@@ -284,29 +329,29 @@ async function callLLMOnce(
     );
   }
 
+  const resolvedClient = client ?? getClientForModel(model, ctx.tenantApiKey);
+  const resolvedProvider = providerId ?? (model.includes('/') ? 'openrouter' : 'ollama');
+  const isLocal = getProvider(resolvedProvider)?.isLocal ?? false;
+
   const useToolChoice = hasTools && supportsToolChoice(model);
-  const isOllamaModel = !model.includes('/') && !!process.env.OLLAMA_BASE_URL;
   const opts: Record<string, unknown> = {
     model,
     max_tokens: ctx.agent.maxTokens,
     messages: msgs,
     tools: hasTools ? ctx.filteredTools : undefined,
     tool_choice: useToolChoice ? 'auto' : undefined,
-    // Disable qwen3 extended thinking mode — it causes 90s+ latency in chat
-    ...(isOllamaModel ? { think: false } : {}),
+    ...(isLocal ? { think: false } : {}),
   };
 
   const LLM_TIMEOUT_MS = 90_000;
 
-  if (isOllamaModel) ollamaInflight++;
+  incInflight(resolvedProvider);
   try {
     if (stream && ctx.onChunk) {
-      const streamResponse = await getClientForModel(
-        model,
-        ctx.tenantApiKey,
-      ).chat.completions.create({ ...opts, stream: true } as never, {
-        signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
-      });
+      const streamResponse = await resolvedClient.chat.completions.create(
+        { ...opts, stream: true } as never,
+        { signal: AbortSignal.timeout(LLM_TIMEOUT_MS) },
+      );
       let content = '';
       const toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = [];
       let finishReason: string | null = null;
@@ -327,11 +372,11 @@ async function callLLMOnce(
                   function: { name: tc.function?.name ?? '', arguments: '' },
                 };
               }
-              const entry = toolCalls[tc.index];
-              if (entry) {
-                if (tc.id) entry.id = tc.id;
-                if (tc.function?.name) entry.function.name = tc.function.name;
-                if (tc.function?.arguments) entry.function.arguments += tc.function.arguments;
+              const existing = toolCalls[tc.index];
+              if (existing) {
+                if (tc.id) existing.id = tc.id;
+                if (tc.function?.name) existing.function.name = tc.function.name;
+                if (tc.function?.arguments) existing.function.arguments += tc.function.arguments;
               }
             }
           }
@@ -344,10 +389,9 @@ async function callLLMOnce(
       return { content: content || null, toolCalls: toolCalls.filter(Boolean), finishReason };
     }
 
-    const response = await getClientForModel(model, ctx.tenantApiKey).chat.completions.create(
-      opts as never,
-      { signal: AbortSignal.timeout(LLM_TIMEOUT_MS) },
-    );
+    const response = await resolvedClient.chat.completions.create(opts as never, {
+      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+    });
     const choice = response.choices[0];
     return {
       content: choice?.message.content ?? null,
@@ -356,6 +400,6 @@ async function callLLMOnce(
       usage: response.usage as { total_tokens?: number } | undefined,
     };
   } finally {
-    if (isOllamaModel) ollamaInflight--;
+    decInflight(resolvedProvider);
   }
 }

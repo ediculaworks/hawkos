@@ -1,6 +1,6 @@
 'use server';
 
-import { getSafeSchema } from '@/lib/auth/safe-schema';
+import { getSafeSchemaFromCookie } from '@/lib/auth/safe-schema';
 import { getPool } from '@hawk/db';
 
 export interface ModuleCompleteness {
@@ -23,7 +23,7 @@ export interface CompletenessReport {
  * Each module has a set of checks — the score reflects how many are satisfied.
  */
 export async function fetchCompletenessReport(): Promise<CompletenessReport> {
-  const schema = await getSafeSchema();
+  const schema = await getSafeSchemaFromCookie();
   const sql = getPool();
 
   // Run all checks in parallel using COUNT queries per table
@@ -43,7 +43,7 @@ export async function fetchCompletenessReport(): Promise<CompletenessReport> {
   const count = (i: number): number => {
     const r = checks[i];
     if (!r || r.status === 'rejected') return 0;
-    return Number((r.value as Array<{ n: unknown }>)[0]?.n ?? 0);
+    return Number((r.value as unknown as Array<{ n: unknown }>)[0]?.n ?? 0);
   };
 
   const hasAccounts = count(0) > 0;

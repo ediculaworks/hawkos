@@ -8,7 +8,12 @@ export type IntegrationProvider =
   | 'anthropic'
   | 'github'
   | 'clickup'
-  | 'groq';
+  | 'groq'
+  | 'xai'
+  | 'nvidia'
+  | 'google_ai'
+  | 'together'
+  | 'cerebras';
 export type AuditEventType =
   | 'login'
   | 'token_usage'
@@ -105,6 +110,9 @@ export interface ClickUpConfig {
   team_id?: string;
 }
 
+/** Generic API-key-only config for LLM providers that just need an api_key field. */
+export type ApiKeyConfig = { api_key: string };
+
 export type IntegrationConfigMap = {
   discord: DiscordConfig;
   openrouter: OpenRouterConfig;
@@ -113,6 +121,11 @@ export type IntegrationConfigMap = {
   google: GoogleConfig;
   github: GitHubConfig;
   clickup: ClickUpConfig;
+  xai: ApiKeyConfig;
+  nvidia: ApiKeyConfig;
+  google_ai: ApiKeyConfig;
+  together: ApiKeyConfig;
+  cerebras: ApiKeyConfig;
 };
 
 export interface TenantIntegration {

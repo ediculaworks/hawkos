@@ -27,6 +27,10 @@ export interface HandlerContext {
   readonly onChunk?: (chunk: string) => void;
   /** Per-tenant OpenRouter API key — overrides global env key when set */
   readonly tenantApiKey?: string;
+  /** Per-tenant LLM provider chain (priority-ordered fallback). From admin.tenant_llm_chain. */
+  readonly tenantLLMChain?: import('../providers.js').ChainEntry[];
+  /** Per-provider API keys for this tenant (providerId → apiKey). */
+  readonly tenantProviderKeys?: Map<string, string>;
 
   // ── Security (set by security middleware) ──────────────────
   sanitizedMessage: string;
@@ -112,6 +116,8 @@ export function createHandlerContext(params: {
   onChunk?: (chunk: string) => void;
   attachments?: Attachment[];
   tenantApiKey?: string;
+  tenantLLMChain?: import('../providers.js').ChainEntry[];
+  tenantProviderKeys?: Map<string, string>;
 }): HandlerContext {
   return {
     sessionId: params.sessionId,
@@ -122,6 +128,8 @@ export function createHandlerContext(params: {
     attachments: params.attachments,
     onChunk: params.onChunk,
     tenantApiKey: params.tenantApiKey,
+    tenantLLMChain: params.tenantLLMChain,
+    tenantProviderKeys: params.tenantProviderKeys,
 
     sanitizedMessage: params.userMessage,
 

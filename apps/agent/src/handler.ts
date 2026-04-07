@@ -52,6 +52,8 @@ export async function handleWebMessage(
   onChunk?: (chunk: string) => void,
   tenantApiKey?: string,
   isNewSession = false,
+  tenantLLMChain?: import('./providers.js').ChainEntry[],
+  tenantProviderKeys?: Map<string, string>,
 ): Promise<PipelineResult> {
   if (!checkRateLimit(`web:${sessionId}`) || !checkRateLimit('web:global')) {
     throw new HawkError(
@@ -69,6 +71,8 @@ export async function handleWebMessage(
     isNewSession,
     onChunk,
     tenantApiKey,
+    tenantLLMChain,
+    tenantProviderKeys,
   });
   touchWebSession(sessionId);
   return result;

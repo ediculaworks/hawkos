@@ -1,5 +1,16 @@
 import type { IntegrationProvider } from '@hawk/admin';
-import { Bot, Brain, type LucideIcon, Mic, Plug, Route, Zap } from 'lucide-react';
+import {
+  Bot,
+  Brain,
+  Cpu,
+  type LucideIcon,
+  Mic,
+  Plug,
+  Route,
+  Sparkles,
+  Sun,
+  Zap,
+} from 'lucide-react';
 
 export interface IntegrationField {
   key: string;
@@ -115,7 +126,7 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
   {
     provider: 'groq',
     name: 'Groq',
-    description: 'Whisper para transcrição de voz',
+    description: 'LLM ultra-rápido (500+ tok/s) + Whisper transcrição',
     icon: Mic,
     color: '#F55036',
     testable: true,
@@ -126,15 +137,95 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
         type: 'password',
         required: true,
         placeholder: 'gsk_...',
+        helpText: 'Grátis em console.groq.com — 30 RPM no free tier',
       },
+    ],
+  },
+  {
+    provider: 'xai',
+    name: 'x.AI (Grok)',
+    description: 'Grok 3 / Grok 3 Mini',
+    icon: Sparkles,
+    color: '#1DA1F2',
+    testable: true,
+    fields: [
       {
-        key: 'model',
-        label: 'Modelo',
-        type: 'select',
-        options: [
-          { value: 'whisper-large-v3-turbo', label: 'Whisper Large V3 Turbo' },
-          { value: 'whisper-large-v3', label: 'Whisper Large V3' },
-        ],
+        key: 'api_key',
+        label: 'API Key',
+        type: 'password',
+        required: true,
+        placeholder: 'xai-...',
+      },
+    ],
+  },
+  {
+    provider: 'nvidia',
+    name: 'NVIDIA NIM',
+    description: 'Nemotron, Llama via NVIDIA Cloud',
+    icon: Cpu,
+    color: '#76B900',
+    testable: true,
+    fields: [
+      {
+        key: 'api_key',
+        label: 'API Key',
+        type: 'password',
+        required: true,
+        placeholder: 'nvapi-...',
+        helpText: 'Grátis em build.nvidia.com — alguns modelos free',
+      },
+    ],
+  },
+  {
+    provider: 'google_ai',
+    name: 'Google AI Studio',
+    description: 'Gemini 2.5 Flash / Gemini 2.0',
+    icon: Sun,
+    color: '#4285F4',
+    testable: true,
+    fields: [
+      {
+        key: 'api_key',
+        label: 'API Key',
+        type: 'password',
+        required: true,
+        placeholder: 'AIza...',
+        helpText: 'Grátis em aistudio.google.com — 15 RPM, 1M tokens/dia',
+      },
+    ],
+  },
+  {
+    provider: 'together',
+    name: 'Together AI',
+    description: 'Llama, Qwen, Mistral em infra rápida',
+    icon: Zap,
+    color: '#0066FF',
+    testable: true,
+    fields: [
+      {
+        key: 'api_key',
+        label: 'API Key',
+        type: 'password',
+        required: true,
+        placeholder: 'tok_...',
+      },
+    ],
+  },
+  {
+    provider: 'cerebras',
+    name: 'Cerebras',
+    description: 'Inferência ultra-rápida em hardware Cerebras',
+    icon: Cpu,
+    color: '#FF6B00',
+    testable: true,
+    fields: [
+      {
+        key: 'api_key',
+        label: 'API Key',
+        type: 'password',
+        required: true,
+        placeholder: 'csk-...',
+        helpText: 'Free tier disponível em cloud.cerebras.ai',
       },
     ],
   },

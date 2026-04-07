@@ -24,16 +24,33 @@ export function createSessionCost(model: string): SessionCost {
   };
 }
 
-// Approximate cost per 1M tokens for OpenRouter paid models
-const COST_PER_1M = 3.0; // USD (conservative estimate)
+// Default cost per 1M tokens (conservative fallback when provider unknown)
+const DEFAULT_COST_PER_1M = 3.0;
 
 /**
  * Estimate cost in USD for token usage.
- * Free models (ending in :free) are $0.
+ * Uses per-provider costs from providers.ts when available,
+ * falls back to $3/M for unknown models.
  */
-export function estimateCostUsd(tokens: number, model?: string): number {
+export function estimateCostUsd(tokens: number, model?: string, providerId?: string): number {
   if (model && (model.endsWith(':free') || model === 'openrouter/free')) return 0;
-  return (tokens / 1_000_000) * COST_PER_1M;
+  if (providerId === 'ollama') return 0;
+
+  // Try to get per-model cost from provider registry
+  if (providerId && model) {
+    try {
+      const { getProviderModel } = require('./providers.js');
+      const providerModel = getProviderModel(providerId, model);
+      if (providerModel) {
+        const avgCostPer1M = (providerModel.costPer1MInput + providerModel.costPer1MOutput) / 2;
+        return (tokens / 1_000_000) * avgCostPer1M;
+      }
+    } catch {
+      // providers.ts not available (e.g. in tests) — use default
+    }
+  }
+
+  return (tokens / 1_000_000) * DEFAULT_COST_PER_1M;
 }
 
 export function trackLLMCall(

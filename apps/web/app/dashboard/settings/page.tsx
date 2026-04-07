@@ -1,5 +1,6 @@
 'use client';
 
+import LLMChainEditor from '@/components/settings/llm-chain-editor';
 import { SectionAgent } from '@/components/settings/section-agent';
 import { SectionAppearance } from '@/components/settings/section-appearance';
 import { SectionData } from '@/components/settings/section-data';
@@ -57,6 +58,7 @@ export default function SettingsPage() {
               <SectionProfile profile={profile} onSaved={handleProfileSaved} />
             )}
             {section === 'integrations' && <SectionIntegrations />}
+            {section === 'models' && <LLMChainEditor />}
             {section === 'agent' && <SectionAgent />}
             {section === 'appearance' && <SectionAppearance />}
             {section === 'notifications' && <SectionNotifications />}

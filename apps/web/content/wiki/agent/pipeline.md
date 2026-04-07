@@ -176,7 +176,7 @@ Carrega contexto em paralelo com fault isolation:
 ```typescript
 const [contextResult, memoriesResult, archiveResult] = await Promise.allSettled([
   assembleContext(ctx.sanitizedMessage),
-  retrieveMemories(ctx.sanitizedMessage, 5),
+  retrieveMemories(ctx.sanitizedMessage, 10),
   getLastSessionArchive(ctx.channel),
 ]);
 ```

@@ -84,6 +84,8 @@ export async function runPipeline(params: {
   onChunk?: (chunk: string) => void;
   attachments?: import('../handler.js').Attachment[];
   tenantApiKey?: string;
+  tenantLLMChain?: import('../providers.js').ChainEntry[];
+  tenantProviderKeys?: Map<string, string>;
 }): Promise<PipelineResult> {
   metrics.incCounter('hawk_messages_total', { channel: params.channel });
   metrics.incGauge('hawk_active_sessions');

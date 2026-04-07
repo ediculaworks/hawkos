@@ -4,7 +4,7 @@
 
 **Hawk OS** é um sistema operacional de vida pessoal. A ideia central é simples: toda área da sua vida gera dados, e dados bem organizados com inteligência artificial permitem decisões melhores, hábitos mais consistentes e clareza mental.
 
-Não é um app de to-do. Não é um dashboard genérico. É um sistema integrado onde **11 módulos** cobrem finanças, saúde, relacionamentos, carreira, rotina, patrimônio, entretenimento, moradia, agenda, jurídico e objetivos — todos conectados, todos alimentando o mesmo agente AI.
+Não é um app de to-do. Não é um dashboard genérico. É um sistema integrado onde **8 módulos ativos na sidebar** (e mais no backend) cobrem finanças, saúde, relacionamentos, carreira, rotina, agenda, jurídico e objetivos — todos conectados, todos alimentando o mesmo agente AI.
 
 > 🧩 **Para leigos:** Imagine um assistente pessoal que vive no Discord. Você manda uma mensagem falando que foi na academia, gastou R$50 no mercado ou marcou uma reunião — e ele anota tudo, organiza os dados e te dá um painel bonito pra visualizar. O Hawk OS é isso, mas para cada área da sua vida.
 
@@ -55,10 +55,10 @@ Todos os dados ficam na sua instância Supabase. Nenhum dado pessoal vai para se
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────┐
-│                    11 MÓDULOS ATIVOS                        │
+│              8 MÓDULOS ATIVOS NA SIDEBAR                    │
 │                                                             │
-│  finances  health   people   career   objectives  routine   │
-│  assets    legal    housing  calendar entertainment         │
+│  finances  health   people   career                         │
+│  objectives  routine  legal  calendar                       │
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────┐
@@ -70,7 +70,7 @@ Todos os dados ficam na sua instância Supabase. Nenhum dado pessoal vai para se
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Os 11 Módulos
+## Os 8 Módulos Ativos na Sidebar
 
 | Módulo | O que rastreia |
 |--------|---------------|
@@ -80,11 +80,10 @@ Todos os dados ficam na sua instância Supabase. Nenhum dado pessoal vai para se
 | **career** | Workspaces, sessões de trabalho, projetos freelance, horas |
 | **objectives** | Metas de longo prazo, tarefas, progresso, sprints |
 | **routine** | Hábitos diários, streaks, logs, hábitos em risco |
-| **assets** | Patrimônio físico, documentos, inventário |
-| **entertainment** | Filmes, séries, músicas, hobbies (skate, leitura, etc.) |
 | **legal** | Entidades jurídicas (CNPJ), contratos, obrigações fiscais |
-| **housing** | Imóveis, contas de moradia, manutenções, aluguel |
 | **calendar** | Eventos, compromissos, lembretes, slots livres |
+
+Código existe para módulos adicionais (assets, entertainment, housing) mas não aparecem na sidebar.
 
 > 🧩 **Para leigos:** Cada módulo é como uma gaveta diferente. Finanças é uma gaveta, saúde é outra, relacionamentos é outra. O agente sabe em qual gaveta guardar cada informação — você só precisa falar o que aconteceu.
 
@@ -109,11 +108,7 @@ Acesse `http://localhost:3000/dashboard` para visualizar dados, editar registros
 
 O sistema suporta múltiplos tenants num único processo. Cada tenant tem schema PostgreSQL isolado, Discord bot dedicado e feature flags independentes. Tenants são carregados dinamicamente da tabela `admin.tenants` no startup, sem necessidade de reiniciar.
 
-Dentro de cada tenant, você pode ter diferentes canais Discord com personas diferentes:
-
-- Canal geral → Hawk (generalista, todos os módulos)
-- Canal financeiro → CFO (especialista em finanças/jurídico/patrimônio)
-- Canal saúde → Coach (especialista em saúde/rotina)
+Dentro de cada tenant, todos os canais usam Hawk por padrão. O `DISCORD_CHANNEL_MAP` permite mapear canais específicos para task agents criados pelo usuário (caso avançado).
 
 ## Quick Start
 

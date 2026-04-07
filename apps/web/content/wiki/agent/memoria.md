@@ -117,7 +117,7 @@ Ao final de cada sessão (30 minutos de inatividade), o Session Compactor analis
 
 ## Scoring e Recuperação
 
-Quando uma mensagem chega, o sistema busca as **top 5 memórias mais relevantes** usando um score composto de 4 sinais:
+Quando uma mensagem chega, o sistema busca as **top 10 memórias mais relevantes** usando um score composto de 4 sinais:
 
 ```text
 score = (semântica × 0.45) + (hotness × 0.25) + (importância × 0.15) + (confiança × 0.15)

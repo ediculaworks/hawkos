@@ -389,6 +389,8 @@ async function handleChat(
         onChunk,
         tenantCtx?.credentials?.openrouterConfig?.api_key,
         isNewSession,
+        tenantCtx?.credentials?.llmChain,
+        tenantCtx?.credentials?.providerKeys,
       ),
     );
     return {

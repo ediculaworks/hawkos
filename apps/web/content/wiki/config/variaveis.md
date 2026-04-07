@@ -60,8 +60,8 @@ Variáveis para o bot Discord.
 
 **DISCORD_CHANNEL_MAP formato**:
 ```env
-DISCORD_CHANNEL_MAP=1234567890:hawk-default,9876543210:cfo-template,1111111111:coach-template
-# channelId:agentTemplateId separados por vírgula
+DISCORD_CHANNEL_MAP=1234567890:agent-uuid-aqui
+# channelId:agentId separados por vírgula (caso avançado — todos os canais usam Hawk por padrão)
 ```
 
 **Onde encontrar**: [discord.com/developers/applications](https://discord.com/developers/applications).
@@ -104,18 +104,25 @@ O sistema classifica cada mensagem por complexidade e seleciona o modelo adequad
 | `MODEL_TIER_DEFAULT` | Modelo para queries moderadas | ⚪ Não | modelo do agente |
 | `MODEL_TIER_COMPLEX` | Modelo para raciocínio complexo (multi-módulo, análise) | ⚪ Não | modelo do agente |
 | `MODEL_DAILY_BUDGET_USD` | Limite diário de custo por tenant (ex: `5.00`) | ⚪ Não | sem limite |
-| `MEMORY_WORKER_MODEL` | Modelo para tarefas background (compressão, extração) | ⚪ Não | `nvidia/nemotron-nano-9b-v2:free` |
-| `DEDUP_WORKER_MODEL` | Modelo para deduplicação de memórias | ⚪ Não | `nvidia/nemotron-nano-9b-v2:free` |
+| `OLLAMA_BASE_URL` | URL do servidor Ollama local (ativa inferência local gratuita) | ⚪ Não | — |
+| `OLLAMA_WORKER_MODEL` | Modelo Ollama para workers quando `OLLAMA_BASE_URL` está set | ⚪ Não | `gemma4:e2b` |
+| `MEMORY_WORKER_MODEL` | Modelo OpenRouter para workers (quando sem Ollama) | ⚪ Não | `nvidia/nemotron-nano-9b-v2:free` |
 
 **Cost-aware downgrade**: Quando >80% do budget diário é consumido, queries complexas são rebaixadas para moderate. Quando >95%, tudo é rebaixado para simple.
 
+Se `OLLAMA_BASE_URL` estiver configurado, `gemma4:e2b` é usado como padrão para simple, moderate e todos os workers (gratuito). Sem Ollama, usa modelos free do OpenRouter.
+
 ```env
+# Com Ollama local (recomendado em VPS)
+OLLAMA_BASE_URL=http://ollama:11434/v1
+OLLAMA_WORKER_MODEL=gemma4:e2b
+
+# Sem Ollama (apenas OpenRouter)
 MODEL_TIER_SIMPLE=nvidia/nemotron-3-nano-30b-a3b:free
 MODEL_TIER_DEFAULT=qwen/qwen3.6-plus:free
 MODEL_TIER_COMPLEX=qwen/qwen3.6-plus:free
 MODEL_DAILY_BUDGET_USD=5.00
 MEMORY_WORKER_MODEL=nvidia/nemotron-nano-9b-v2:free
-DEDUP_WORKER_MODEL=nvidia/nemotron-nano-9b-v2:free
 ```
 
 ---

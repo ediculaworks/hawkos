@@ -1,7 +1,17 @@
 'use client';
 
 import { cn } from '@/lib/utils/cn';
-import { Bell, Bot, Database, type LucideIcon, Palette, Plug, Settings, User } from 'lucide-react';
+import {
+  Bell,
+  Bot,
+  Cpu,
+  Database,
+  type LucideIcon,
+  Palette,
+  Plug,
+  Settings,
+  User,
+} from 'lucide-react';
 
 export type SettingsSection =
   | 'general'
@@ -10,7 +20,8 @@ export type SettingsSection =
   | 'appearance'
   | 'notifications'
   | 'data'
-  | 'integrations';
+  | 'integrations'
+  | 'models';
 
 interface NavItem {
   id: SettingsSection;
@@ -22,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'Geral', icon: Settings },
   { id: 'profile', label: 'Perfil', icon: User },
   { id: 'integrations', label: 'Integrações', icon: Plug },
+  { id: 'models', label: 'Modelos', icon: Cpu },
   { id: 'agent', label: 'Agente', icon: Bot },
   { id: 'appearance', label: 'Aparência', icon: Palette },
   { id: 'notifications', label: 'Notificações', icon: Bell },

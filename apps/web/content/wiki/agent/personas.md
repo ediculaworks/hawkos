@@ -99,16 +99,16 @@ Task agents devem ser excluídos quando a tarefa conclui. Via `/dashboard/agents
 
 ## Workers (internos)
 
-Workers são agentes background usados pelo sistema. Não aparecem no chat, não são user-facing.
+Workers são agentes de sistema persistidos no banco com UUIDs fixos. Não aparecem no chat, não são user-facing (`is_user_facing = false`, `agent_tier = 'worker'`).
 
 | Nome | ID | Função |
 |------|-----|--------|
-| Memory Extractor | `...0020` | Extrai memórias no fim de sessão |
-| Title Generator | `...0021` | Gera títulos de sessão automaticamente |
-| Insight Synthesizer | `...0022` | Resume dados para insights proativos |
-| Dedup Judge | `...0023` | Deduplica memórias similares |
+| Memory Extractor | `...0020` | Extrai memórias estruturadas no fim de sessão |
+| Title Generator | `...0021` | Gera títulos concisos para sessões |
+| Insight Synthesizer | `...0022` | Sintetiza dados em resumos e insights |
+| Dedup Judge | `...0023` | Decide se candidato duplica memória existente |
 
-Estes workers são **permanentes** — usados por automações e pelo session compactor.
+O modelo efetivo usado por todos os workers é injetado via `setWorkerLLM()` no startup — `gemma4:e2b` via Ollama local se `OLLAMA_BASE_URL` estiver configurado, caso contrário `nvidia/nemotron-nano-9b-v2:free`. O modelo gravado na migration (`sourceful/riverflow-v2-fast`) é sobrescrito em runtime.
 
 ---
 

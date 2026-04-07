@@ -20,6 +20,10 @@ export interface TenantCredentials {
     model?: string;
   };
   integrations?: Map<string, Record<string, string>>;
+  /** Per-tenant LLM provider chain (priority-ordered). Loaded from admin.tenant_llm_chain. */
+  llmChain?: import('./providers.js').ChainEntry[];
+  /** Per-provider API keys (providerId → apiKey). Extracted from integrations. */
+  providerKeys?: Map<string, string>;
 }
 
 export interface TenantContext {

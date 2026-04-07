@@ -1,15 +1,55 @@
 /**
  * LLM Client Factory
  *
- * - Chat (user-facing): OpenRouter with configured model
+ * - Chat (user-facing): dynamic provider based on tenant chain config
  * - Workers (background automations): Ollama local if available, OpenRouter fallback
  *
- * The OLLAMA_BASE_URL env var switches worker tasks to local Qwen 2.5 3B,
- * saving 100% of OpenRouter tokens for background operations.
+ * Supports all OpenAI-compatible providers (Groq, x.AI, NVIDIA, Google AI Studio, etc.)
+ * via the provider registry in providers.ts.
  */
 import OpenAI from 'openai';
+import { type ChainEntry, getProvider, resolveApiKey } from './providers.js';
 
-// ── Chat client (user-facing, OpenRouter) ─────────────────────────────────
+// ── Per-provider client cache ─────────────────────────────────────────────
+const clientCache = new Map<string, OpenAI>();
+
+/**
+ * Get or create an OpenAI-compatible client for any provider.
+ * Clients are cached by `providerId:apiKeyHash` to avoid creating duplicates.
+ */
+export function getClientForProvider(providerId: string, apiKey: string): OpenAI {
+  const cacheKey = `${providerId}:${apiKey.slice(-8)}`;
+  const cached = clientCache.get(cacheKey);
+  if (cached) return cached;
+
+  const provider = getProvider(providerId);
+  if (!provider) {
+    throw new Error(`Unknown LLM provider: ${providerId}`);
+  }
+
+  const client = new OpenAI({
+    baseURL: provider.baseURL,
+    apiKey,
+    defaultHeaders: provider.defaultHeaders,
+  });
+
+  clientCache.set(cacheKey, client);
+  return client;
+}
+
+/**
+ * Resolve the correct client for a chain entry using tenant keys or env fallback.
+ */
+export function getClientForChainEntry(
+  entry: ChainEntry,
+  tenantKeys?: Map<string, string>,
+): OpenAI | null {
+  const apiKey = resolveApiKey(entry.providerId, tenantKeys);
+  if (!apiKey) return null;
+  return getClientForProvider(entry.providerId, apiKey);
+}
+
+// ── Legacy Chat client (OpenRouter global — used when no tenant chain) ────
 let _chatClient: OpenAI | null = null;
 export function getChatClient(): OpenAI {
   if (!_chatClient) {

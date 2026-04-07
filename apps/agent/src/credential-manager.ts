@@ -1,5 +1,6 @@
 import { createDecipheriv, createHash } from 'node:crypto';
 import { getPool } from '@hawk/db';
+import type { ChainEntry } from './providers.js';
 import type { TenantCredentials } from './tenant-manager.js';
 
 const ALGORITHM = 'aes-256-gcm';
@@ -211,12 +212,89 @@ export async function loadTenantIntegrations(
   return result;
 }
 
+// ── LLM chain loading from admin.tenant_llm_chain ─────────────────────────────
+
+export async function loadTenantLLMChain(slug: string): Promise<ChainEntry[]> {
+  const sql = getPool();
+
+  try {
+    const rows = await sql.begin(async (tx) => {
+      await tx.unsafe('SET LOCAL search_path TO admin, public');
+
+      const tenants = await tx.unsafe('SELECT id FROM tenants WHERE slug = $1 LIMIT 1', [
+        slug.toLowerCase(),
+      ]);
+      const tenant = tenants[0] as Record<string, unknown> | undefined;
+      if (!tenant) return [];
+
+      return tx.unsafe(
+        `SELECT priority, provider_id, model_id, tier, enabled
+         FROM tenant_llm_chain
+         WHERE tenant_id = $1 AND enabled = true
+         ORDER BY priority ASC`,
+        [tenant.id as string],
+      );
+    });
+
+    return (
+      rows as {
+        priority: number;
+        provider_id: string;
+        model_id: string;
+        tier: string;
+        enabled: boolean;
+      }[]
+    ).map((r) => ({
+      priority: r.priority,
+      providerId: r.provider_id,
+      modelId: r.model_id,
+      tier: r.tier as ChainEntry['tier'],
+      enabled: r.enabled,
+    }));
+  } catch {
+    // Non-fatal: table may not exist yet
+    return [];
+  }
+}
+
+/**
+ * Extract per-provider API keys from tenant integrations.
+ * Maps provider IDs (groq, xai, nvidia, etc.) to their api_key field.
+ */
+function extractProviderKeys(
+  integrations: Map<string, Record<string, string>>,
+  openrouterConfig?: { api_key?: string },
+): Map<string, string> {
+  const keys = new Map<string, string>();
+
+  for (const [provider, config] of integrations) {
+    const apiKey = config.api_key || config.token;
+    if (apiKey) {
+      keys.set(provider, apiKey);
+    }
+  }
+
+  // Also include openrouter from the legacy config column
+  if (openrouterConfig?.api_key && !keys.has('openrouter')) {
+    keys.set('openrouter', openrouterConfig.api_key);
+  }
+
+  return keys;
+}
+
 // ── Refresh credentials for a single tenant ──────────────────────────────────
 
 export async function refreshTenantCredentials(slug: string): Promise<TenantCredentials> {
   const cred = await loadTenantCredentials(slug);
   const integrations = await loadTenantIntegrations(slug);
   cred.integrations = integrations;
+  cred.providerKeys = extractProviderKeys(integrations, cred.openrouterConfig);
+
+  const chain = await loadTenantLLMChain(slug);
+  if (chain.length > 0) {
+    cred.llmChain = chain;
+  }
+
   console.log(`[credential-manager] Credentials refreshed for tenant: ${slug}`);
   return cred;
 }

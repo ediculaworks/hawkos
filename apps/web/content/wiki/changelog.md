@@ -27,8 +27,8 @@ Histórico de desenvolvimento por onda (wave). Cada onda tem um foco específico
 - **233 testes**, 0 falhas (25 ficheiros de teste)
 - 90+ migrations aplicadas
 - ~30 feature flags configuráveis per-tenant
-- **11 módulos ativos** (finances, health, people, career, objectives, routine, assets, entertainment, legal, housing, calendar)
-- 7 templates de agentes (personas)
+- **8 módulos ativos na sidebar** (finances, health, people, career, objectives, routine, legal, calendar)
+- Hawk + Task Agents dinâmicos (sem personas fixas)
 - 18 automações ativas
 - 40+ tools em 21 ficheiros modulares
 
@@ -152,10 +152,11 @@ Histórico de desenvolvimento por onda (wave). Cada onda tem um foco específico
 - 36 comandos Discord registrados (inicial)
 - Tool routing dinâmico para todos os módulos
 
-**7 Templates de Agente (Personas)**
-- Hawk (generalista), CFO, Coach, Career Coach, Chief of Staff, House Manager, Creative Director
+**Arquitetura de Agentes (modelo inicial)**
+- Hawk como agente principal + task agents dinâmicos para tarefas especializadas
 - Roteamento por canal Discord via `DISCORD_CHANNEL_MAP`
-- Dashboard `/dashboard/agents` para CRUD de personas
+- Dashboard `/dashboard/agents` para gestão de agentes
+- _(Personas fixas como CFO/Coach foram removidas em W5 — substituídas por task agents ad-hoc)_
 
 **Automações Completas**
 - `alerts.ts`: alertas diários às 08:00 (finanças, saúde, hábitos, jurídico)

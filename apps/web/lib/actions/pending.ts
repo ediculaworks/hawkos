@@ -1,6 +1,6 @@
 'use server';
 
-import { getSafeSchema } from '@/lib/auth/safe-schema';
+import { getSafeSchemaFromCookie } from '@/lib/auth/safe-schema';
 import { getPool } from '@hawk/db';
 import { revalidatePath } from 'next/cache';
 
@@ -12,7 +12,7 @@ export interface PendingIntent {
 }
 
 export async function fetchPendingIntents(): Promise<PendingIntent[]> {
-  const schema = await getSafeSchema();
+  const schema = await getSafeSchemaFromCookie();
   const sql = getPool();
 
   const rows = await sql.unsafe(
@@ -32,7 +32,7 @@ export async function fetchPendingIntents(): Promise<PendingIntent[]> {
 }
 
 export async function dismissPendingIntent(id: string): Promise<void> {
-  const schema = await getSafeSchema();
+  const schema = await getSafeSchemaFromCookie();
   const sql = getPool();
 
   await sql.unsafe(`UPDATE "${schema}".pending_intents SET status = 'expired' WHERE id = $1`, [id]);
