@@ -12,6 +12,11 @@ import { stopApiServer } from './api/server.js';
 import { startAlertsCron } from './automations/alerts.js';
 import { setAnalyticsNotifier } from './automations/analytics.js';
 import { startBackupCron } from './automations/backup.js';
+import { startCalendarSyncCron } from './automations/calendar-sync.js';
+import {
+  loadAndStartCustomAutomations,
+  registerTenantForCustomCrons,
+} from './automations/custom.js';
 import { startCheckinCrons } from './automations/daily-checkin.js';
 import { setDemandBroadcast, startDemandExecutorCron } from './automations/demand-executor.js';
 import { startExtensionSyncCron } from './automations/extension-sync.js';
@@ -20,6 +25,7 @@ import { startJobMonitorCron } from './automations/job-monitor.js';
 import { startMemoryForgetterCron } from './automations/memory-forgetter.js';
 import { startMonitorCron } from './automations/monitor.js';
 import { startNetWorthSnapshotCron } from './automations/net-worth-snapshot.js';
+import { startOnboardingSequenceCron } from './automations/onboarding-sequence.js';
 import { runSessionCompactor } from './automations/session-compactor.js';
 import { startStreakGuardianCron } from './automations/streak-guardian.js';
 import { startWeeklyReviewCron } from './automations/weekly-review.js';
@@ -52,6 +58,55 @@ function isMultiTenantMode(): boolean {
   return !process.env.AGENT_SLOT;
 }
 
+// ── S3.4 — Pending message replay on startup ─────────────────────────────────
+
+async function replayPendingMessages(ctx: TenantContext): Promise<void> {
+  const { db, withSchema } = await import('@hawk/db');
+  const { handleStreamingMessage } = await import('./handler.js');
+  const { sendToChannel, getMainChannelId } = await import('./channels/discord.js');
+
+  await withSchema(ctx.schemaName, async () => {
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // >1h → expire
+
+    // Expire stale pending messages
+    await db
+      .from('pending_messages')
+      .update({ status: 'expired' })
+      .eq('status', 'pending')
+      .lt('created_at', cutoff)
+      .then(
+        () => {},
+        () => {},
+      );
+
+    // Replay recent pending messages (30s–60min window)
+    const recentCutoff = new Date(Date.now() - 30 * 1000).toISOString();
+    const { data } = await db
+      .from('pending_messages')
+      .select('id, session_id, content')
+      .eq('status', 'pending')
+      .lt('created_at', recentCutoff)
+      .limit(5);
+
+    if (!data || data.length === 0) return;
+
+    console.log(`[hawk] Replaying ${data.length} pending message(s) for tenant '${ctx.slug}'`);
+    for (const msg of data as { id: string; session_id: string; content: string }[]) {
+      try {
+        const channelId = getMainChannelId(ctx.slug) ?? msg.session_id;
+        const response = await handleStreamingMessage(msg.content, channelId);
+        if (response) await sendToChannel(channelId, response, ctx.slug);
+        await db
+          .from('pending_messages')
+          .update({ status: 'processed', processed_at: new Date().toISOString() })
+          .eq('id', msg.id);
+      } catch (err) {
+        console.error(`[hawk] Failed to replay pending message ${msg.id}:`, err);
+      }
+    }
+  }).catch(() => {});
+}
+
 // ── Per-tenant startup ───────────────────────────────────────────────────────
 
 async function startTenantServices(ctx: TenantContext): Promise<void> {
@@ -79,6 +134,9 @@ async function startTenantServices(ctx: TenantContext): Promise<void> {
     });
 
     startTenantCrons(ctx);
+
+    // ── S3.4 — Replay pending messages after Discord is connected ────────
+    replayPendingMessages(ctx).catch(() => {});
 
     // Wire notification sender for this tenant
     const channelId = getMainChannelId(slug);
@@ -145,6 +203,18 @@ function startTenantCrons(ctx: TenantContext): void {
   ctx.cronTasks.push(startExtensionSyncCron(tenantCtx));
   const jobTask = startJobMonitorCron(tenantCtx);
   if (jobTask) ctx.cronTasks.push(jobTask);
+
+  // ── S3.2 — Custom automations (NL Cron) ─────────────────────────────────
+  registerTenantForCustomCrons(tenantCtx);
+  withSchema(schemaName, () => loadAndStartCustomAutomations(tenantCtx)).catch((err) =>
+    console.error(`[hawk] Custom automations failed for '${slug}':`, err),
+  );
+
+  // ── S5.2 — Onboarding sequence (daily 10:00, first 14 days) ─────────────
+  ctx.cronTasks.push(startOnboardingSequenceCron(tenantCtx));
+
+  // ── S5.4 — Google Calendar sync (every 5 minutes) ────────────────────────
+  ctx.cronTasks.push(startCalendarSyncCron(tenantCtx));
 }
 
 // ── Legacy single-tenant mode ────────────────────────────────────────────────
@@ -345,7 +415,9 @@ async function warmupOllama(): Promise<void> {
     if (res.ok) {
       console.log(`[hawk] Ollama model '${model}' ready in RAM.`);
     } else {
-      console.warn(`[hawk] Ollama warmup returned ${res.status} — model may still load on first use.`);
+      console.warn(
+        `[hawk] Ollama warmup returned ${res.status} — model may still load on first use.`,
+      );
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

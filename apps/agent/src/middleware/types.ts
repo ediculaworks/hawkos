@@ -58,6 +58,8 @@ export interface HandlerContext {
 
   // ── LLM Result (set by llm middleware) ─────────────────────
   response: string | null;
+  /** True when intent-classifier.ts short-circuited; LLM middleware skips */
+  shortCircuited: boolean;
   toolsUsed: string[];
   totalTokens: number;
 
@@ -140,6 +142,7 @@ export function createHandlerContext(params: {
     messages: [],
 
     response: null,
+    shortCircuited: false,
     toolsUsed: [],
     totalTokens: 0,
 

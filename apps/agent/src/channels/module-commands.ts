@@ -89,12 +89,27 @@ import { habitoCommand, handleHabito } from '@hawk/module-routine';
 import { handleSeguranca, segurancaCommand } from '@hawk/module-security';
 import { handlePost, postCommand } from '@hawk/module-social';
 import { handleReflexao, reflexaoCommand } from '@hawk/module-spirituality';
+import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
+
+// ── /log — quick structured expense/income entry (modal) ─────────────────────
+export const logCommand = new SlashCommandBuilder()
+  .setName('log')
+  .setDescription('Registar gasto ou receita rapidamente')
+  .toJSON();
+
+// ── /pendentes — list pending intents awaiting prerequisites ──────────────────
+export const pendentesCommand = new SlashCommandBuilder()
+  .setName('pendentes')
+  .setDescription('Ver ações pendentes que aguardam pré-requisitos')
+  .toJSON();
 
 // ── All registered slash commands (sent to Discord on startup) ─────────────────
 
 export const ALL_COMMANDS = [
   // Finances
+  logCommand,
+  pendentesCommand,
   gastaCommand,
   receitaCommand,
   saldoCommand,

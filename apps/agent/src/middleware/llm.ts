@@ -45,19 +45,32 @@ function getClientForModel(model: string, tenantApiKey?: string): OpenAI {
 }
 
 // Fallback chain: Ollama local first (free), then OpenRouter free models.
+// Nemotron/Llama before Qwen — Alibaba rate limits are more aggressive on free tier.
 const FALLBACK_MODELS_WITH_TOOL_CHOICE = [
   ...(process.env.OLLAMA_BASE_URL ? ['gemma4:e2b'] : []),
-  'qwen/qwen3.6-plus:free',
   'nvidia/nemotron-3-super-120b-a12b:free',
   'meta-llama/llama-3.3-70b-instruct:free',
+  'qwen/qwen3.6-plus:free',
 ];
 const FALLBACK_MODELS_NO_TOOL_CHOICE = ['stepfun/step-3.5-flash:free', 'openrouter/free'];
 
 const MAX_TOOL_ROUNDS = 5;
 
+// In-flight counter for Ollama — used to skip Ollama when at capacity and route
+// directly to OpenRouter instead of waiting + timing out.
+let ollamaInflight = 0;
+const MAX_OLLAMA_CONCURRENT = 2; // align with OLLAMA_NUM_PARALLEL in docker-compose
+
 export const llmMiddleware: Middleware = {
   name: 'llm',
   execute: async (ctx: HandlerContext, next) => {
+    // ── S2.1 — Skip LLM if intent was short-circuited ──────────────────────
+    if (ctx.shortCircuited && ctx.response !== null) {
+      ctx.sessionCost = null;
+      await next();
+      return;
+    }
+
     const hasTools = ctx.filteredTools.length > 0;
 
     // Initialize cost tracking
@@ -72,11 +85,21 @@ export const llmMiddleware: Middleware = {
       return;
     }
 
-    // Build fallback model list
+    // Build fallback model list — skip Ollama if already at capacity
     const fallbacks = hasTools
       ? FALLBACK_MODELS_WITH_TOOL_CHOICE
       : [...FALLBACK_MODELS_WITH_TOOL_CHOICE, ...FALLBACK_MODELS_NO_TOOL_CHOICE];
-    const modelsToTry = [ctx.selectedModel, ...fallbacks.filter((m) => m !== ctx.selectedModel)];
+    const allModels = [ctx.selectedModel, ...fallbacks.filter((m) => m !== ctx.selectedModel)];
+    const ollamaAtCapacity = ollamaInflight >= MAX_OLLAMA_CONCURRENT;
+    const modelsToTry = ollamaAtCapacity
+      ? allModels.filter((m) => m.includes('/')) // skip local Ollama models (no '/')
+      : allModels;
+    if (ollamaAtCapacity) {
+      logger.warn(
+        { inflightCount: ollamaInflight, max: MAX_OLLAMA_CONCURRENT },
+        'Ollama at capacity — routing directly to OpenRouter',
+      );
+    }
 
     // LLM call with fallback
     async function callLLM(msgs: OpenAI.ChatCompletionMessageParam[], stream: boolean) {
@@ -273,62 +296,66 @@ async function callLLMOnce(
     ...(isOllamaModel ? { think: false } : {}),
   };
 
-  // Ollama local inference is typically much faster than remote APIs
-  const LLM_TIMEOUT_MS = isOllamaModel ? 30_000 : 90_000;
+  const LLM_TIMEOUT_MS = 90_000;
 
-  if (stream && ctx.onChunk) {
-    const streamResponse = await getClientForModel(model, ctx.tenantApiKey).chat.completions.create(
-      { ...opts, stream: true } as never,
-      { signal: AbortSignal.timeout(LLM_TIMEOUT_MS) },
-    );
-    let content = '';
-    const toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = [];
-    let finishReason: string | null = null;
+  if (isOllamaModel) ollamaInflight++;
+  try {
+    if (stream && ctx.onChunk) {
+      const streamResponse = await getClientForModel(
+        model,
+        ctx.tenantApiKey,
+      ).chat.completions.create({ ...opts, stream: true } as never, {
+        signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+      });
+      let content = '';
+      const toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = [];
+      let finishReason: string | null = null;
 
-    for await (const chunk of streamResponse as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>) {
-      const delta = chunk.choices[0]?.delta;
-      if (delta?.content) {
-        content += delta.content;
-        ctx.onChunk(delta.content);
-      }
-      if (delta?.tool_calls) {
-        for (const tc of delta.tool_calls) {
-          if (tc.index !== undefined) {
-            if (!toolCalls[tc.index]) {
-              toolCalls[tc.index] = {
-                id: tc.id ?? '',
-                type: 'function',
-                function: { name: tc.function?.name ?? '', arguments: '' },
-              };
-            }
-            const entry = toolCalls[tc.index];
-            if (entry) {
-              if (tc.id) entry.id = tc.id;
-              if (tc.function?.name) entry.function.name = tc.function.name;
-              if (tc.function?.arguments) entry.function.arguments += tc.function.arguments;
+      for await (const chunk of streamResponse as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>) {
+        const delta = chunk.choices[0]?.delta;
+        if (delta?.content) {
+          content += delta.content;
+          ctx.onChunk(delta.content);
+        }
+        if (delta?.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            if (tc.index !== undefined) {
+              if (!toolCalls[tc.index]) {
+                toolCalls[tc.index] = {
+                  id: tc.id ?? '',
+                  type: 'function',
+                  function: { name: tc.function?.name ?? '', arguments: '' },
+                };
+              }
+              const entry = toolCalls[tc.index];
+              if (entry) {
+                if (tc.id) entry.id = tc.id;
+                if (tc.function?.name) entry.function.name = tc.function.name;
+                if (tc.function?.arguments) entry.function.arguments += tc.function.arguments;
+              }
             }
           }
         }
+        if (chunk.choices[0]?.finish_reason) {
+          finishReason = chunk.choices[0].finish_reason;
+        }
       }
-      if (chunk.choices[0]?.finish_reason) {
-        finishReason = chunk.choices[0].finish_reason;
-      }
+
+      return { content: content || null, toolCalls: toolCalls.filter(Boolean), finishReason };
     }
 
-    return { content: content || null, toolCalls: toolCalls.filter(Boolean), finishReason };
+    const response = await getClientForModel(model, ctx.tenantApiKey).chat.completions.create(
+      opts as never,
+      { signal: AbortSignal.timeout(LLM_TIMEOUT_MS) },
+    );
+    const choice = response.choices[0];
+    return {
+      content: choice?.message.content ?? null,
+      toolCalls: choice?.message.tool_calls ?? [],
+      finishReason: choice?.finish_reason ?? null,
+      usage: response.usage as { total_tokens?: number } | undefined,
+    };
+  } finally {
+    if (isOllamaModel) ollamaInflight--;
   }
-
-  const response = await getClientForModel(model, ctx.tenantApiKey).chat.completions.create(
-    opts as never,
-    {
-      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
-    },
-  );
-  const choice = response.choices[0];
-  return {
-    content: choice?.message.content ?? null,
-    toolCalls: choice?.message.tool_calls ?? [],
-    finishReason: choice?.finish_reason ?? null,
-    usage: response.usage as { total_tokens?: number } | undefined,
-  };
 }

@@ -3,6 +3,7 @@
  */
 
 import { logActivity } from '../activity-logger.js';
+import { classifyAndExecute } from '../intent-classifier.js';
 import { classifyComplexity, selectModel } from '../model-router.js';
 import { getToolsForModules } from '../tools/index.js';
 import type { HandlerContext, Middleware } from './types.js';
@@ -33,6 +34,23 @@ export const routingMiddleware: Middleware = {
             ctx.sanitizedMessage,
           )));
     ctx.isComplexQuery = reactEnabled;
+
+    // ── S2.1 — Intent short-circuit (before LLM) ──────────────────────────
+    // Only try if message is not complex and not a multi-hop query
+    if (!ctx.isComplexQuery && ctx.sanitizedMessage.length < 200) {
+      try {
+        const classified = await classifyAndExecute(ctx.sanitizedMessage, ctx.sessionId);
+        if (classified) {
+          ctx.response = classified.response;
+          ctx.shortCircuited = true;
+          ctx.toolsUsed = [classified.intentType];
+          await next();
+          return;
+        }
+      } catch {
+        // Non-fatal: if classifier throws, continue with normal LLM pipeline
+      }
+    }
 
     // Log module detection
     logActivity(

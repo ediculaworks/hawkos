@@ -1,5 +1,8 @@
 // Automation: Weekly Review
-// Resumo completo da semana — horário configurável via agent_settings
+// Resumo interactivo da semana com botões de navegação.
+// Fase 1: Recap (hábitos, humor, objetivos) + botão [Continuar]
+// Fase 2: Perguntas de reflexão com botões de resposta rápida
+// Fase 3: Modal para foco da próxima semana → salva como memory
 
 import { db } from '@hawk/db';
 import { type JournalEntry, getJournalStats, listEntriesByPeriod } from '@hawk/module-journal';
@@ -9,6 +12,54 @@ import cron, { type ScheduledTask } from 'node-cron';
 import { sendToChannel } from '../channels/discord.js';
 import { isAutomationEnabled, markAutomationRun } from './config.js';
 import { type CronTenantCtx, resolveChannel, scopedCron } from './resolve-channel.js';
+
+// ── Interactive review state ─────────────────────────────────────────────────
+// In-memory map: reviewId → state. TTL: 30 minutes.
+
+export interface ReviewState {
+  slug: string;
+  schemaName: string;
+  weekLabel: string;
+  recap: string;
+  weekRating?: string;
+  expiresAt: number;
+}
+
+const REVIEW_TTL_MS = 30 * 60 * 1000;
+const reviewSessions = new Map<string, ReviewState>();
+
+/** Get and validate a review session (auto-expires). */
+export function getReviewState(reviewId: string): ReviewState | null {
+  const state = reviewSessions.get(reviewId);
+  if (!state) return null;
+  if (Date.now() > state.expiresAt) {
+    reviewSessions.delete(reviewId);
+    return null;
+  }
+  return state;
+}
+
+/** Update a review session field. */
+export function updateReviewState(reviewId: string, patch: Partial<ReviewState>): void {
+  const state = reviewSessions.get(reviewId);
+  if (state) reviewSessions.set(reviewId, { ...state, ...patch });
+}
+
+/** Remove a completed/expired review session. */
+export function deleteReviewState(reviewId: string): void {
+  reviewSessions.delete(reviewId);
+}
+
+// Periodically clean expired sessions
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [id, state] of reviewSessions) {
+      if (now > state.expiresAt) reviewSessions.delete(id);
+    }
+  },
+  5 * 60 * 1000,
+);
 
 interface WeeklyReviewSettings {
   weekly_review_enabled: boolean;
@@ -30,11 +81,89 @@ async function getWeeklyReviewSettings(): Promise<WeeklyReviewSettings> {
   }
 }
 
-export async function sendWeeklyReview(slug?: string): Promise<void> {
-  const channelId = resolveChannel(slug);
-  if (!channelId) {
-    return;
+/** Build the recap text (Phase 1 content). Pure data → no side effects. */
+export function buildWeekRecap(
+  weekLabel: string,
+  habitSummaries: HabitWeekSummary[],
+  journalEntries: JournalEntry[],
+  journalStats: { avg_mood?: number | null },
+  allObjectives: Objective[],
+): string {
+  const sections: string[] = [`📊 **Review Semanal (${weekLabel})**`];
+
+  if (habitSummaries.length > 0) {
+    const habitLines = habitSummaries.map((s: HabitWeekSummary) => {
+      const pct = s.completion_rate;
+      const status = pct >= 100 ? '✅' : pct >= 70 ? '⚠️' : '❌';
+      const icon = s.habit.icon ?? '';
+      const streakInfo = s.habit.current_streak > 0 ? ` (streak: ${s.habit.current_streak})` : '';
+      return `${status} ${icon}${s.habit.name}: ${s.week_completions}/${s.week_target} (${pct}%)${streakInfo}`;
+    });
+    sections.push(`**HÁBITOS:**\n${habitLines.join('\n')}`);
   }
+
+  const dailyEntries = journalEntries.filter((e: JournalEntry) => e.type === 'daily');
+  if (dailyEntries.length > 0 || journalStats.avg_mood) {
+    const moodEntries = dailyEntries.filter((e: JournalEntry) => e.mood !== null);
+    const avgMood =
+      moodEntries.length > 0
+        ? moodEntries.reduce((sum: number, e: JournalEntry) => sum + (e.mood ?? 0), 0) /
+          moodEntries.length
+        : null;
+    const energyEntries = dailyEntries.filter((e: JournalEntry) => e.energy !== null);
+    const avgEnergy =
+      energyEntries.length > 0
+        ? energyEntries.reduce((sum: number, e: JournalEntry) => sum + (e.energy ?? 0), 0) /
+          energyEntries.length
+        : null;
+    const bestMoodEntry = moodEntries.sort(
+      (a: JournalEntry, b: JournalEntry) => (b.mood ?? 0) - (a.mood ?? 0),
+    )[0];
+    const bestDay = bestMoodEntry
+      ? new Date(bestMoodEntry.date).toLocaleDateString('pt-BR', { weekday: 'long' })
+      : null;
+
+    const diaryLines: string[] = [`${dailyEntries.length} entradas registradas`];
+    if (avgMood) diaryLines.push(`Humor médio: ${avgMood.toFixed(1)}/10`);
+    if (avgEnergy) diaryLines.push(`Energia média: ${avgEnergy.toFixed(1)}/10`);
+    if (bestDay) diaryLines.push(`Melhor dia: ${bestDay} (humor ${bestMoodEntry?.mood})`);
+    sections.push(`**DIÁRIO:**\n${diaryLines.join('\n')}`);
+  }
+
+  if (allObjectives.length > 0) {
+    const objLines = allObjectives.map((o: Objective) => {
+      const pct = o.progress;
+      const bar = `${'█'.repeat(Math.round(pct / 10))}${'░'.repeat(10 - Math.round(pct / 10))}`;
+      return `• ${o.title}: [${bar}] ${pct}%`;
+    });
+    sections.push(`**OBJETIVOS (alta prioridade):**\n${objLines.join('\n')}`);
+  }
+
+  const suggestions: string[] = [];
+  const weakHabits = habitSummaries.filter((s: HabitWeekSummary) => s.completion_rate < 70);
+  if (weakHabits.length > 0) {
+    suggestions.push(
+      `→ Atenção: ${weakHabits.map((s: HabitWeekSummary) => s.habit.name).join(', ')} abaixo de 70%`,
+    );
+  }
+  const stagnantObjectives = allObjectives.filter(
+    (o: Objective) => o.progress === 0 && o.priority >= 8,
+  );
+  if (stagnantObjectives.length > 0) {
+    suggestions.push(
+      `→ Sem progresso: ${stagnantObjectives.map((o: Objective) => o.title).join(', ')}`,
+    );
+  }
+  if (suggestions.length > 0) {
+    sections.push(`**FOCO SUGERIDO:**\n${suggestions.join('\n')}`);
+  }
+
+  return sections.join('\n\n');
+}
+
+export async function sendWeeklyReview(slug?: string, schemaName?: string): Promise<void> {
+  const channelId = resolveChannel(slug);
+  if (!channelId) return;
 
   // Check web UI toggle (automation_configs) + agent_settings
   if (!(await isAutomationEnabled('weekly-review'))) return;
@@ -58,50 +187,6 @@ export async function sendWeeklyReview(slug?: string): Promise<void> {
     listObjectivesByTimeframe(),
   ]);
 
-  const sections: string[] = [`📊 **Review Semanal (${weekLabel})**`];
-
-  if (habitSummaries.length > 0) {
-    const habitLines = habitSummaries.map((s: HabitWeekSummary) => {
-      const pct = s.completion_rate;
-      const status = pct >= 100 ? '✅' : pct >= 70 ? '⚠️' : '❌';
-      const icon = s.habit.icon ?? '';
-      const streakInfo = s.habit.current_streak > 0 ? ` (streak: ${s.habit.current_streak})` : '';
-      return `${status} ${icon}${s.habit.name}: ${s.week_completions}/${s.week_target} (${pct}%)${streakInfo}`;
-    });
-    sections.push(`**HÁBITOS:**\n${habitLines.join('\n')}`);
-  }
-
-  const dailyEntries = journalEntries.filter((e: JournalEntry) => e.type === 'daily');
-  if (dailyEntries.length > 0 || journalStats.avg_mood) {
-    const moodEntries = dailyEntries.filter((e: JournalEntry) => e.mood !== null);
-    const avgMood =
-      moodEntries.length > 0
-        ? moodEntries.reduce((sum: number, e: JournalEntry) => sum + (e.mood ?? 0), 0) /
-          moodEntries.length
-        : null;
-
-    const energyEntries = dailyEntries.filter((e: JournalEntry) => e.energy !== null);
-    const avgEnergy =
-      energyEntries.length > 0
-        ? energyEntries.reduce((sum: number, e: JournalEntry) => sum + (e.energy ?? 0), 0) /
-          energyEntries.length
-        : null;
-
-    const bestMoodEntry = moodEntries.sort(
-      (a: JournalEntry, b: JournalEntry) => (b.mood ?? 0) - (a.mood ?? 0),
-    )[0];
-    const bestDay = bestMoodEntry
-      ? new Date(bestMoodEntry.date).toLocaleDateString('pt-BR', { weekday: 'long' })
-      : null;
-
-    const diaryLines: string[] = [`${dailyEntries.length} entradas registradas`];
-    if (avgMood) diaryLines.push(`Humor médio: ${avgMood.toFixed(1)}/10`);
-    if (avgEnergy) diaryLines.push(`Energia média: ${avgEnergy.toFixed(1)}/10`);
-    if (bestDay) diaryLines.push(`Melhor dia: ${bestDay} (humor ${bestMoodEntry?.mood})`);
-
-    sections.push(`**DIÁRIO:**\n${diaryLines.join('\n')}`);
-  }
-
   const allObjectives = [
     ...objectivesByTimeframe.short,
     ...objectivesByTimeframe.medium,
@@ -110,39 +195,49 @@ export async function sendWeeklyReview(slug?: string): Promise<void> {
     .filter((o: Objective) => o.priority >= 7)
     .slice(0, 6);
 
-  if (allObjectives.length > 0) {
-    const objLines = allObjectives.map((o: Objective) => {
-      const pct = o.progress;
-      const bar = `${'█'.repeat(Math.round(pct / 10))}${'░'.repeat(10 - Math.round(pct / 10))}`;
-      return `• ${o.title}: [${bar}] ${pct}%`;
-    });
-    sections.push(`**OBJETIVOS (alta prioridade):**\n${objLines.join('\n')}`);
-  }
-
-  const suggestions: string[] = [];
-
-  const weakHabits = habitSummaries.filter((s: HabitWeekSummary) => s.completion_rate < 70);
-  if (weakHabits.length > 0) {
-    suggestions.push(
-      `→ Atenção: ${weakHabits.map((s: HabitWeekSummary) => s.habit.name).join(', ')} abaixo de 70%`,
-    );
-  }
-
-  const stagnantObjectives = allObjectives.filter(
-    (o: Objective) => o.progress === 0 && o.priority >= 8,
+  const recap = buildWeekRecap(
+    weekLabel,
+    habitSummaries,
+    journalEntries,
+    journalStats,
+    allObjectives,
   );
-  if (stagnantObjectives.length > 0) {
-    suggestions.push(
-      `→ Sem progresso: ${stagnantObjectives.map((o: Objective) => o.title).join(', ')}`,
+
+  // ── S5.3 — Interactive Phase 1: Recap + [Continuar] button ──────────────
+  // Register review session for button interaction
+  const reviewId = `${slug ?? 'local'}_${Date.now()}`;
+  reviewSessions.set(reviewId, {
+    slug: slug ?? 'local',
+    schemaName: schemaName ?? '',
+    weekLabel,
+    recap,
+    expiresAt: Date.now() + REVIEW_TTL_MS,
+  });
+
+  // Send recap with Continue button via Discord adapter (channel send)
+  // The button handler in discord.ts will pick up review:next:{reviewId}
+  const { sendToChannelWithComponents } = await import('../channels/discord.js').catch(() => ({
+    sendToChannelWithComponents: null,
+  }));
+
+  if (sendToChannelWithComponents) {
+    await sendToChannelWithComponents(
+      channelId,
+      recap,
+      [
+        {
+          type: 'button',
+          customId: `review:next:${reviewId}`,
+          label: 'Continuar →',
+          style: 'primary',
+        },
+      ],
+      slug,
     );
+  } else {
+    // Fallback: plain text (no Discord connection)
+    await sendToChannel(channelId, recap, slug);
   }
-
-  if (suggestions.length > 0) {
-    sections.push(`**FOCO SUGERIDO:**\n${suggestions.join('\n')}`);
-  }
-
-  const message = sections.join('\n\n');
-  await sendToChannel(channelId, message, slug);
 }
 
 let _weeklyRunning = false;

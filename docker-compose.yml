@@ -131,6 +131,8 @@ services:
     restart: unless-stopped
     environment:
       OLLAMA_HOST: '0.0.0.0:11434'
+      OLLAMA_NUM_PARALLEL: '2'    # allow 2 concurrent requests (aligns with MAX_OLLAMA_CONCURRENT)
+      OLLAMA_KEEP_ALIVE: '30m'    # keep model in RAM between requests (default is 5m)
     volumes:
       - ollama_data:/root/.ollama
     deploy:

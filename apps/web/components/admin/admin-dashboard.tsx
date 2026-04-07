@@ -50,6 +50,7 @@ interface AdminDashboardProps {
     todayCost: number;
     memoryCount: number;
     lastActivity: string | null;
+    discordOnline: boolean | null;
   }>;
   activity: Array<{
     id: string;
@@ -303,6 +304,9 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
                 <th className="text-left px-[var(--space-4)] py-[var(--space-2)] font-medium">
                   Status
                 </th>
+                <th className="text-left px-[var(--space-4)] py-[var(--space-2)] font-medium">
+                  Discord
+                </th>
                 <th className="text-right px-[var(--space-4)] py-[var(--space-2)] font-medium">
                   LLM Calls
                 </th>
@@ -360,6 +364,21 @@ export function AdminDashboard({ overview, tenants, activity }: AdminDashboardPr
                     >
                       {t.status}
                     </span>
+                  </td>
+                  <td className="px-[var(--space-4)] py-[var(--space-3)]">
+                    {t.discordOnline === null ? (
+                      <span className="text-[var(--color-text-muted)] text-[10px]">—</span>
+                    ) : t.discordOnline ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        online
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-zinc-500">
+                        <span className="h-1.5 w-1.5 rounded-full bg-zinc-500" />
+                        offline
+                      </span>
+                    )}
                   </td>
                   <td className="px-[var(--space-4)] py-[var(--space-3)] text-right text-[var(--color-text-secondary)] tabular-nums">
                     {t.todayMessages}

@@ -31,9 +31,7 @@ const STATUS_CONFIG = {
   },
 } as const;
 
-function getStatus(definition: IntegrationDefinition, summary: IntegrationSummary | undefined) {
-  // Google is deferred
-  if (definition.provider === 'google') return STATUS_CONFIG.coming_soon;
+function getStatus(_definition: IntegrationDefinition, summary: IntegrationSummary | undefined) {
   if (!summary?.configured) return STATUS_CONFIG.not_configured;
   if (!summary.enabled) return STATUS_CONFIG.disabled;
   return STATUS_CONFIG.connected;
@@ -84,7 +82,14 @@ export function IntegrationCard({
         {isConfigured && !isGoogle && (
           <Switch checked={summary?.enabled ?? false} onCheckedChange={onToggle} />
         )}
-        {!isGoogle && (
+        {isGoogle ? (
+          <a
+            href="/api/integrations/google-calendar/connect"
+            className="px-2 py-1 text-xs rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-accent)] transition-colors"
+          >
+            {isConfigured ? 'Reconectar' : 'Conectar'}
+          </a>
+        ) : (
           <button
             type="button"
             onClick={onConfigure}

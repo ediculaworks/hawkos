@@ -5,6 +5,7 @@ import {
   Brain,
   Calendar,
   CheckSquare,
+  Clock,
   DollarSign,
   Heart,
   Home,
@@ -12,6 +13,7 @@ import {
   ListChecks,
   MessageSquare,
   Rocket,
+  Settings2,
   Target,
   Users,
   Wallet,
@@ -256,6 +258,28 @@ export const WIDGET_REGISTRY: Record<string, WidgetEntry> = {
     minSize: { w: 2, h: 2 },
     maxSize: { w: 4, h: 5 },
     component: () => import('@/components/widgets/agent/error-summary'),
+  },
+  // ── S5.1 — Pending Intents ───────────────────────────────────────────────
+  'pending-intents': {
+    id: 'pending-intents',
+    moduleId: 'memory',
+    title: 'Pendentes',
+    icon: Clock,
+    defaultSize: { w: 3, h: 3 },
+    minSize: { w: 2, h: 2 },
+    maxSize: { w: 4, h: 5 },
+    component: () => import('@/components/widgets/agent/pending-intents'),
+  },
+  // ── S4.2 — Data Completeness ──────────────────────────────────────────────
+  'system-completeness': {
+    id: 'system-completeness',
+    moduleId: 'memory',
+    title: 'Configuração',
+    icon: Settings2,
+    defaultSize: { w: 3, h: 4 },
+    minSize: { w: 2, h: 3 },
+    maxSize: { w: 4, h: 6 },
+    component: () => import('@/components/widgets/system/completeness-widget'),
   },
 };
 

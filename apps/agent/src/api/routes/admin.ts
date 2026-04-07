@@ -112,14 +112,20 @@ export async function handleAdminRoute(
   // GET /admin/tenants
   if (path === '/admin/tenants' && method === 'GET') {
     const { tenantManager } = await import('../../tenant-manager.js');
-    const tenants = tenantManager.getAll().map((t) => ({
-      slug: t.slug,
-      schemaName: t.schemaName,
-      status: t.status,
-      lastError: t.lastError,
-      cronTasks: t.cronTasks.length,
-      hasDiscord: !!t.discordClient,
-    }));
+    const tenants = tenantManager.getAll().map((t) => {
+      // Check if Discord client is connected and ready
+      const discordClient = t.discordClient as { isReady?: () => boolean } | undefined;
+      const discordOnline = !!discordClient?.isReady?.();
+      return {
+        slug: t.slug,
+        schemaName: t.schemaName,
+        status: t.status,
+        lastError: t.lastError,
+        cronTasks: t.cronTasks.length,
+        hasDiscord: !!t.discordClient,
+        discordOnline,
+      };
+    });
     return new Response(JSON.stringify({ tenants, count: tenants.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

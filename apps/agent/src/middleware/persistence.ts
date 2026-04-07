@@ -62,8 +62,9 @@ export const persistenceMiddleware: Middleware = {
       }).catch((err) => console.warn('[middleware:persistence] Failed to log tools:', err));
     }
 
-    // Log session cost
+    // Log session cost — S4.3: include intent_category for cost-by-intent analysis
     if (ctx.sessionCost) {
+      const intentCategory = ctx.shortCircuited ? 'short_circuit' : (ctx.complexity ?? 'simple');
       logActivity(
         'session_cost',
         `tokens=${ctx.sessionCost.totalTokens} calls=${ctx.sessionCost.llmCalls} tools=${ctx.sessionCost.toolCalls}`,
@@ -72,11 +73,36 @@ export const persistenceMiddleware: Middleware = {
           ...ctx.sessionCost,
           session_id: ctx.sessionId,
           is_complex: ctx.isComplexQuery,
+          intent_category: intentCategory,
         },
       ).catch((err) => console.warn('[middleware:persistence] Failed to log session cost:', err));
       persistUsage().catch((err) =>
         console.warn('[middleware:persistence] Failed to persist usage:', err),
       );
+    }
+
+    // ── S4.4 — Assistance failure detection ─────────────────────────────────
+    // Log when the agent fails to help: unhelpful phrases, no tools used on complex queries
+    const failurePatterns =
+      /não (tenho|sei|encontrei|consigo|posso)|sem dados|dados insuficientes|não (foi possível|consigo)|nenhum dado/i;
+    const isUnhelpfulResponse = ctx.response ? failurePatterns.test(ctx.response) : false;
+    const isToollessComplex =
+      ctx.isComplexQuery && ctx.toolsUsed.length === 0 && !ctx.shortCircuited;
+    if (isUnhelpfulResponse || isToollessComplex) {
+      const reason = isUnhelpfulResponse ? 'unhelpful_response' : 'toolless_complex';
+      logActivity(
+        'assistance_failure',
+        `${reason}: ${ctx.sanitizedMessage.slice(0, 100)}`,
+        ctx.allowedModules[0],
+        {
+          reason,
+          session_id: ctx.sessionId,
+          modules: ctx.allowedModules,
+          tools_used: ctx.toolsUsed,
+          complexity: ctx.complexity,
+          response_preview: ctx.response?.slice(0, 200),
+        },
+      ).catch(() => {});
     }
 
     // Persist trace spans for observability

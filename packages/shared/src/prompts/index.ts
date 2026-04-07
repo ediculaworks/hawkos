@@ -70,7 +70,9 @@ export function renderPattern(
   const unresolved = result.match(/\{\{[a-zA-Z_][a-zA-Z0-9_]*\}\}/g);
   if (unresolved) {
     // biome-ignore lint/suspicious/noConsole: intentional developer warning for unresolved template vars
-    console.warn(`[prompts] renderPattern "${pattern.id}": unresolved placeholders: ${unresolved.join(', ')}`);
+    console.warn(
+      `[prompts] renderPattern "${pattern.id}": unresolved placeholders: ${unresolved.join(', ')}`,
+    );
   }
 
   return result;

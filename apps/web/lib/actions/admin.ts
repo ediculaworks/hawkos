@@ -40,6 +40,27 @@ export async function fetchTenantList() {
   await requireAdmin();
   const sql = getPool();
 
+  // Fetch Discord online status from agent API (best-effort)
+  const discordStatusMap = new Map<string, boolean>();
+  try {
+    const agentUrl = process.env.AGENT_INTERNAL_URL ?? 'http://localhost:3001';
+    const agentSecret = process.env.AGENT_API_SECRET;
+    const res = await fetch(`${agentUrl}/admin/tenants`, {
+      headers: agentSecret ? { 'X-Agent-Secret': agentSecret } : {},
+      signal: AbortSignal.timeout(2000),
+    });
+    if (res.ok) {
+      const body = (await res.json()) as {
+        tenants?: Array<{ slug: string; discordOnline: boolean }>;
+      };
+      for (const t of body.tenants ?? []) {
+        discordStatusMap.set(t.slug, t.discordOnline);
+      }
+    }
+  } catch {
+    // Agent API unreachable — show unknown status
+  }
+
   const rows = await sql.unsafe(`
     SELECT t.id, t.slug, t.label, t.status, t.schema_name, t.owner_email, t.created_at, t.updated_at,
            COALESCE(m.messages_count, 0) as today_messages,
@@ -74,9 +95,10 @@ export async function fetchTenantList() {
       /* no activity yet */
     }
 
+    const slug = String(row.slug);
     result.push({
       id: String(row.id),
-      slug: String(row.slug),
+      slug,
       label: String(row.label ?? ''),
       status: String(row.status),
       schemaName: String(row.schema_name),
@@ -88,6 +110,7 @@ export async function fetchTenantList() {
       todayCost: Number(row.today_cost),
       memoryCount,
       lastActivity,
+      discordOnline: discordStatusMap.get(slug) ?? null,
     });
   }
 

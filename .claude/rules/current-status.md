@@ -2,6 +2,176 @@
 
 **Ultima atualizacao:** 2026-04-09
 
+## Sprint 5 — Onboarding & Integração (2026-04-09)
+**Status: [✅ Completo — commit local, pendente deploy]**
+
+### S5.1 — Fila de Ações Pendentes
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Tool `list_pending` | `apps/agent/src/tools/universal.ts` | Queries `pending_intents` onde status='pending', formata lista numerada com descrição + prerequisite_message |
+| Slash command `/pendentes` | `apps/agent/src/channels/module-commands.ts` | Lista intents pendentes com botões "▶ Executar #N" por intent |
+| Button handler | `apps/agent/src/channels/discord.ts` | `handleExecIntentButton()` — executa tool da intent, marca como 'resolved' |
+| Server actions | `apps/web/lib/actions/pending.ts` | `fetchPendingIntents()` + `dismissPendingIntent()` via SQL direto |
+| Widget web | `apps/web/components/widgets/agent/pending-intents.tsx` | Lista de intents pendentes com botão X para dispensar |
+| Widget registry | `apps/web/lib/widgets/registry.ts` | `pending-intents` registado com moduleId: 'memory', 3×3 |
+
+### S5.2 — 7-Day Onboarding Intelligence
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Migration | `packages/db/supabase/migrations/20260422400000_s5_onboarding_sequence.sql` | Coluna `onboarding_completed_at TIMESTAMPTZ` na tabela `profile` |
+| Automation | `apps/agent/src/automations/onboarding-sequence.ts` | Cron diário 10:00 — envia pergunta de onboarding se dentro dos 14 dias após completar onboarding; pausa se 1+ pergunta ignorada |
+| Tool `answer_onboarding` | `apps/agent/src/tools/universal.ts` | Marca pergunta como respondida + guarda como memory |
+| Wiring | `apps/agent/src/index.ts` | `startOnboardingSequenceCron(tenantCtx)` em `startTenantCrons()` |
+
+### S5.3 — Weekly Review Interativa
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Estado em memória | `apps/agent/src/automations/weekly-review.ts` | `ReviewState` + `reviewSessions` Map com TTL 30min |
+| Fase 1 (Recap) | `apps/agent/src/automations/weekly-review.ts` | Envia sumário semanal + botão "Continuar →" (customId: `review:next:{id}`) |
+| Fase 2 (Avaliação) | `apps/agent/src/channels/discord.ts` | `handleReviewButton()` — 4 botões de rating (Excelente/Boa/Normal/Difícil) |
+| Fase 3 (Foco) | `apps/agent/src/channels/discord.ts` | Modal de texto para foco da próxima semana; `handleReviewFocusModal()` guarda como memory tipo 'event' |
+
+### S5.4 — Google Calendar Sync
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| OAuth connect | `apps/web/app/api/integrations/google-calendar/connect/route.ts` | Gera state HMAC, redireciona para Google OAuth |
+| OAuth callback | `apps/web/app/api/integrations/google-calendar/callback/route.ts` | Troca code por tokens, busca calendar ID, guarda em `calendar_sync_config` |
+| Google sync module | `packages/modules/calendar/google-sync.ts` | Import/export Google Events com sync incremental (syncToken) + auto-refresh de tokens |
+| Sync automation | `apps/agent/src/automations/calendar-sync.ts` | Cron `*/5 * * * *` — sync incremental se Google Calendar conectado |
+| Migration | `packages/db/supabase/migrations/20260422500000_s5_calendar_sync.sql` | Coluna `provider TEXT DEFAULT 'google'` + índice em `calendar_sync_config` |
+| Settings UI | `apps/web/components/settings/integrations/integration-card.tsx` | Botão "Conectar"/"Reconectar" para Google (link OAuth em vez de form) |
+
+### Deploy necessário
+```bash
+bun db:migrate  # aplicar migrations 20260422400000 + 20260422500000 (por schema)
+# Vars de ambiente necessárias: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, NEXT_PUBLIC_APP_URL
+# depois push + deploy agent + web na VPS
+```
+
+---
+
+## Sprint 4 — Observability (2026-04-09)
+**Status: [✅ Completo — commit local, pendente deploy]**
+
+### S4.1 — Discord Online Status
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Agent API endpoint | `apps/agent/src/api/routes/admin.ts` | `GET /admin/tenants` inclui `discordOnline: client.isReady()` por tenant |
+| Web server action | `apps/web/lib/actions/admin.ts` | `fetchTenantList()` faz fetch ao agent API (2s timeout, best-effort) para `discordOnline` por slug |
+| Admin dashboard | `apps/web/components/admin/admin-dashboard.tsx` | Coluna "Discord" com dot verde/cinza por tenant |
+
+### S4.2 — Data Completeness Widget
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Server action | `apps/web/lib/actions/completeness.ts` | `fetchCompletenessReport()` — 10 COUNT queries para 7 módulos (finances, health, people, objectives, routine, calendar, legal) |
+| Widget | `apps/web/components/widgets/system/completeness-widget.tsx` | SVG ring chart + lista de módulos com dots coloridos e links para dados em falta |
+| Registry | `apps/web/lib/widgets/registry.ts` | `system-completeness` widget registado |
+
+### S4.3 — Cost-by-Intent Tracking
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Middleware | `apps/agent/src/middleware/persistence.ts` | `intent_category` (short_circuit / simple / moderate / complex) incluído nos metadados do event `session_cost` |
+
+### S4.4 — Assistance Failure Detection
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Migration | `packages/db/supabase/migrations/20260422300000_s4_observability.sql` | Adiciona `assistance_failure` ao CHECK constraint de `activity_log.event_type` + índice parcial |
+| Middleware | `apps/agent/src/middleware/persistence.ts` | Detecta respostas com frases de não-ajuda (regex PT) e queries complexas sem tools → loga `assistance_failure` |
+
+### Deploy necessário
+```bash
+bun db:migrate  # aplicar migration assistance_failure (por schema)
+# depois push + deploy agent + web na VPS
+```
+
+---
+
+## Sprint 3 — Engagement (2026-04-09)
+**Status: [✅ Completo — commit local, pendente deploy]**
+
+### S3.1 — Notas de Voz
+**Já implementado** — `transcribeAudio()` em `apps/agent/src/channels/discord.ts` detecta attachments de áudio (ogg/audio/*), transcreve via Whisper (Groq ou OpenAI), processa transcrição no pipeline normal, e mostra a transcrição na resposta.
+
+### S3.2 — Natural Language Cron
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Migration | `packages/db/supabase/migrations/20260422200000_s3_*.sql` | Tabela `custom_automations(id, name, message, cron_expr, description, enabled, ...)` com RLS |
+| Gestor de crons | `apps/agent/src/automations/custom.ts` | `loadAndStartCustomAutomations()`, `startCustomCron()`, `stopCustomCron()`, `createCustomAutomation()`, `listCustomAutomations()`, `removeCustomAutomation()` |
+| Tool `create_reminder` | `apps/agent/src/tools/universal.ts` | LLM converte NL → cron expression, ferramenta insere na DB e regista o cron |
+| Tool `list_automations` | `apps/agent/src/tools/universal.ts` | Lista automações activas com status e schedule |
+| Tool `remove_automation` | `apps/agent/src/tools/universal.ts` | Desactiva por UUID completo ou prefixo 8 chars |
+| Wiring startup | `apps/agent/src/index.ts` | `registerTenantForCustomCrons()` + `loadAndStartCustomAutomations()` em `startTenantCrons()` |
+
+### S3.3 — Heartbeat Autonomy
+**Já implementado** — `apps/agent/src/automations/heartbeat.ts` (HEARTBEAT.md + 3 perfis: guardian/companion/silent) + `gap-scanner.ts` (detecção de gaps por módulo com perguntas LLM-geradas). Cobre os critérios do roadmap.
+
+### S3.4 — Offline Resilience
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Migration | `packages/db/supabase/migrations/20260422200000_s3_*.sql` | Tabela `pending_messages(id, channel_message_id UNIQUE, session_id, content, status, ...)` |
+| Track pending | `apps/agent/src/channels/discord.ts` | Antes de processar: `upsert pending_messages` com status='pending' (best-effort, non-blocking) |
+| Mark processed | `apps/agent/src/channels/discord.ts` | Após resposta enviada: update status='processed' |
+| Replay no startup | `apps/agent/src/index.ts` | `replayPendingMessages()` — expira msgs >1h, re-processa msgs 30s-60min pendentes |
+
+### Deploy necessário
+```bash
+bun db:migrate  # aplicar migrations custom_automations + pending_messages (por schema)
+# depois push + deploy agent na VPS
+```
+
+---
+
+## Sprint 2 — Cost Reduction (2026-04-09)
+**Status: [✅ Completo — commit local, pendente deploy]**
+
+Implementação completa de S2 do SPRINT-ROADMAP.md: Intent Short-Circuit, Discord Quick Actions e LLM Feedback Loop.
+
+### S2.1 — Intent Short-Circuit
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Classificador de intents | `apps/agent/src/intent-classifier.ts` | Regex PT para expense/income/sleep/financial-summary. Executa CRUD directo sem LLM. Regista undo, métricas |
+| Integração no routing | `apps/agent/src/middleware/routing.ts` | `classifyAndExecute()` antes do LLM para msgs não-complexas <200 chars. Flag `ctx.shortCircuited` |
+| Skip LLM | `apps/agent/src/middleware/llm.ts` | Se `ctx.shortCircuited && ctx.response !== null` → salta toda a pipeline LLM |
+| Tipos | `apps/agent/src/middleware/types.ts` | Campo `shortCircuited: boolean` em `HandlerContext` |
+
+### S2.2 — Discord Quick Actions
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| `/log` slash command | `apps/agent/src/channels/module-commands.ts` | `SlashCommandBuilder` com nome "log"; registado em `ALL_COMMANDS` |
+| Modal `/log` | `apps/agent/src/channels/discord.ts` | `showLogModal()` → modal com tipo/descrição/valor; `handleLogModal()` → cria transação |
+| Select Menu categorias | `apps/agent/src/channels/discord.ts` | `showTopExpenseCategories()` — após resposta de gasto, envia Select Menu com top 5 categorias de despesa |
+| Modal valor de categoria | `apps/agent/src/channels/discord.ts` | `handleCategorySelect()` → modal de valor; `handleExpenseAmountModal()` → cria transação |
+| InteractionCreate routing | `apps/agent/src/channels/discord.ts` | `isStringSelectMenu()` → handleCategorySelect; `isModalSubmit()` → handleLogModal / handleExpenseAmountModal; `/log` interceptado antes de handleSlashCommand |
+| Intents GuildMessageReactions | `apps/agent/src/channels/discord.ts` | Adicionado `GatewayIntentBits.GuildMessageReactions` + `Partials.Reaction`, `Partials.User` |
+
+### S2.3 — LLM Feedback Loop
+
+| Componente | Ficheiro | Detalhe |
+|---|---|---|
+| Tracking de mensagens do bot | `apps/agent/src/channels/discord.ts` | `botMessageMeta` Map (messageId → {schemaName, sessionId}); reações 👍/👎 adicionadas automaticamente a cada resposta |
+| Reaction handler | `apps/agent/src/channels/discord.ts` | `Events.MessageReactionAdd` → persiste `response_feedback` na DB do tenant correcto |
+| Migration | `packages/db/supabase/migrations/20260422100000_s2_response_feedback.sql` | Tabela `response_feedback(id, message_id, rating, module_id, session_id, created_at)` com RLS |
+
+### Deploy necessário
+```bash
+bun db:migrate  # aplicar migration response_feedback (por schema)
+# depois push + deploy agent na VPS
+```
+
+---
+
 ## Participatory Memory System (2026-04-09)
 **Status: [✅ Completo — deployado na VPS]**
 

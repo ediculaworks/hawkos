@@ -332,6 +332,127 @@ export const universalTools: Record<string, ToolDefinition> = {
     },
   },
 
+  // ── S3.2 — Custom Automations (Natural Language Cron) ──────────────────────
+
+  create_reminder: {
+    name: 'create_reminder',
+    modules: [],
+    description:
+      'Cria um lembrete ou automação recorrente. O LLM converte o horário natural em cron expression.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Nome curto do lembrete (ex: "Budget semanal")' },
+        message: {
+          type: 'string',
+          description: 'Mensagem que o agente receberá quando o lembrete disparar',
+        },
+        cron_expr: {
+          type: 'string',
+          description:
+            'Expressão cron POSIX (ex: "0 9 * * 1" = toda segunda às 9h, "0 20 * * 0" = todo domingo às 20h)',
+        },
+        description: {
+          type: 'string',
+          description: 'Descrição legível do schedule (ex: "Toda segunda às 9h")',
+        },
+      },
+      required: ['name', 'message', 'cron_expr'],
+    },
+    schema: z.object({
+      name: z.string().min(1).max(100),
+      message: z.string().min(1).max(500),
+      cron_expr: z.string().min(5).max(100),
+      description: z.string().max(200).optional(),
+    }),
+    handler: async (args: {
+      name: string;
+      message: string;
+      cron_expr: string;
+      description?: string;
+    }) => {
+      const { createCustomAutomation } = await import('../automations/custom.js');
+      return createCustomAutomation(args);
+    },
+  },
+
+  list_automations: {
+    name: 'list_automations',
+    modules: [],
+    description: 'Lista todos os lembretes e automações configurados',
+    parameters: { type: 'object', properties: {} },
+    schema: z.object({}),
+    handler: async () => {
+      const { listCustomAutomations } = await import('../automations/custom.js');
+      return listCustomAutomations();
+    },
+  },
+
+  remove_automation: {
+    name: 'remove_automation',
+    modules: [],
+    description: 'Remove (desactiva) um lembrete ou automação pelo ID',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          description:
+            'UUID completo ou prefixo de 8 chars do lembrete (visível em list_automations)',
+        },
+      },
+      required: ['id'],
+    },
+    schema: z.object({ id: z.string().min(8) }),
+    handler: async (args: { id: string }) => {
+      // Support 8-char prefix lookup
+      if (args.id.length === 8) {
+        const { data } = await db
+          .from('custom_automations')
+          .select('id')
+          .ilike('id', `${args.id}%`)
+          .limit(1)
+          .single();
+        if (!data) return '❌ Lembrete não encontrado.';
+        args.id = (data as { id: string }).id;
+      }
+      const { removeCustomAutomation } = await import('../automations/custom.js');
+      return removeCustomAutomation(args.id);
+    },
+  },
+
+  // ── S5.1 — Pending Actions Queue ────────────────────────────────────────────
+
+  list_pending: {
+    name: 'list_pending',
+    modules: [],
+    description: 'Lista as ações pendentes que aguardam pré-requisitos para serem executadas',
+    parameters: { type: 'object', properties: {} },
+    schema: z.object({}),
+    handler: async () => {
+      const { data } = await db
+        .from('pending_intents')
+        .select('id, description, prerequisite_message, created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (!data || data.length === 0) return '✅ Nenhuma ação pendente.';
+
+      const rows = data as {
+        id: string;
+        description: string;
+        prerequisite_message: string;
+        created_at: string;
+      }[];
+      const lines = rows.map((r, i) => {
+        const date = new Date(r.created_at).toLocaleDateString('pt-BR');
+        return `${i + 1}. **${r.description}** (${date})\n   ⚠️ Aguarda: ${r.prerequisite_message}`;
+      });
+      return `**📋 Ações Pendentes (${rows.length}):**\n\n${lines.join('\n\n')}`;
+    },
+  },
+
   // ==== BRASILAPI ====
   lookup_cep: {
     name: 'lookup_cep',
